@@ -62,6 +62,17 @@ class RetrofitClient(subsonic: Subsonic) {
     companion object {
         /** Syntactically valid but unreachable; used only when no usable server URL is configured. */
         private const val PLACEHOLDER_BASE_URL = "https://localhost/rest/"
+
+        // Every API client builds its own OkHttpClient. They share one cache (two Cache objects on
+        // one directory corrupt it), one connection pool and one dispatcher. The cache has its
+        // own folder because OkHttp wipes its directory when the journal is corrupt.
+        private val sharedCache by lazy { Cache(java.io.File(App.getContext().cacheDir, "http"), 10L * 1024 * 1024) }
+        private val sharedPool = okhttp3.ConnectionPool()
+        // Home fires many section requests at once; keep the parallelism the separate clients had.
+        private val sharedDispatcher = okhttp3.Dispatcher().apply {
+            maxRequests = 64
+            maxRequestsPerHost = 16
+        }
     }
 
     private fun getOkHttpClient(): OkHttpClient {
@@ -86,7 +97,9 @@ class RetrofitClient(subsonic: Subsonic) {
             .addInterceptor(cacheUtil.offlineInterceptor)
             .addNetworkInterceptor(ServerHeaders.createInterceptor())
             // .addNetworkInterceptor(cacheUtil.onlineInterceptor)
-            .cache(getCache())
+            .cache(sharedCache)
+            .connectionPool(sharedPool)
+            .dispatcher(sharedDispatcher)
             .setupSsl()
             .build()
     }
@@ -99,11 +112,6 @@ class RetrofitClient(subsonic: Subsonic) {
             loggingInterceptor.setLevel(HttpLoggingInterceptor.Level.NONE)
         }
         return loggingInterceptor
-    }
-
-    private fun getCache(): Cache {
-        val cacheSize = 10 * 1024 * 1024
-        return Cache(App.getContext().cacheDir, cacheSize.toLong())
     }
 
     private fun OkHttpClient.Builder.setupSsl(): OkHttpClient.Builder {

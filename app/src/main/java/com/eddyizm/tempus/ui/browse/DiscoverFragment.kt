@@ -44,7 +44,7 @@ class DiscoverFragment : Fragment(), DiscoverActions {
             setContent {
                 BrowseTheme {
                     val state by model.state.collectAsState()
-                    DiscoverScreen(state, this@DiscoverFragment, requireActivity().onBackPressedDispatcher, onRetry = model::load)
+                    DiscoverScreen(state, this@DiscoverFragment, requireActivity().onBackPressedDispatcher, onRetry = { model.load(force = true) })
                 }
             }
         }

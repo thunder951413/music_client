@@ -23,7 +23,8 @@ public class CustomGlideModule extends AppGlideModule {
     public void applyOptions(@NonNull Context context, GlideBuilder builder) {
         int diskCacheSize = Preferences.getImageCacheSize() * 1024 * 1024;
         builder.setDiskCache(new InternalCacheDiskCacheFactory(context, "cache", diskCacheSize));
-        builder.setDefaultRequestOptions(new RequestOptions().format(DecodeFormat.PREFER_RGB_565));
+        // Full colour depth: RGB_565 bands the smooth gradients of cover art on large screens.
+        builder.setDefaultRequestOptions(new RequestOptions().format(DecodeFormat.PREFER_ARGB_8888));
     }
 
     @Override

@@ -34,6 +34,11 @@ import retrofit2.Callback;
 import retrofit2.Response;
 
 public class SearchingRepository {
+    // One shared worker: a new executor per search left an idle thread behind every query.
+    private static final java.util.concurrent.ExecutorService ALL_SONGS_EXECUTOR = Executors.newSingleThreadExecutor();
+    private static final java.util.concurrent.atomic.AtomicInteger ALL_SONGS_GENERATION = new java.util.concurrent.atomic.AtomicInteger();
+    /** Upper bound for the "all songs" result, so a one-letter query cannot pull a whole library. */
+    static final int ALL_SONGS_LIMIT = 2000;
     private final RecentSearchDao recentSearchDao = AppDatabase.getInstance().recentSearchDao();
 
     public MutableLiveData<SearchResult2> search2(String query) {
@@ -63,13 +68,14 @@ public class SearchingRepository {
     public MutableLiveData<SearchResult3> search3(SearchFragment sf, String query) {
         MutableLiveData<SearchResult3> result = new MutableLiveData<>();
 
-        Executors.newSingleThreadExecutor().execute(() -> {
+        int generation = ALL_SONGS_GENERATION.incrementAndGet();
+        ALL_SONGS_EXECUTOR.execute(() -> {
             List<Child> allSongs = new ArrayList<>();
             int offset = 0;
-            int limit = 1000;
+            int limit = 500;
             boolean hasMore = true;
 
-            while (hasMore) {
+            while (hasMore && offset < ALL_SONGS_LIMIT && generation == ALL_SONGS_GENERATION.get()) {
                 try {
                     Response<ApiResponse> response = App.getSubsonicClientInstance(false)
                             .getSearchingClient()
@@ -107,8 +113,9 @@ public class SearchingRepository {
             }
             pws.setDuration(duration);
 
+            if (generation != ALL_SONGS_GENERATION.get()) return;
             new Handler(Looper.getMainLooper()).post(() -> {
-                if (sf.getView() != null && sf.isAdded()) {
+                if (generation == ALL_SONGS_GENERATION.get() && sf.getView() != null && sf.isAdded()) {
                     pws.setName(sf.getView().getContext().getString(R.string.search_all_songs, String.valueOf(allSongs.size())));
                     sf.updateUI(lpws);
                 }

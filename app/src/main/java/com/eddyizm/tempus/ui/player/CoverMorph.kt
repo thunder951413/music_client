@@ -20,6 +20,7 @@ class CoverMorph(private val root: View, private val flying: ImageView) {
     private val target = RectF()
     private var hasSource = false
     private var hiddenSource: View? = null
+    private var hideToken = 0
 
     init {
         flying.outlineProvider = object : ViewOutlineProvider() {
@@ -54,7 +55,12 @@ class CoverMorph(private val root: View, private val flying: ImageView) {
                 width = endSize
                 height = endSize
             }
+            // Lay out now: waiting for the next pass would draw this frame at the old size.
+            val spec = View.MeasureSpec.makeMeasureSpec(endSize, View.MeasureSpec.EXACTLY)
+            flying.measure(spec, spec)
+            flying.layout(0, 0, endSize, endSize)
         }
+        hideToken++
         val size = lerp(source.width(), target.width(), offset)
         flying.pivotX = endSize / 2f
         flying.pivotY = endSize / 2f
@@ -71,10 +77,16 @@ class CoverMorph(private val root: View, private val flying: ImageView) {
 
     /** Ends any flight and restores both real covers. */
     fun land() {
-        flying.isVisible = false
         hiddenSource?.alpha = 1f
         hiddenSource = null
         PlayerMotion.setCoverInFlight(false)
+        if (!flying.isVisible) return
+        // Compose draws the disc label on a later frame; hiding the overlay at once leaves a
+        // frame with no artwork, which reads as a hitch. Keep it two frames longer.
+        val token = ++hideToken
+        flying.postOnAnimation {
+            flying.postOnAnimation { if (token == hideToken) flying.isVisible = false }
+        }
     }
 
     private fun measure(view: View, out: RectF): Boolean {

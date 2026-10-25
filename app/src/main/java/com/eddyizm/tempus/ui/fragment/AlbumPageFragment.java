@@ -383,6 +383,7 @@ public class AlbumPageFragment extends Fragment implements ClickCallback {
         albumPageViewModel.getAlbum().observe(getViewLifecycleOwner(), album -> {
             if (bind != null && album != null) {
                 CustomGlideRequest.Builder.from(requireContext(), album.getCoverArtId(), CustomGlideRequest.ResourceType.Album).build().into(bind.albumCoverImageView);
+                com.eddyizm.tempus.ui.browse.CoverTint.apply(bind.albumInfoSector, album.getCoverArtId());
             }
         });
     }

@@ -148,6 +148,11 @@ public class PlayerBottomSheetFragment extends Fragment {
     private void customizeBottomSheetAction() {
         bind.playerHeaderLayout.playerHeaderRemoteButton.setOnClickListener(v -> com.eddyizm.tempus.lan.LanDevicePicker.toggle(requireActivity()));
         bind.playerHeaderLayout.getRoot().setOnClickListener(view -> ((MainActivity) requireActivity()).expandBottomSheet());
+        com.eddyizm.tempus.ui.player.MiniPlayerSwipe.attach(
+                bind.playerHeaderLayout.getRoot(),
+                bind.playerHeaderLayout.miniPlayerCard,
+                () -> skip(true),
+                () -> skip(false));
     }
 
     private void insetPlayerContent() {
@@ -455,6 +460,16 @@ public class PlayerBottomSheetFragment extends Fragment {
         });
         bind.playerHeaderLayout.playerHeaderRewindMediaButton.setOnClickListener(view -> bind.getRoot().findViewById(R.id.exo_rew).performClick());
         bind.playerHeaderLayout.playerHeaderFastForwardMediaButton.setOnClickListener(view -> bind.getRoot().findViewById(R.id.exo_ffwd).performClick());
+    }
+
+    private void skip(boolean next) {
+        if (bind == null) return;
+        if (com.eddyizm.tempus.lan.LanRemoteSession.isActive()) {
+            com.eddyizm.tempus.lan.LanRemoteSession.command(next ? "next" : "previous");
+            return;
+        }
+        View control = bind.getRoot().findViewById(next ? R.id.exo_next : R.id.exo_prev);
+        if (control != null && control.isEnabled()) control.performClick();
     }
 
     private void setHeaderNextButtonState(boolean isEnabled) {

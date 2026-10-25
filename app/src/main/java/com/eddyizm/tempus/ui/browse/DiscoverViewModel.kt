@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.eddyizm.tempus.subsonic.models.ArtistID3
 import com.eddyizm.tempus.subsonic.models.Genre
+import com.eddyizm.tempus.util.Preferences
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -28,7 +29,13 @@ class DiscoverViewModel : ViewModel() {
         load()
     }
 
-    fun load() {
+    /** Reuses the last result for this server for a while; [force] (pull to refresh) reloads. */
+    fun load(force: Boolean = false) {
+        val cached = if (force) null else Cache.fresh()
+        if (cached != null) {
+            _state.value = cached.copy(decades = _state.value.decades)
+            return
+        }
         _state.value = _state.value.copy(loading = true, failed = false)
         viewModelScope.launch {
             runCatching {
@@ -43,15 +50,37 @@ class DiscoverViewModel : ViewModel() {
                         .map { (letter, group) -> letter to group.sortedBy { it.name?.lowercase() } }
                     byLanguage to byInitial
                 }
-                _state.value = _state.value.copy(
+                val next = _state.value.copy(
                     loading = false,
                     genres = genres.await(),
                     languages = languages,
                     sections = sections,
                 )
+                Cache.store(next)
+                _state.value = next
             }.onFailure {
+                if (it is kotlinx.coroutines.CancellationException) throw it
                 _state.value = _state.value.copy(loading = false, failed = true)
             }
+        }
+    }
+
+    /** Survives tab switches, which recreate this view model; keyed by server and music folder. */
+    private object Cache {
+        private const val TTL_MS = 15 * 60 * 1000L
+        private var key: String? = null
+        private var at = 0L
+        private var state: State? = null
+
+        private fun scope() = "${Preferences.getServerId()}|${Preferences.getActiveMusicFolderId()}"
+
+        fun fresh(): State? =
+            state?.takeIf { key == scope() && System.currentTimeMillis() - at < TTL_MS }
+
+        fun store(value: State) {
+            key = scope()
+            at = System.currentTimeMillis()
+            state = value
         }
     }
 
