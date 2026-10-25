@@ -13,7 +13,7 @@
 - **Kotlin**: 2.2.10
 - **Java**: 21 (via Foojay toolchain resolver in `settings.gradle`)
 - **compileSdk/targetSdk**: 36
-- **minSdk**: 24
+- **minSdk**: 34 (Android 14; this fork targets recent high-end devices)
 
 ### Key Commands
 ```bash

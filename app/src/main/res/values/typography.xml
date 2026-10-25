@@ -91,4 +91,15 @@
         <item name="android:textFontWeight">400</item>
         <item name="android:textColor">@color/titleTextColor</item>
     </style>
+    <!-- Tempus bottom bar labels. -->
+    <style name="Tempus.NavLabel" parent="TextAppearance.Material3.LabelMedium">
+        <item name="android:textSize">11sp</item>
+    </style>
+    <style name="Tempus.NavLabel.Active">
+        <item name="android:textFontWeight">700</item>
+    </style>
+    <!-- No pill behind the selected tab: colour alone marks it, as in Apple Music and Spotify. -->
+    <style name="Tempus.NavIndicator" parent="Widget.Material3.BottomNavigationView.ActiveIndicator">
+        <item name="android:color">@android:color/transparent</item>
+    </style>
 </resources>

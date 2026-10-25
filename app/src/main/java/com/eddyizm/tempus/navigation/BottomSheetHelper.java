@@ -148,6 +148,7 @@ public class BottomSheetHelper {
                 playerHeader.setAlpha(1 - condensedSlideOffset);
                 playerHeader.setVisibility(condensedSlideOffset > 0.99 ? View.GONE : View.VISIBLE);
             }
+            playerBottomSheetFragment.onSheetSlide(slideOffset);
         }
     }
 

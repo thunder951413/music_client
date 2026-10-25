@@ -21,6 +21,11 @@
             android:paddingTop="64dp"
             android:paddingBottom="@dimen/global_padding_bottom">
 
+            <androidx.compose.ui.platform.ComposeView
+                android:id="@+id/search_browse_compose"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" />
+
             <!--  Artist  -->
             <LinearLayout
                 android:id="@+id/search_artist_sector"

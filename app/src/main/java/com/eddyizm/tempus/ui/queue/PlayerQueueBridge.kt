@@ -5,7 +5,9 @@ import android.util.Log
 import android.view.View
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.mutableStateOf
@@ -20,6 +22,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.Observer
 import androidx.lifecycle.lifecycleScope
 import com.eddyizm.tempus.R
+import androidx.media3.common.Player
 import com.eddyizm.tempus.lan.LanRemoteSession
 import com.eddyizm.tempus.model.Download
 import com.eddyizm.tempus.repository.DownloadRepository
@@ -149,7 +152,52 @@ class PlayerQueueBridge @JvmOverloads constructor(
                 }
                 val effectiveIsPlaying = if (isLanActive) (lanState?.playing == true) else (isPlayingState ?: false)
 
+                // Shuffle and repeat moved here from the portrait player's transport row.
+                var shuffleOn by remember { mutableStateOf(Preferences.isShuffleModeEnabled()) }
+                var repeatMode by remember { mutableIntStateOf(Preferences.getRepeatMode()) }
+                DisposableEffect(isQueueOpen, isLanActive) {
+                    val browser = if (isQueueOpen && !isLanActive) browserSnapshot() else null
+                    val listener = object : Player.Listener {
+                        override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
+                            shuffleOn = shuffleModeEnabled
+                        }
+
+                        override fun onRepeatModeChanged(mode: Int) {
+                            repeatMode = mode
+                        }
+                    }
+                    if (browser != null) {
+                        shuffleOn = browser.shuffleModeEnabled
+                        repeatMode = browser.repeatMode
+                        browser.addListener(listener)
+                    }
+                    onDispose { browser?.removeListener(listener) }
+                }
+                val shownShuffle = if (isLanActive) lanState?.shuffle == true else shuffleOn
+                val shownRepeat = if (isLanActive) lanState?.repeat ?: Player.REPEAT_MODE_OFF else repeatMode
+
                 PlayerQueueSheet(
+                    shuffleEnabled = shownShuffle,
+                    repeatMode = shownRepeat,
+                    onToggleShuffle = {
+                        if (LanRemoteSession.isActive()) {
+                            LanRemoteSession.command("shuffle", if (shownShuffle) 0 else 1)
+                        } else {
+                            browserSnapshot()?.let { it.shuffleModeEnabled = !it.shuffleModeEnabled }
+                        }
+                    },
+                    onCycleRepeat = {
+                        val next = when (shownRepeat) {
+                            Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL
+                            Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
+                            else -> Player.REPEAT_MODE_OFF
+                        }
+                        if (LanRemoteSession.isActive()) {
+                            LanRemoteSession.command("repeat", next.toLong())
+                        } else {
+                            browserSnapshot()?.repeatMode = next
+                        }
+                    },
                     isOpen = isQueueOpen,
                     onDismissRequest = { closeQueue() },
                     queueSongs = currentRawSongs,

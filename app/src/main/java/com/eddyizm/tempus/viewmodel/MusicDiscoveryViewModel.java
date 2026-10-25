@@ -41,9 +41,18 @@ public final class MusicDiscoveryViewModel extends AndroidViewModel {
     private State state=new State();
     public MusicDiscoveryViewModel(@NonNull Application app) { super(app); }
     public LiveData<State> state() { return live; }
+    private Mode presetMode;
+    private ChartSource presetSource;
+    /** Opens on a given mode and chart, as when the Discover page links straight to one. */
+    public void preset(Mode mode, ChartSource source) { presetMode=mode; presetSource=source; }
     public void enter() {
         String key=Preferences.getServerId()+":"+Preferences.getActiveMusicFolderId();
-        if (!key.equals(scope)) { scope=key; state=new State(); shown.clear(); load(false); }
+        if (!key.equals(scope)) {
+            scope=key; state=new State(); shown.clear();
+            if (presetMode!=null) state.mode=presetMode;
+            if (presetSource!=null) state.source=presetSource;
+            load(false);
+        }
         else if (live.getValue()==null) load(false);
     }
     public void mode(Mode mode) {

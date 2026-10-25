@@ -2,8 +2,13 @@
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/player_body_root"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="@color/player_backdrop_fallback">
+    android:layout_height="match_parent">
+
+    <com.eddyizm.tempus.ui.player.FluidBackdropView
+        android:id="@+id/player_fluid_backdrop"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:importantForAccessibility="no" />
 
     <FrameLayout
         android:id="@+id/player_controller_container"

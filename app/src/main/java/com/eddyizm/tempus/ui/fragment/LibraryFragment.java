@@ -119,7 +119,7 @@ public class LibraryFragment extends Fragment implements ClickCallback {
     }
 
     private void init() {
-        bind.getRoot().findViewById(R.id.open_music_discovery).setOnClickListener(v -> activity.navController.navigate(R.id.musicDiscoveryFragment));
+        bind.getRoot().findViewById(R.id.open_downloads).setOnClickListener(v -> activity.navController.navigate(R.id.downloadFragment));
         bind.getRoot().findViewById(R.id.open_music_collections).setOnClickListener(v -> {
             Bundle args=new Bundle();args.putString(Constants.PLAYLIST_ALL,Constants.PLAYLIST_ALL);
             activity.navController.navigate(R.id.playlistCatalogueFragment,args);

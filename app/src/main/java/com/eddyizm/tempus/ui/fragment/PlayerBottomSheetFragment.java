@@ -12,6 +12,8 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.OptIn;
 import androidx.core.graphics.Insets;
+import androidx.core.view.WindowCompat;
+import androidx.core.view.WindowInsetsControllerCompat;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.fragment.app.Fragment;
@@ -32,7 +34,10 @@ import com.eddyizm.tempus.service.MediaManager;
 import com.eddyizm.tempus.service.MediaService;
 import com.eddyizm.tempus.subsonic.models.PlayQueue;
 import com.eddyizm.tempus.ui.activity.MainActivity;
+import com.eddyizm.tempus.ui.player.CoverMorph;
+import com.eddyizm.tempus.ui.player.CoverScheme;
 import com.eddyizm.tempus.ui.player.PlayerBackdrop;
+import com.eddyizm.tempus.ui.player.PlayerMotion;
 import com.eddyizm.tempus.ui.queue.PlayerQueueBridge;
 import com.eddyizm.tempus.viewmodel.PlaybackViewModel;
 import com.bumptech.glide.Glide;
@@ -65,6 +70,10 @@ public class PlayerBottomSheetFragment extends Fragment {
     private Handler progressBarHandler;
     private Runnable progressBarRunnable;
 
+    private CoverMorph coverMorph;
+    private Boolean lightSystemBars = null;
+    private final PlayerMotion.Listener schemeListener = this::tintMiniPlayer;
+
     @Nullable
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
@@ -76,6 +85,7 @@ public class PlayerBottomSheetFragment extends Fragment {
         playbackViewModel = new ViewModelProvider(requireActivity()).get(PlaybackViewModel.class);
 
         customizeBottomSheetAction();
+        initCoverMorph();
         initPlayerController();
         initQueueBridge(playbackViewModel);
         setHeaderBookmarksButton();
@@ -123,6 +133,10 @@ public class PlayerBottomSheetFragment extends Fragment {
             progressBarHandler.removeCallbacks(progressBarRunnable);
         }
         com.eddyizm.tempus.App.getInstance().getPreferences().unregisterOnSharedPreferenceChangeListener(lanSwitchListener);
+        PlayerMotion.removeListener(schemeListener);
+        if (coverMorph != null) coverMorph.land();
+        coverMorph = null;
+        lightSystemBars = null;
         remoteVisible = false;
         remoteCover = null;
         remoteMediaSignature = null;
@@ -132,6 +146,55 @@ public class PlayerBottomSheetFragment extends Fragment {
     private void customizeBottomSheetAction() {
         bind.playerHeaderLayout.playerHeaderRemoteButton.setOnClickListener(v -> com.eddyizm.tempus.lan.LanDevicePicker.toggle(requireActivity()));
         bind.playerHeaderLayout.getRoot().setOnClickListener(view -> ((MainActivity) requireActivity()).expandBottomSheet());
+    }
+
+    private void initCoverMorph() {
+        float radius = CoverMorph.SOURCE_RADIUS_DP * getResources().getDisplayMetrics().density;
+        View cover = bind.playerHeaderLayout.playerHeaderMediaCoverImage;
+        cover.setOutlineProvider(new android.view.ViewOutlineProvider() {
+            @Override
+            public void getOutline(View view, android.graphics.Outline outline) {
+                outline.setRoundRect(0, 0, view.getWidth(), view.getHeight(), radius);
+            }
+        });
+        cover.setClipToOutline(true);
+        coverMorph = new CoverMorph(bind.getRoot(), bind.playerFlyingCover);
+        PlayerMotion.addListener(schemeListener);
+        tintMiniPlayer();
+    }
+
+    /** Called for every sheet offset, from 0 (mini player) to 1 (full player). */
+    public void onSheetSlide(float slideOffset) {
+        if (bind == null || coverMorph == null) return;
+        View target = null;
+        boolean queueOpen = playerQueueBridge != null && playerQueueBridge.isQueueOpen();
+        if (!queueOpen && !isLyricsPage()) target = bind.getRoot().findViewById(R.id.now_playing_artwork_pager);
+        float coverScale = PlayerMotion.isPlaying() ? 1f : com.eddyizm.tempus.ui.components.NowPlayingArtworkPagerKt.PAUSED_COVER_SCALE;
+        coverMorph.update(slideOffset, bind.playerHeaderLayout.playerHeaderMediaCoverImage, target, coverScale);
+        // The full player is always dark, so system bar icons turn light once it covers the screen.
+        boolean light = slideOffset < 0.5f && !isNightMode();
+        if (lightSystemBars == null || lightSystemBars != light) {
+            lightSystemBars = light;
+            WindowInsetsControllerCompat controller = WindowCompat.getInsetsController(requireActivity().getWindow(), requireActivity().getWindow().getDecorView());
+            controller.setAppearanceLightStatusBars(light);
+            controller.setAppearanceLightNavigationBars(light);
+        }
+    }
+
+    private boolean isNightMode() {
+        return (getResources().getConfiguration().uiMode & android.content.res.Configuration.UI_MODE_NIGHT_MASK)
+                == android.content.res.Configuration.UI_MODE_NIGHT_YES;
+    }
+
+    private void tintMiniPlayer() {
+        if (bind == null) return;
+        CoverScheme scheme = PlayerMotion.getScheme();
+        int tint = isNightMode() ? scheme.getMiniDark() : scheme.getMiniLight();
+        bind.playerHeaderLayout.miniPlayerCard.setBackgroundTintList(android.content.res.ColorStateList.valueOf(tint));
+    }
+
+    private void loadFlyingCover(com.bumptech.glide.RequestBuilder<android.graphics.drawable.Drawable> request) {
+        if (bind != null) request.into(bind.playerFlyingCover);
     }
 
     private void initPlayerController() {
@@ -305,12 +368,17 @@ public class PlayerBottomSheetFragment extends Fragment {
                                 mediaMetadata.extras.getString("coverArtId"), CustomGlideRequest.ResourceType.Radio));
                 request = RadioCoverArtDownloader.applyLocalFileSignature(request, mediaMetadata.artworkUri);
                 request.into(bind.playerHeaderLayout.playerHeaderMediaCoverImage);
+                loadFlyingCover(request.clone());
                 PlayerBackdrop.apply(bind.playerBodyLayout.playerBodyRoot, null);
             } else {
                 CustomGlideRequest.Builder
                         .from(requireContext(), mediaMetadata.extras.getString("coverArtId"), CustomGlideRequest.ResourceType.Song)
                         .build()
                         .into(bind.playerHeaderLayout.playerHeaderMediaCoverImage);
+                // The overlay grows to full size, so it loads the artwork without baked-in corners.
+                loadFlyingCover(Glide.with(this)
+                        .load(CustomGlideRequest.createUrl(mediaMetadata.extras.getString("coverArtId"), Preferences.getImageSize()))
+                        .diskCacheStrategy(CustomGlideRequest.DEFAULT_DISK_CACHE_STRATEGY));
                 PlayerBackdrop.apply(bind.playerBodyLayout.playerBodyRoot, mediaMetadata.extras.getString("coverArtId"));
             }
         }
@@ -353,6 +421,7 @@ public class PlayerBottomSheetFragment extends Fragment {
 
     private void setPlayingState(boolean isPlaying) {
         if (com.eddyizm.tempus.lan.LanRemoteSession.isActive() || bind == null) return;
+        PlayerMotion.setPlaying(isPlaying);
         bind.playerHeaderLayout.playerHeaderButton.setChecked(isPlaying);
         bind.playerHeaderLayout.playerHeaderButton.setContentDescription(getString(
                 isPlaying ? R.string.player_queue_pause : R.string.player_queue_play));
@@ -414,6 +483,7 @@ public class PlayerBottomSheetFragment extends Fragment {
                     getString(state.getError() != 0 ? state.getError() : state.getConnected() ? R.string.lan_remote_active : R.string.lan_connecting)));
             bind.playerHeaderLayout.playerHeaderMediaArtistLabel.setVisibility(View.VISIBLE);
             bind.playerHeaderLayout.playerHeaderButton.setChecked(state.getPlayWhenReady());
+            PlayerMotion.setPlaying(state.getPlayWhenReady());
             bind.playerHeaderLayout.playerHeaderButton.setEnabled(state.getConnected() && state.getCount() > 0);
             bind.playerHeaderLayout.playerHeaderNextMediaButton.setVisibility(View.VISIBLE);
             bind.playerHeaderLayout.playerHeaderNextMediaButton.setEnabled(state.getConnected() && state.getHasNext());

@@ -3,6 +3,9 @@ package com.eddyizm.tempus.ui.components
 import android.graphics.Bitmap
 import android.graphics.drawable.Drawable
 import android.net.Uri
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
@@ -14,6 +17,7 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.State
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -38,9 +42,24 @@ import com.bumptech.glide.request.transition.Transition
 import com.eddyizm.tempus.R
 import com.eddyizm.tempus.glide.CustomGlideRequest
 import com.eddyizm.tempus.subsonic.models.Child
+import com.eddyizm.tempus.ui.player.PlayerMotion
 import com.eddyizm.tempus.util.Preferences
 import com.eddyizm.tempus.util.RadioCoverArtDownloader
 import kotlin.math.absoluteValue
+
+/** Size of the full-player cover while playback is paused, relative to its playing size. */
+const val PAUSED_COVER_SCALE = 0.84f
+
+@Composable
+private fun rememberIsPlaying(): State<Boolean> {
+    val playing = remember { mutableStateOf(PlayerMotion.isPlaying) }
+    DisposableEffect(Unit) {
+        val listener = PlayerMotion.Listener { playing.value = PlayerMotion.isPlaying }
+        PlayerMotion.addListener(listener)
+        onDispose { PlayerMotion.removeListener(listener) }
+    }
+    return playing
+}
 
 @Composable
 fun NowPlayingArtworkPager(
@@ -98,6 +117,19 @@ fun NowPlayingArtworkPager(
         }
     }
 
+    // Like Apple Music, the cover settles back when paused and springs forward when playing.
+    val isPlaying by rememberIsPlaying()
+    val playScale by animateFloatAsState(
+        targetValue = if (isPlaying || isRadio) 1f else PAUSED_COVER_SCALE,
+        animationSpec = spring(dampingRatio = 0.62f, stiffness = Spring.StiffnessMediumLow),
+        label = "coverPlayScale"
+    )
+    val shadow by animateFloatAsState(
+        targetValue = if (isPlaying || isRadio) 28f else 8f,
+        animationSpec = spring(stiffness = Spring.StiffnessLow),
+        label = "coverShadow"
+    )
+
     val cornerRadius = if (Preferences.isCornerRoundingEnabled()) {
         Preferences.getRoundedCornerSize().dp
     } else {
@@ -134,11 +166,13 @@ fun NowPlayingArtworkPager(
             modifier = Modifier
                 .fillMaxSize()
                 .graphicsLayer {
-                    scaleX = scale
-                    scaleY = scale
+                    scaleX = scale * playScale
+                    scaleY = scale * playScale
                     this.alpha = alpha
+                    shadowElevation = shadow.dp.toPx()
+                    shape = RoundedCornerShape(cornerRadius)
+                    clip = true
                 }
-                .clip(RoundedCornerShape(cornerRadius))
                 .clickable {
                     if (page == pagerState.currentPage) {
                         onCoverClick()

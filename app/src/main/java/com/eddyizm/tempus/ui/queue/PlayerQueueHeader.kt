@@ -13,6 +13,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -31,6 +32,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.media3.common.Player
 import com.eddyizm.tempus.R
 
 @Composable
@@ -44,6 +46,10 @@ fun PlayerQueueHeader(
     onSaveToPlaylist: () -> Unit,
     onDownloadAll: () -> Unit,
     onLoadSavedQueue: () -> Unit,
+    shuffleEnabled: Boolean,
+    repeatMode: Int,
+    onToggleShuffle: () -> Unit,
+    onCycleRepeat: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
@@ -206,6 +212,38 @@ fun PlayerQueueHeader(
                     }
                 }
             }
+        }
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            FilterChip(
+                selected = shuffleEnabled,
+                onClick = onToggleShuffle,
+                label = { Text(stringResource(R.string.player_shuffle)) },
+                leadingIcon = {
+                    Icon(painterResource(R.drawable.ic_shuffle), contentDescription = null, modifier = Modifier.size(18.dp))
+                },
+                shape = RoundedCornerShape(18.dp)
+            )
+            FilterChip(
+                selected = repeatMode != Player.REPEAT_MODE_OFF,
+                onClick = onCycleRepeat,
+                label = {
+                    Text(stringResource(if (repeatMode == Player.REPEAT_MODE_ONE) R.string.player_repeat_one else R.string.player_repeat))
+                },
+                leadingIcon = {
+                    Icon(
+                        painterResource(if (repeatMode == Player.REPEAT_MODE_ONE) R.drawable.ic_repeat_one else R.drawable.ic_repeat),
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                },
+                shape = RoundedCornerShape(18.dp)
+            )
         }
     }
 }

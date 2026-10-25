@@ -90,7 +90,7 @@ public class ToolbarFragment extends Fragment {
 
         android.widget.TextView title = view.findViewById(R.id.toolbar_primary_text_view);
         if (title != null && getParentFragment() instanceof LibraryFragment) {
-            title.setText(R.string.menu_library_label);
+            title.setText(R.string.menu_mine_label);
         }
         initMusicLibrarySwitcher();
     }
@@ -111,7 +111,9 @@ public class ToolbarFragment extends Fragment {
     @Override
     public boolean onOptionsItemSelected(@NonNull MenuItem item) {
         if (item.getItemId() == R.id.action_search) {
-            activity.navController.navigate(R.id.searchFragment);
+            Bundle args = new Bundle();
+            args.putBoolean(SearchFragment.ARG_FOCUS, true);
+            activity.navController.navigate(R.id.searchFragment, args);
             return true;
         } else if (item.getItemId() == R.id.action_settings) {
             activity.navController.navigate(R.id.settingsFragment);

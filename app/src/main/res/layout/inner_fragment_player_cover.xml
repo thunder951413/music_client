@@ -2,8 +2,7 @@
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:paddingHorizontal="24dp">
+    android:layout_height="match_parent">
 
     <androidx.compose.ui.platform.ComposeView
         android:id="@+id/now_playing_artwork_pager"
@@ -31,11 +30,12 @@
         app:layout_constraintEnd_toEndOf="@+id/now_playing_artwork_pager"
         app:layout_constraintBottom_toBottomOf="@+id/now_playing_artwork_pager" />
 
+    <!-- PlayerCoverFragment fades this overlay explicitly. A LayoutTransition here also
+         animates ancestor bounds and fights BottomSheetBehavior's drag/peek positioning. -->
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/now_playing_song_cover_button_group"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:animateLayoutChanges="true"
         android:background="@drawable/gradient_player_cover_background_image"
         android:visibility="gone"
         app:layout_constraintBottom_toBottomOf="parent"

@@ -1266,7 +1266,8 @@ object Preferences {
 
     @JvmStatic
     fun isDynamicColorAccent(): Boolean {
-        return App.getInstance().preferences.getBoolean(DYNAMIC_COLOR_ACCENT, true)
+        // Off by default: the Tempus palette is the designed look; wallpaper colours stay one switch away.
+        return App.getInstance().preferences.getBoolean(DYNAMIC_COLOR_ACCENT, false)
     }
 
     @JvmStatic

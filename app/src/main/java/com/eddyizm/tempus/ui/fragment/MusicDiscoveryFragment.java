@@ -30,6 +30,7 @@ import java.util.*;
 
 @UnstableApi
 public final class MusicDiscoveryFragment extends Fragment implements ClickCallback {
+    public static final String ARG_MODE="discovery_mode", ARG_SOURCE="chart_source", ARG_TITLE="discovery_title";
     private FragmentMusicDiscoveryBinding bind;
     private MusicDiscoveryViewModel model;
     private MusicDiscoveryViewModel.State current;
@@ -83,7 +84,20 @@ public final class MusicDiscoveryFragment extends Fragment implements ClickCallb
         bind.discoveryPlayable.setOnCheckedChangeListener((button,checked) -> {
             playableOnly=checked;if (current!=null) render(current);
         });
+        applyPreset();
         model.state().observe(getViewLifecycleOwner(),this::render);model.enter();return bind.getRoot();
+    }
+    /** A link from the Discover page fixes the mode, so the mode chips and intro are hidden. */
+    private void applyPreset() {
+        Bundle args=getArguments();
+        if (args==null || args.getString(ARG_MODE)==null) return;
+        MusicDiscoveryViewModel.Mode mode=MusicDiscoveryViewModel.Mode.valueOf(args.getString(ARG_MODE));
+        String source=args.getString(ARG_SOURCE);
+        ChartSource chart=source==null?null:ChartSource.valueOf(source);
+        model.preset(mode,chart);
+        bind.discoveryModes.setVisibility(View.GONE);
+        bind.discoveryIntro.setVisibility(View.GONE);
+        bind.discoveryToolbar.setTitle(args.getString(ARG_TITLE,getString(R.string.discovery_title)));
     }
     @Override public void onStart() {
         super.onStart();browser=new MediaBrowser.Builder(requireContext(),new SessionToken(requireContext(),new ComponentName(requireContext(),MediaService.class))).buildAsync();

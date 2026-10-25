@@ -24,6 +24,7 @@ import android.widget.ToggleButton;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.appcompat.widget.PopupMenu;
 import androidx.constraintlayout.widget.ConstraintLayout;
 import androidx.fragment.app.Fragment;
@@ -49,6 +50,7 @@ import androidx.viewpager2.widget.ViewPager2;
 
 import com.eddyizm.tempus.R;
 import com.eddyizm.tempus.ui.player.PlayerBackdrop;
+import com.eddyizm.tempus.ui.player.PressFeedback;
 import com.eddyizm.tempus.databinding.InnerFragmentPlayerControllerBinding;
 import com.eddyizm.tempus.service.MediaService;
 import com.eddyizm.tempus.ui.activity.MainActivity;
@@ -104,8 +106,13 @@ public class PlayerControllerFragment extends Fragment {
     private Chip playerMediaExtension;
     private TextView playerMediaBitrate;
     private ConstraintLayout playerQuickActionView;
-    private ImageButton playerOpenQueueButton;
-    private ImageButton playerOpenLyricsButton;
+    // Pills in the portrait layout, icon buttons in landscape and tablet layouts.
+    private View playerOpenQueueButton;
+    private View playerOpenLyricsButton;
+    private TextView playerContextLabel;
+    private View playerFavoriteSurface;
+    /** True for the portrait layout with glyph transport controls and pill shortcuts. */
+    private boolean immersiveLayout;
     private ImageButton playerTrackInfo;
     private LinearLayout ratingContainer;
     private LinearLayout sleepTimerContainer;
@@ -199,6 +206,7 @@ public class PlayerControllerFragment extends Fragment {
             playbackSpeedButton.setVisibility(View.VISIBLE);
             skipSilenceToggleButton.setVisibility(View.GONE);
             buttonFavorite.setVisibility(View.VISIBLE);
+            syncFavoriteSurface();
             var displayedSong = playerBottomSheetViewModel.getLiveMedia().getValue();
             buttonFavorite.setEnabled(displayedSong != null && Objects.equals(displayedSong.getId(), state.getMediaId()));
             renderingRemote = true;
@@ -248,7 +256,33 @@ public class PlayerControllerFragment extends Fragment {
         sleepTimerContainer = bind.getRoot().findViewById(R.id.player_sleep_timer_container);
         sleepTimerButton = bind.getRoot().findViewById(R.id.player_sleep_timer_button);
         sleepTimerLabel = bind.getRoot().findViewById(R.id.player_sleep_timer_label);
+        playerContextLabel = bind.getRoot().findViewById(R.id.player_context_label);
+        playerFavoriteSurface = bind.getRoot().findViewById(R.id.player_favorite_surface);
+        immersiveLayout = playerContextLabel != null;
+        if (immersiveLayout) {
+            for (int id : new int[]{R.id.exo_prev, R.id.exo_play_pause, R.id.exo_next, R.id.exo_rew, R.id.exo_ffwd}) {
+                View button = bind.getRoot().findViewById(id);
+                if (button != null) PressFeedback.attach(button);
+            }
+            playerOutputLabel.setOnClickListener(v -> openOutputSwitcher());
+        }
         checkAndSetRatingContainerVisibility();
+    }
+
+    /** Picks a Tempus receiver when that feature is on, otherwise Android's own output switcher. */
+    private void openOutputSwitcher() {
+        if (com.eddyizm.tempus.lan.LanDevicePicker.isOffered()) {
+            com.eddyizm.tempus.lan.LanDevicePicker.toggle(requireActivity());
+        } else {
+            android.media.MediaRouter2.getInstance(requireContext()).showSystemOutputSwitcher();
+        }
+    }
+
+    /** The favourite's round backdrop follows the button, which is hidden for podcasts and radio. */
+    private void syncFavoriteSurface() {
+        if (playerFavoriteSurface != null && buttonFavorite != null) {
+            playerFavoriteSurface.setVisibility(buttonFavorite.getVisibility());
+        }
     }
 
     private void initOverflowButton() {
@@ -332,8 +366,9 @@ public class PlayerControllerFragment extends Fragment {
 
     private void updateLyricsAvailability() {
         if (bind == null || playerOutputLabel == null) return;
-        // Lyrics are optional and never reserve space on the default cover screen.
-        playerOpenLyricsButton.setVisibility(View.GONE);
+        // Lyrics never reserve space on the cover screen; only the portrait pill row offers them.
+        boolean showPill = immersiveLayout && playerBottomSheetViewModel.hasLyrics();
+        playerOpenLyricsButton.setVisibility(showPill ? View.VISIBLE : View.GONE);
         if (!playerBottomSheetViewModel.hasLyrics() && isLyricsPage()) goToControllerPage();
     }
 
@@ -451,6 +486,7 @@ public class PlayerControllerFragment extends Fragment {
 
             setTextIfChanged(playerMediaTitleLabel, mainTitle);
             setTextIfChanged(playerArtistNameLabel, stationName);
+            setContextLabel(null);
 
             playerMediaTitleLabel.setSelected(true);
             playerArtistNameLabel.setSelected(true);
@@ -487,7 +523,15 @@ public class PlayerControllerFragment extends Fragment {
                                         ? View.VISIBLE
                                         : View.GONE);
 
+        setContextLabel(mediaMetadata.albumTitle);
         updateAssetLinkChips(mediaMetadata);
+    }
+
+    /** Names what is playing from (the album) under "Now playing", or hides the line. */
+    private void setContextLabel(@Nullable CharSequence context) {
+        if (playerContextLabel == null) return;
+        setTextIfChanged(playerContextLabel, context == null ? "" : context);
+        playerContextLabel.setVisibility(TextUtils.isEmpty(context) ? View.GONE : View.VISIBLE);
     }
 
     private void setTextIfChanged(TextView label, CharSequence text) {
@@ -794,6 +838,7 @@ public class PlayerControllerFragment extends Fragment {
                     break;
             }
         }
+        syncFavoriteSurface();
     }
 
     // -------------------------------------------------------------------------
@@ -868,6 +913,7 @@ public class PlayerControllerFragment extends Fragment {
                     : remote ? remoteState.getTimerRemaining() : SleepTimerManager.getInstance().getRemainingFormatted();
             sleepTimerLabel.setText(label);
             sleepTimerLabel.setVisibility(View.VISIBLE);
+            if (immersiveLayout) sleepTimerContainer.setVisibility(View.VISIBLE);
             int accentColor = com.google.android.material.color.MaterialColors.getColor(
                     sleepTimerButton, com.google.android.material.R.attr.colorPrimary);
             ImageViewCompat.setImageTintList(sleepTimerButton,
@@ -875,6 +921,7 @@ public class PlayerControllerFragment extends Fragment {
         } else {
             sleepTimerLabel.setVisibility(View.GONE);
             sleepTimerLabel.setText("");
+            if (immersiveLayout) sleepTimerContainer.setVisibility(View.GONE);
             int defaultColor = com.google.android.material.color.MaterialColors.getColor(
                     sleepTimerButton, com.google.android.material.R.attr.colorOnSurface);
             ImageViewCompat.setImageTintList(sleepTimerButton,
@@ -915,23 +962,25 @@ public class PlayerControllerFragment extends Fragment {
     }
 
     private void updateLyricsButtonTint(boolean isLyricsActive) {
-        if (playerOpenLyricsButton == null)
-            return;
-        int colorAttr = isLyricsActive
-                ? com.google.android.material.R.attr.colorPrimary
-                : com.google.android.material.R.attr.colorOnSurface;
-        int color = com.google.android.material.color.MaterialColors.getColor(playerOpenLyricsButton, colorAttr);
-        ImageViewCompat.setImageTintList(playerOpenLyricsButton, ColorStateList.valueOf(color));
+        tintShortcut(playerOpenLyricsButton, isLyricsActive);
     }
 
     public void updateQueueButtonTint(boolean isQueueActive) {
-        if (playerOpenQueueButton == null)
-            return;
-        int colorAttr = isQueueActive
-                ? com.google.android.material.R.attr.colorPrimary
-                : com.google.android.material.R.attr.colorOnSurface;
-        int color = com.google.android.material.color.MaterialColors.getColor(playerOpenQueueButton, colorAttr);
-        ImageViewCompat.setImageTintList(playerOpenQueueButton, ColorStateList.valueOf(color));
+        tintShortcut(playerOpenQueueButton, isQueueActive);
+    }
+
+    /** A selected pill gets a brighter backdrop; landscape icon buttons switch their tint instead. */
+    private void tintShortcut(@Nullable View shortcut, boolean active) {
+        if (shortcut instanceof com.google.android.material.button.MaterialButton) {
+            int surface = active ? 0x47FFFFFF : androidx.core.content.ContextCompat.getColor(shortcut.getContext(), R.color.player_control_surface);
+            ((com.google.android.material.button.MaterialButton) shortcut).setBackgroundTintList(ColorStateList.valueOf(surface));
+        } else if (shortcut instanceof android.widget.ImageView) {
+            int colorAttr = active
+                    ? com.google.android.material.R.attr.colorPrimary
+                    : com.google.android.material.R.attr.colorOnSurface;
+            int color = com.google.android.material.color.MaterialColors.getColor(shortcut, colorAttr);
+            ImageViewCompat.setImageTintList((android.widget.ImageView) shortcut, ColorStateList.valueOf(color));
+        }
     }
 
     private void initMediaListenable() {

@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="menu_discover_label">发现</string>
+    <string name="menu_search_label">搜索</string>
+    <string name="menu_mine_label">我的</string>
+
+    <string name="browse_language_chinese">华语</string>
+    <string name="browse_language_western">欧美</string>
+    <string name="browse_language_japanese">日语</string>
+    <string name="browse_language_korean">韩语</string>
+    <string name="browse_language_other">其他</string>
+
+    <string name="discover_title">发现</string>
+    <string name="discover_tab_charts">榜单</string>
+    <string name="discover_tab_categories">分类</string>
+    <string name="discover_tab_artists">歌手</string>
+    <string name="discover_section_library_charts">我的曲库榜</string>
+    <string name="discover_section_external_charts">外部热榜</string>
+    <string name="discover_external_hint">按歌名和歌手匹配到你的曲库</string>
+    <string name="browse_chart_frequent">我的常听</string>
+    <string name="browse_chart_frequent_hint">你播放最多的歌</string>
+    <string name="browse_chart_newest">最近入库</string>
+    <string name="browse_chart_newest_hint">服务器新加入的音乐</string>
+    <string name="browse_chart_unheard">未听探索</string>
+    <string name="browse_chart_unheard_hint">还没播放过的歌</string>
+    <string name="browse_chart_random">随机漫游</string>
+    <string name="browse_chart_random_hint">每次都换一批</string>
+    <string name="browse_chart_top100">前 100 首</string>
+
+    <string name="browse_section_language">按语种</string>
+    <string name="browse_section_decade">按年代</string>
+    <string name="browse_section_genre">按流派</string>
+    <string name="browse_all_genres">全部流派</string>
+    <string name="browse_decade_label">%1$d 年代</string>
+    <string name="browse_artist_count">%1$d 位歌手</string>
+    <string name="browse_album_count">%1$d 张专辑</string>
+    <string name="browse_shuffle">随机播放</string>
+    <string name="browse_language_hint">按歌手名的文字判断语种，个别歌手可能分错。</string>
+    <string name="browse_language_shuffle_empty">这次随机抽样里没有这些歌手的歌，再试一次。</string>
+    <string name="browse_error">这一页没能载入。</string>
+    <string name="browse_retry">重试</string>
+    <string name="browse_empty_artists">服务器上还没有歌手。</string>
+
+    <string name="home_greeting_morning">早上好</string>
+    <string name="home_greeting_afternoon">下午好</string>
+    <string name="home_greeting_evening">晚上好</string>
+    <string name="home_greeting_night">夜深了</string>
+    <string name="home_quick_starred">我喜欢</string>
+    <string name="home_quick_recent">最近播放</string>
+    <string name="home_quick_frequent">常听</string>
+    <string name="home_quick_added">新入库</string>
+    <string name="home_quick_playlists">歌单</string>
+    <string name="home_quick_downloads">已下载</string>
+    <string name="home_daily_title">每日推荐</string>
+    <string name="home_daily_subtitle">根据你的收藏 · %1$d 首</string>
+    <string name="home_daily_loading">正在准备今天的推荐…</string>
+    <string name="home_daily_empty">收藏几首歌后就有每日推荐</string>
+    <string name="home_roam_title">私人漫游</string>
+    <string name="home_roam_subtitle">从你喜欢的一首歌出发</string>
+    <string name="home_roam_empty">先收藏一首歌，漫游才能从它出发</string>
+
+    <string name="search_browse_title">浏览全部</string>
+</resources>

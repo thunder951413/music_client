@@ -16,7 +16,7 @@ android {
     buildToolsVersion = '36.1.0'
 
     defaultConfig {
-        minSdkVersion 24
+        minSdkVersion 34
         //noinspection OldTargetApi
         targetSdk = 37
 
@@ -123,6 +123,7 @@ dependencies {
     implementation libs.androidx.lifecycle.livedata.ktx
     implementation libs.androidx.lifecycle.viewmodel.ktx
     implementation libs.androidx.palette.ktx
+    implementation libs.androidx.dynamicanimation
     implementation libs.androidx.preference.ktx
     implementation libs.androidx.navigation.fragment.ktx
     implementation libs.androidx.navigation.ui.ktx

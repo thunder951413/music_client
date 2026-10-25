@@ -13,4 +13,13 @@
         layout="@layout/player_header_bottom_sheet"
         android:layout_width="match_parent"
         android:layout_height="@dimen/bottom_sheet_peek_height" />
+
+    <!-- Carries the cover between the mini and the full player while the sheet is dragged. -->
+    <ImageView
+        android:id="@+id/player_flying_cover"
+        android:layout_width="1dp"
+        android:layout_height="1dp"
+        android:importantForAccessibility="no"
+        android:scaleType="centerCrop"
+        android:visibility="invisible" />
 </FrameLayout>

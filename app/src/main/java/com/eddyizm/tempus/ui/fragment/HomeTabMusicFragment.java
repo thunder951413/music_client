@@ -192,11 +192,7 @@ public class HomeTabMusicFragment extends Fragment implements ClickCallback {
     }
 
     private void init() {
-        bind.getRoot().findViewById(R.id.open_music_discovery).setOnClickListener(v -> activity.navController.navigate(R.id.musicDiscoveryFragment));
-        bind.getRoot().findViewById(R.id.open_music_collections).setOnClickListener(v -> {
-            Bundle args=new Bundle();args.putString(Constants.PLAYLIST_ALL,Constants.PLAYLIST_ALL);
-            activity.navController.navigate(R.id.playlistCatalogueFragment,args);
-        });
+        com.eddyizm.tempus.ui.browse.HomeHeader.bind(bind.getRoot().findViewById(R.id.home_header_compose), this, () -> mediaBrowserListenableFuture);
         bind.discoveryTextViewRefreshable.setOnLongClickListener(v -> {
             homeViewModel.refreshDiscoverySongSample(getViewLifecycleOwner());
             return true;
@@ -1260,7 +1256,7 @@ public class HomeTabMusicFragment extends Fragment implements ClickCallback {
 
     private ArrayList<View> buildDesiredOrder() {
         ArrayList<View> desired = new ArrayList<>();
-        desired.add(bind.discoveryShortcuts.getRoot());
+        desired.add(bind.homeHeaderCompose);
 
         if (bind.homeSyncStarredCard.getVisibility() == View.VISIBLE) {
             desired.add(bind.homeSyncStarredCard);

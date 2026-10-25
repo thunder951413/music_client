@@ -64,3 +64,25 @@ Full local logs, source health JSON and player recordings are retained in the ig
 | Music discovery | Server-synced collection after restart |
 | --- | --- |
 | ![Music discovery](docs/images/v1.0.1/discovery.png) | ![Collection](docs/images/v1.0.1/collection.png) |
+
+## Player and browsing refresh
+
+The bottom navigation now provides Home, Discover, Search and Library. Home has quick links, a daily mix and personal radio. Discover groups library and external charts, language/decade/genre browsing and an A–Z artist index. Search shows genre tiles before a query; Downloads is available in Library. Language grouping uses artist-name scripts and can be imperfect. The portrait player uses cover-derived moving colours, three large transport controls and a separate queue with shuffle/repeat. Lyrics remain optional. This fork now requires Android 14 or later.
+
+The cover-button overlay used an automatic `LayoutTransition` that also animated ancestor bounds. It competed with `BottomSheetBehavior`, causing the mini player to jump to the top when first shown or swiped down. The overlay now uses only its existing explicit fade. The sheet retains control of its position, including during manual expansion and collapse.
+
+Both signed release flavors built after the fix. Degoogled ran 253 unit tests and Tempus ran 259, with zero failures/errors and one existing skipped test in each suite. Both debug lint tasks passed. A signed Degoogled release was installed over the existing app on the physical PMX110, preserving its server and library settings. Three recorded cycles of dismissing the mini player and starting another song showed no top jump or blank-page obstruction. Manual full-player expansion, downward collapse and artwork-overlay toggling also passed. The Tempus flavor was built and unit-tested but was not installed on a second physical device.
+
+Local recordings and validation notes are retained in the ignored `dist/miniplayer-fix/` directory.
+
+| Previous portrait player | Refreshed portrait player |
+| --- | --- |
+| ![Previous player](docs/images/v1.0.1/player-after.png) | ![Refreshed player](docs/images/player-browse/player.png) |
+
+| Home shortcuts | Discover charts |
+| --- | --- |
+| ![Home](docs/images/player-browse/home.png) | ![Discover](docs/images/player-browse/discover.png) |
+
+| Reproduced mini-player jump | Mini player after the fix |
+| --- | --- |
+| ![Mini player at the top before the fix](docs/images/player-browse/mini-before.png) | ![Mini player at the bottom after the fix](docs/images/player-browse/mini-after.png) |

@@ -43,6 +43,8 @@ import java.util.List;
 
 @UnstableApi
 public class SearchFragment extends Fragment implements ClickCallback {
+    public static final String ARG_FOCUS = "search_focus";
+
     private static final String TAG = "SearchFragment";
 
     private FragmentSearchBinding bind;
@@ -69,7 +71,10 @@ public class SearchFragment extends Fragment implements ClickCallback {
 
         initSearchResultView();
         initSearchView();
-        inputFocus();
+        com.eddyizm.tempus.ui.browse.SearchBrowse.bind(bind.searchBrowseCompose, this);
+        bind.searchBrowseCompose.setVisibility(searchViewModel.getQuery().isEmpty() ? View.VISIBLE : View.GONE);
+        // Opened from a toolbar search icon the keyboard comes up; as a tab, the browse tiles show first.
+        if (getArguments() != null && getArguments().getBoolean(ARG_FOCUS)) inputFocus();
 
         return view;
     }
@@ -77,6 +82,8 @@ public class SearchFragment extends Fragment implements ClickCallback {
     @Override
     public void onStart() {
         super.onStart();
+        activity.toggleBottomNavigationBarVisibilityOnOrientationChange();
+        activity.setBottomSheetVisibility(true);
         initializeMediaBrowser();
 
         MediaManager.registerPlaybackObserver(mediaBrowserListenableFuture, playbackViewModel);
@@ -231,6 +238,7 @@ public class SearchFragment extends Fragment implements ClickCallback {
         playlistHorizontalAdapter.setItems(Collections.emptyList());
         bind.searchBar.setText(query);
         bind.searchView.hide();
+        bind.searchBrowseCompose.setVisibility(View.GONE);
         performSearch(query);
     }
 

@@ -79,6 +79,8 @@ public class NavigationHelper {
     private static boolean isTargetDestination(NavDestination destination) {
         int destId = destination.getId();
         return destId == R.id.homeFragment ||
+                destId == R.id.discoverFragment ||
+                destId == R.id.searchFragment ||
                 destId == R.id.libraryFragment ||
                 destId == R.id.downloadFragment ||
                 destId == R.id.albumCatalogueFragment ||

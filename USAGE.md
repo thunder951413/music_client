@@ -201,7 +201,11 @@ Tap the artwork to show four buttons over it, and tap again to hide them.
 3. Adds this track again, followed by songs similar to it, right after the current track (Instant Mix). It uses [getSimilarSongs](https://opensubsonic.netlify.app/docs/endpoints/getsimilarsongs/) of the OpenSubsonic API, so which songs you get depends on your server. For example, Navidrome gets 15 similar artists from Last.fm, then 20 top songs from each.
 4. With **Sync play queue for this user** turned on under Settings → Miscellaneous, saves the play queue. With it off and lyrics available, this button opens the lyrics instead.
 
-On phones in portrait, the player puts the cover, title, progress and transport controls first. Its background softly takes colours from the cover and follows the app's light or dark appearance. The down arrow closes it back to a compact player above the bottom navigation.
+On phones in portrait, the player shows only the cover, the title and artist, the progress bar and three large controls: previous, play/pause and next. "Now playing" and the album name sit at the top. The player is always dark: behind it, colours taken from the cover flow slowly across the screen, and they move more slowly while playback is paused. This is the only continuous motion; the other effects happen only when something changes. The mini player takes a light tint of the same colours. The down arrow closes the player back to a compact player above the bottom navigation.
+
+Dragging the mini player up carries its cover into the full player, and dragging down carries it back. While paused, the cover settles back slightly; when playback resumes it springs forward. The progress bar is a thin line that thickens while you drag it. The heart next to the title adds the track to favourites. Three buttons along the bottom open **Lyrics** (shown only when the track has lyrics), the audio output and the **Queue**. The output button picks a Tempus receiver when **Remote player** is on, and otherwise opens Android's output switcher. **Shuffle** and **Repeat** are at the top of the queue; tapping **Repeat** steps through repeat all, repeat one and off. Playback speed, audio details, the sleep timer and track info are in the **⋯** menu. While a sleep timer runs, its countdown appears above the bottom buttons. With Android's **Remove animations** setting on, the backdrop and the progress bar stay still.
+
+Synced lyrics keep the current line in the upper part of the view, with the lines below following in a short ripple. Lines further from the current one are dimmer and slightly blurred. Three dots fill during instrumental breaks that last at least three seconds, including before the first line. Swipe to read ahead; the lyrics return to the current line about two and a half seconds after you let go. Tap a line to play from it. The sync lock button stops the lyrics from following playback. Unsynced lyrics and episode descriptions scroll as plain text.
 
 Below the playback controls, **Sleep timer** stops playback after 5 to 60 minutes, a number of minutes you type in, or at the end of the current track. The centre label identifies local or remote playback, and **Queue** opens the queue. The mini player's controls are disabled when there is no track; clearing the queue hides the collapsed player.
 
@@ -261,9 +265,10 @@ The spot is also saved as a bookmark on your server, if the server supports book
 ## Navigation
 
 ### Bottom Navigation Bar
-- **Home**: Recently played and server recommendations
-- **Library**: Your server's complete music collection
-- **Download**: Locally downloaded files from server 
+- **Home**: Shortcuts, a daily mix built from your liked songs, personal radio, and the existing sections
+- **Discover**: Library and public charts, browsing by language, decade and genre, and an A–Z artist index (language is guessed from the script of artist names)
+- **Search**: Genre tiles until you search
+- **Library**: Your collection, with **Downloads** at the top
 
 [Back to top](#table-of-contents)
 
@@ -602,7 +607,7 @@ Shortcuts are displayed only if the function is selected from root level:
 - Charts normally reuse a six-hour cache. Refresh requests current data; a failed refresh can use the last validated cache and labels it as cached. Chart access does not receive music-server credentials. Library requests respect the active server and music folder.
 - Open **Collections & playlists → +** to create a named collection and choose an icon. Use a song’s **Add to collection / playlist** action to add it to any collection; repeat this for multiple collections. Existing heart favorites are independent. The existing duplicate-playlist preference still applies.
 - Collections are standard server playlists. The icon is a Unicode prefix in the server playlist name, so another client can display it too; Tempus renders it as a cover tile in the collection list. Existing playlists can be renamed and assigned an icon through **Edit details**. Save and add actions wait for the server result and report failures.
-- Tapping a song keeps the current list visible and updates the mini player. Tap the mini player to open the full player; asynchronous queue initialization preserves an explicit expansion.
+- Tapping a song keeps the current list visible and updates the mini player. Tap the mini player to open the full player; asynchronous queue initialization preserves an explicit expansion. Swipe the mini player down to dismiss it and clear the queue. Its first appearance and dismissal stay at the bottom of the screen.
 
 See [Discovery and collection implementation notes](MUSIC_DISCOVERY.md) for research references, source details and validation.
 

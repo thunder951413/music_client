@@ -1,9 +1,10 @@
 <resources>
-    <color name="player_foreground">#263025</color>
-    <color name="player_secondary">#606B5C</color>
-    <color name="player_on_action">#F5F6EE</color>
-    <color name="player_track">#CBD0C3</color>
-    <color name="player_control_surface">#1A526047</color>
+    <!-- The immersive player always sits on dark cover colours, in both app themes. -->
+    <color name="player_foreground">#FFFFFF</color>
+    <color name="player_secondary">#B8FFFFFF</color>
+    <color name="player_on_action">#1C2128</color>
+    <color name="player_track">#40FFFFFF</color>
+    <color name="player_control_surface">#26FFFFFF</color>
     <style name="PlayerIconButton" parent="">
         <item name="android:layout_width">48dp</item><item name="android:layout_height">48dp</item>
         <item name="android:padding">12dp</item><item name="android:background">?attr/selectableItemBackgroundBorderless</item>
@@ -23,8 +24,29 @@
         <item name="android:textColor">?attr/colorOnSurfaceVariant</item>
     </style>
     <style name="PlayerSongTitle" parent="InterFontFamily">
-        <item name="android:textSize">22sp</item><item name="android:fontFamily">sans-serif-medium</item>
-        <item name="android:textColor">?attr/colorOnSurface</item>
+        <item name="android:textSize">24sp</item><item name="android:fontFamily">sans-serif</item>
+        <item name="android:textStyle">bold</item><item name="android:textColor">?attr/colorOnSurface</item>
+    </style>
+    <!-- Large transport glyphs without a backing shape, as in Apple Music. -->
+    <style name="PlayerHeroButton" parent="">
+        <item name="android:layout_width">60dp</item><item name="android:layout_height">60dp</item>
+        <item name="android:padding">12dp</item><item name="android:background">@null</item>
+        <item name="android:scaleType">fitCenter</item><item name="tint">@color/player_foreground</item>
+    </style>
+    <style name="PlayerTimeLabel" parent="">
+        <item name="android:layout_width">wrap_content</item><item name="android:layout_height">wrap_content</item>
+        <item name="android:textSize">12sp</item><item name="android:fontFeatureSettings">tnum</item>
+        <item name="android:textColor">?attr/colorOnSurfaceVariant</item>
+    </style>
+    <style name="PlayerPillButton" parent="Widget.Material3.Button.TonalButton.Icon">
+        <item name="android:layout_width">wrap_content</item><item name="android:layout_height">40dp</item>
+        <item name="android:minWidth">0dp</item><item name="android:insetTop">0dp</item><item name="android:insetBottom">0dp</item>
+        <item name="android:paddingStart">14dp</item><item name="android:paddingEnd">16dp</item>
+        <item name="android:textSize">13sp</item><item name="android:maxLines">1</item><item name="android:ellipsize">end</item>
+        <item name="android:textColor">@color/player_foreground</item>
+        <item name="backgroundTint">@color/player_control_surface</item>
+        <item name="iconTint">@color/player_foreground</item><item name="iconSize">18dp</item><item name="iconPadding">6dp</item>
+        <item name="cornerRadius">20dp</item>
     </style>
     <string name="player_more_options">More options</string>
     <style name="PlayerAlbumShape" parent="">
@@ -36,4 +58,8 @@
     <string name="player_remote_output">Remote playback</string>
     <string name="player_audio_details">Audio details</string>
     <string name="player_show_lyrics">Lyrics</string>
+    <string name="player_queue_title">Queue</string>
+    <string name="player_shuffle">Shuffle</string>
+    <string name="player_repeat">Repeat</string>
+    <string name="player_repeat_one">Repeat one</string>
 </resources>

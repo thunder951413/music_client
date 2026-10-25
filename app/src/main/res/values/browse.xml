@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="menu_discover_label">Discover</string>
+    <string name="menu_search_label">Search</string>
+    <string name="menu_mine_label">Library</string>
+
+    <string name="browse_language_chinese">Chinese</string>
+    <string name="browse_language_western">Western</string>
+    <string name="browse_language_japanese">Japanese</string>
+    <string name="browse_language_korean">Korean</string>
+    <string name="browse_language_other">Other</string>
+
+    <string name="discover_title">Discover</string>
+    <string name="discover_tab_charts">Charts</string>
+    <string name="discover_tab_categories">Browse</string>
+    <string name="discover_tab_artists">Artists</string>
+    <string name="discover_section_library_charts">From your library</string>
+    <string name="discover_section_external_charts">Public charts</string>
+    <string name="discover_external_hint">Matched against your library by title and artist</string>
+    <string name="browse_chart_frequent">Most played</string>
+    <string name="browse_chart_frequent_hint">What you play most</string>
+    <string name="browse_chart_newest">Recently added</string>
+    <string name="browse_chart_newest_hint">New on your server</string>
+    <string name="browse_chart_unheard">Not yet heard</string>
+    <string name="browse_chart_unheard_hint">Songs with no plays</string>
+    <string name="browse_chart_random">Random roam</string>
+    <string name="browse_chart_random_hint">A fresh shuffle each time</string>
+    <string name="browse_chart_top100">Top 100</string>
+
+    <string name="browse_section_language">By language</string>
+    <string name="browse_section_decade">By decade</string>
+    <string name="browse_section_genre">By genre</string>
+    <string name="browse_all_genres">All genres</string>
+    <string name="browse_decade_label">%1$ds</string>
+    <string name="browse_artist_count">%1$d artists</string>
+    <string name="browse_album_count">%1$d albums</string>
+    <string name="browse_shuffle">Shuffle</string>
+    <string name="browse_language_hint">Grouped by the script of artist names, so some artists may be misplaced.</string>
+    <string name="browse_language_shuffle_empty">No songs by these artists turned up in a random sample. Try again.</string>
+    <string name="browse_error">Couldn\'t load this page.</string>
+    <string name="browse_retry">Try again</string>
+    <string name="browse_empty_artists">No artists on this server yet.</string>
+
+    <string name="home_greeting_morning">Good morning</string>
+    <string name="home_greeting_afternoon">Good afternoon</string>
+    <string name="home_greeting_evening">Good evening</string>
+    <string name="home_greeting_night">Good night</string>
+    <string name="home_quick_starred">Liked songs</string>
+    <string name="home_quick_recent">Recently played</string>
+    <string name="home_quick_frequent">Most played</string>
+    <string name="home_quick_added">Recently added</string>
+    <string name="home_quick_playlists">Playlists</string>
+    <string name="home_quick_downloads">Downloads</string>
+    <string name="home_daily_title">Daily mix</string>
+    <string name="home_daily_subtitle">%1$d songs from your favourites</string>
+    <string name="home_daily_loading">Putting today\'s mix together…</string>
+    <string name="home_daily_empty">Like a few songs to get a daily mix</string>
+    <string name="home_roam_title">Personal radio</string>
+    <string name="home_roam_subtitle">Starts from a song you like</string>
+    <string name="home_roam_empty">Like a song first, then radio can start from it</string>
+
+    <string name="search_browse_title">Browse all</string>
+</resources>
