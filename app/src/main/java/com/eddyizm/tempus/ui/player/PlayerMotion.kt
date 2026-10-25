@@ -29,6 +29,18 @@ object PlayerMotion {
     val motionEnabled: Boolean
         get() = ValueAnimator.areAnimatorsEnabled()
 
+    /** True while the cover flies between mini and full player; the disc then hides its label. */
+    @JvmStatic
+    var coverInFlight: Boolean = false
+        private set
+
+    @JvmStatic
+    fun setCoverInFlight(flying: Boolean) {
+        if (coverInFlight == flying) return
+        coverInFlight = flying
+        notifyListeners()
+    }
+
     @JvmStatic
     fun setPlaying(playing: Boolean) {
         if (isPlaying == playing) return

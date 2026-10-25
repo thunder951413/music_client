@@ -38,4 +38,29 @@ public class BottomSheetHelperTest {
             verify(behavior).setState(BottomSheetBehavior.STATE_COLLAPSED);
         }
     }
+
+    @Test public void navigationInsetIsAddedOnceToTheConfiguredPeekHeight() {
+        try (MockedConstruction<Handler> handlers = mockConstruction(Handler.class)) {
+            BottomSheetBehavior<View> behavior = mock(BottomSheetBehavior.class);
+            when(behavior.getPeekHeight()).thenReturn(456);
+            BottomSheetHelper helper = new BottomSheetHelper(behavior, mock(View.class), mock(FragmentManager.class));
+            helper.setBottomInset(42);
+            helper.setBottomInset(42);
+            verify(behavior, times(1)).setPeekHeight(498);
+        }
+    }
+
+    @Test public void compactPeekAndHiddenSystemBarsUseTheCurrentInset() {
+        try (MockedConstruction<Handler> handlers = mockConstruction(Handler.class)) {
+            BottomSheetBehavior<View> behavior = mock(BottomSheetBehavior.class);
+            BottomSheetHelper helper = new BottomSheetHelper(behavior, mock(View.class), mock(FragmentManager.class));
+            helper.setPeekHeight(152, 3f);
+            helper.setBottomInset(42);
+            clearInvocations(behavior);
+            helper.setPeekHeight(72, 3f);
+            verify(behavior).setPeekHeight(258);
+            helper.setBottomInset(0);
+            verify(behavior).setPeekHeight(216);
+        }
+    }
 }

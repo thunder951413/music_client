@@ -246,6 +246,10 @@ public class PlayerControllerFragment extends Fragment {
         playerQuickActionView = bind.getRoot().findViewById(R.id.player_quick_action_view);
         playerOpenQueueButton = bind.getRoot().findViewById(R.id.player_open_queue_button);
         playerOpenLyricsButton = bind.getRoot().findViewById(R.id.player_open_lyrics_button);
+        // Portrait uses MaterialButtons, landscape uses ImageButtons. These actions have no
+        // user state; restoring one widget's Parcelable into the other crashes on rotation.
+        playerOpenQueueButton.setSaveFromParentEnabled(false);
+        playerOpenLyricsButton.setSaveFromParentEnabled(false);
         playerTrackInfo = bind.getRoot().findViewById(R.id.player_info_track);
         songRatingBar = bind.getRoot().findViewById(R.id.song_rating_bar);
         ratingContainer = bind.getRoot().findViewById(R.id.rating_container);

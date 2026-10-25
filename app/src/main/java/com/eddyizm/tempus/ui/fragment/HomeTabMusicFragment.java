@@ -107,6 +107,7 @@ public class HomeTabMusicFragment extends Fragment implements ClickCallback {
     private ListenableFuture<MediaBrowser> mediaBrowserListenableFuture;
     private ContinueListeningAdapter continueListeningAdapter;
     private Observer<List<Child>> bestOfObserver = null;
+    private int mediaPlayRequest;
 
     @Nullable
     @Override
@@ -181,12 +182,14 @@ public class HomeTabMusicFragment extends Fragment implements ClickCallback {
 
     @Override
     public void onStop() {
+        mediaPlayRequest++;
         releaseMediaBrowser();
         super.onStop();
     }
 
     @Override
     public void onDestroyView() {
+        mediaPlayRequest++;
         super.onDestroyView();
         bind = null;
     }
@@ -1374,24 +1377,26 @@ public class HomeTabMusicFragment extends Fragment implements ClickCallback {
     }
 
     public void onMediaClick(Bundle bundle) {
+        final int request = ++mediaPlayRequest;
         if (bundle.containsKey(Constants.MEDIA_MIX)) {
             Child track = bundle.getParcelable(Constants.TRACK_OBJECT);
             activity.setBottomSheetInPeek(true);
 
             if (mediaBrowserListenableFuture != null) {
-                final boolean[] playbackStarted = {false};
                 Toast.makeText(requireContext(), R.string.bottom_sheet_generating_instant_mix, Toast.LENGTH_SHORT).show();
-                homeViewModel.getMediaInstantMix(getViewLifecycleOwner(), track)
-                        .observe(getViewLifecycleOwner(), songs -> {
-                            if (playbackStarted[0] || songs == null || songs.isEmpty()) return;
-
-                            new Handler(Looper.getMainLooper()).postDelayed(() -> {
-                                if (playbackStarted[0]) return;
-
-                                MediaManager.startQueue(mediaBrowserListenableFuture, songs, 0);
-                                playbackStarted[0] = true;
-                            }, 300);
-                        });
+                LiveData<List<Child>> mix = homeViewModel.getMediaInstantMix(track);
+                mix.observe(getViewLifecycleOwner(), new Observer<List<Child>>() {
+                    @Override public void onChanged(List<Child> songs) {
+                        if (songs == null) return;
+                        mix.removeObserver(this);
+                        if (request != mediaPlayRequest || bind == null) return;
+                        if (songs.isEmpty()) {
+                            Toast.makeText(requireContext(), R.string.bottom_sheet_problem_generating_instant_mix, Toast.LENGTH_SHORT).show();
+                            return;
+                        }
+                        MediaManager.startQueue(mediaBrowserListenableFuture, songs, 0);
+                    }
+                });
             }
         } else if (bundle.containsKey(Constants.MEDIA_CHRONOLOGY)) {
             List<Child> media = bundle.getParcelableArrayList(Constants.TRACKS_OBJECT);
@@ -1422,6 +1427,7 @@ public class HomeTabMusicFragment extends Fragment implements ClickCallback {
 
     @Override
     public void onArtistClick(Bundle bundle) {
+        mediaPlayRequest++;
         if (bundle.containsKey(Constants.MEDIA_MIX) && bundle.getBoolean(Constants.MEDIA_MIX)) {
             Snackbar.make(activity.bind.playerBottomSheet, R.string.artist_adapter_radio_station_starting, Snackbar.LENGTH_LONG)
                     .setAnchorView(activity.getSnackbarAnchor())

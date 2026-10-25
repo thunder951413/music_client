@@ -64,4 +64,8 @@ public class BottomSheetController {
     public void setPeekHeight(int peekHeight, float displayDensity) {
         helper.setPeekHeight(peekHeight, displayDensity);
     }
+
+    public void setBottomInset(int bottomInset) {
+        helper.setBottomInset(bottomInset);
+    }
 }

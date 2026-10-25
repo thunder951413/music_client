@@ -28,7 +28,6 @@ import com.eddyizm.tempus.subsonic.models.Child;
 import com.eddyizm.tempus.subsonic.models.Playlist;
 import com.eddyizm.tempus.subsonic.models.Share;
 import com.eddyizm.tempus.util.Constants;
-import com.eddyizm.tempus.util.Constants.SeedType;
 import com.eddyizm.tempus.util.Preferences;
 import com.google.common.reflect.TypeToken;
 import com.google.gson.Gson;
@@ -69,7 +68,6 @@ public class HomeViewModel extends AndroidViewModel {
     private final MutableLiveData<List<AlbumID3>> recentlyAddedAlbumSample = new MutableLiveData<>(null);
 
     private final MutableLiveData<List<Chronology>> thisGridTopSong = new MutableLiveData<>(null);
-    private final MutableLiveData<List<Child>> mediaInstantMix = new MutableLiveData<>(null);
     private final MutableLiveData<List<Child>> artistInstantMix = new MutableLiveData<>(null);
     private final MutableLiveData<String> playlistSortOrder = new MutableLiveData<>();
     private final LiveData<List<Playlist>> pinnedPlaylists;
@@ -240,12 +238,8 @@ public class HomeViewModel extends AndroidViewModel {
         return recentlyPlayedAlbumSample;
     }
 
-    public LiveData<List<Child>> getMediaInstantMix(LifecycleOwner owner, Child media) {
-        mediaInstantMix.setValue(Collections.emptyList());
-
-        songRepository.getInstantMix(media.getId(), SeedType.TRACK, 20).observe(owner, mediaInstantMix::postValue);
-
-        return mediaInstantMix;
+    public LiveData<List<Child>> getMediaInstantMix(Child media) {
+        return songRepository.getInstantMix(media, 20);
     }
 
     public LiveData<List<Child>> getArtistInstantMix(LifecycleOwner owner, ArtistID3 artist) {

@@ -22,6 +22,8 @@ public class BottomSheetHelper {
     private boolean isTargetExpanded = false;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private Runnable pendingStateRunnable;
+    private int peekHeightPx;
+    private int bottomInset;
 
     public void setState(int state) {
         if (state == BottomSheetBehavior.STATE_EXPANDED) {
@@ -53,6 +55,7 @@ public class BottomSheetHelper {
                              @NonNull View bottomSheetView,
                              @NonNull FragmentManager fragmentManager) {
         this.bottomSheetBehavior = bottomSheetBehavior;
+        this.peekHeightPx = bottomSheetBehavior.getPeekHeight();
         this.bottomSheetView = bottomSheetView;
         this.fragmentManager = fragmentManager;
         this.playerBottomSheetFragment = new PlayerBottomSheetFragment();
@@ -153,8 +156,15 @@ public class BottomSheetHelper {
     }
 
     public void setPeekHeight(int peekHeight, float displayDensity) {
-        int newPeekPx = (int) (peekHeight * displayDensity);
+        peekHeightPx = (int) (peekHeight * displayDensity);
         bottomSheetBehavior.setGestureInsetBottomIgnored(false);
-        bottomSheetBehavior.setPeekHeight(newPeekPx);
+        bottomSheetBehavior.setPeekHeight(peekHeightPx + bottomInset);
+    }
+
+    public void setBottomInset(int inset) {
+        if (bottomInset == inset) return;
+        bottomInset = inset;
+        // Keep the mini player above navigation without padding/clipping the full backdrop.
+        bottomSheetBehavior.setPeekHeight(peekHeightPx + bottomInset);
     }
 }

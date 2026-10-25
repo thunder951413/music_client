@@ -3,11 +3,16 @@ package com.eddyizm.tempus.ui.components
 import android.graphics.Bitmap
 import android.graphics.drawable.Drawable
 import android.net.Uri
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.layout.Box
@@ -15,7 +20,6 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.DisposableEffect
@@ -43,22 +47,87 @@ import com.eddyizm.tempus.R
 import com.eddyizm.tempus.glide.CustomGlideRequest
 import com.eddyizm.tempus.subsonic.models.Child
 import com.eddyizm.tempus.ui.player.PlayerMotion
+import com.eddyizm.tempus.ui.player.VinylClock
 import com.eddyizm.tempus.util.Preferences
 import com.eddyizm.tempus.util.RadioCoverArtDownloader
 import kotlin.math.absoluteValue
 
-/** Size of the full-player cover while playback is paused, relative to its playing size. */
-const val PAUSED_COVER_SCALE = 0.84f
+/** Share of the record taken by the artwork label in its centre. */
+const val VINYL_LABEL_FRACTION = 0.66f
 
 @Composable
-private fun rememberIsPlaying(): State<Boolean> {
-    val playing = remember { mutableStateOf(PlayerMotion.isPlaying) }
+private fun <T> rememberMotion(read: () -> T): State<T> {
+    val value = remember { mutableStateOf(read()) }
     DisposableEffect(Unit) {
-        val listener = PlayerMotion.Listener { playing.value = PlayerMotion.isPlaying }
+        val listener = PlayerMotion.Listener { value.value = read() }
         PlayerMotion.addListener(listener)
         onDispose { PlayerMotion.removeListener(listener) }
     }
-    return playing
+    return value
+}
+
+/**
+ * The cover as a vinyl record, in the manner of NetEase Cloud Music: a black grooved disc with the
+ * artwork as its round label, turning with [VinylClock] while playing. The light sheen stays put
+ * while the record turns under it.
+ */
+@Composable
+private fun VinylDisc(spinning: Boolean, hideLabel: Boolean, label: @Composable () -> Unit) {
+    var angle by remember { mutableFloatStateOf(VinylClock.angle()) }
+    LaunchedEffect(spinning) {
+        angle = VinylClock.angle()
+        if (spinning) while (true) withFrameNanos { angle = VinylClock.angle() }
+    }
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .graphicsLayer {
+                shadowElevation = 22.dp.toPx()
+                shape = CircleShape
+                clip = true
+            }
+            .background(Color(0xFF111113)),
+        contentAlignment = Alignment.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer { rotationZ = angle }
+                .drawBehind {
+                    val radius = size.minDimension / 2f
+                    var ring = VINYL_LABEL_FRACTION + 0.03f
+                    while (ring < 0.97f) {
+                        drawCircle(Color.White.copy(alpha = 0.045f), radius * ring, style = Stroke(width = 1.dp.toPx()))
+                        ring += 0.022f
+                    }
+                    drawCircle(Color.Black.copy(alpha = 0.6f), radius * (VINYL_LABEL_FRACTION + 0.012f), style = Stroke(width = 3.dp.toPx()))
+                },
+            contentAlignment = Alignment.Center
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize(VINYL_LABEL_FRACTION)
+                    .clip(CircleShape)
+                    .graphicsLayer { alpha = if (hideLabel) 0f else 1f }
+            ) { label() }
+            Box(
+                Modifier
+                    .fillMaxSize(0.04f)
+                    .clip(CircleShape)
+                    .background(Color(0xFF111113))
+            )
+        }
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.sweepGradient(
+                        0f to Color.Transparent, 0.12f to Color.White.copy(alpha = 0.07f), 0.22f to Color.Transparent,
+                        0.62f to Color.Transparent, 0.72f to Color.White.copy(alpha = 0.05f), 0.82f to Color.Transparent,
+                    )
+                )
+        )
+    }
 }
 
 @Composable
@@ -117,34 +186,11 @@ fun NowPlayingArtworkPager(
         }
     }
 
-    // Like Apple Music, the cover settles back when paused and springs forward when playing.
-    val isPlaying by rememberIsPlaying()
-    val playScale by animateFloatAsState(
-        targetValue = if (isPlaying || isRadio) 1f else PAUSED_COVER_SCALE,
-        animationSpec = spring(dampingRatio = 0.62f, stiffness = Spring.StiffnessMediumLow),
-        label = "coverPlayScale"
-    )
-    val shadow by animateFloatAsState(
-        targetValue = if (isPlaying || isRadio) 28f else 8f,
-        animationSpec = spring(stiffness = Spring.StiffnessLow),
-        label = "coverShadow"
-    )
-
-    val cornerRadius = if (Preferences.isCornerRoundingEnabled()) {
-        Preferences.getRoundedCornerSize().dp
-    } else {
-        0.dp
-    }
+    val isPlaying by rememberMotion { PlayerMotion.isPlaying }
+    val coverInFlight by rememberMotion { PlayerMotion.coverInFlight }
 
     if (!isRadio && queue.isEmpty()) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .clip(RoundedCornerShape(cornerRadius)),
-            contentAlignment = Alignment.Center
-        ) {
-            SongArtwork(coverArtId = null, title = null)
-        }
+        VinylDisc(spinning = false, hideLabel = false) { SongArtwork(coverArtId = null, title = null) }
         return
     }
 
@@ -162,29 +208,27 @@ fun NowPlayingArtworkPager(
         val scale = lerp(0.92f, 1.0f, 1f - pageOffset.coerceIn(0f, 1f))
         val alpha = lerp(0.7f, 1.0f, 1f - pageOffset.coerceIn(0f, 1f))
 
+        val current = page == pagerState.currentPage
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .graphicsLayer {
-                    scaleX = scale * playScale
-                    scaleY = scale * playScale
+                    scaleX = scale
+                    scaleY = scale
                     this.alpha = alpha
-                    shadowElevation = shadow.dp.toPx()
-                    shape = RoundedCornerShape(cornerRadius)
-                    clip = true
                 }
-                .clickable {
-                    if (page == pagerState.currentPage) {
-                        onCoverClick()
-                    }
+                .clickable(interactionSource = null, indication = null) {
+                    if (current) onCoverClick()
                 },
             contentAlignment = Alignment.Center
         ) {
-            if (isRadio) {
-                RadioArtwork(artworkUri = radioArtworkUri, coverArtId = radioCoverArtId)
-            } else {
-                val song = queue.getOrNull(page)
-                SongArtwork(coverArtId = song?.coverArtId, title = song?.title)
+            VinylDisc(spinning = current && isPlaying, hideLabel = current && coverInFlight) {
+                if (isRadio) {
+                    RadioArtwork(artworkUri = radioArtworkUri, coverArtId = radioCoverArtId)
+                } else {
+                    val song = queue.getOrNull(page)
+                    SongArtwork(coverArtId = song?.coverArtId, title = song?.title)
+                }
             }
         }
     }

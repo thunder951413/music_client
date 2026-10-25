@@ -150,12 +150,12 @@ public class MainActivity extends BaseActivity {
         SplashScreen.installSplashScreen(this);
 
         setUpEdgeToEdge(this);
-        fixUpEdgeToEdge();
         super.onCreate(savedInstanceState);
 
         bind = ActivityMainBinding.inflate(getLayoutInflater());
         View view = bind.getRoot();
         setContentView(view);
+        fixUpEdgeToEdge();
 
         mainViewModel = new ViewModelProvider(this).get(MainViewModel.class);
         assetLinkNavigator = new AssetLinkNavigator(this);
@@ -180,6 +180,12 @@ public class MainActivity extends BaseActivity {
     @Override
     protected void onStart() {
         super.onStart();
+        // BaseActivity applies themed bar colours. Main draws its own backgrounds behind them.
+        getWindow().setStatusBarColor(android.graphics.Color.TRANSPARENT);
+        getWindow().setNavigationBarColor(android.graphics.Color.TRANSPARENT);
+        getWindow().setNavigationBarDividerColor(android.graphics.Color.TRANSPARENT);
+        getWindow().setStatusBarContrastEnforced(false);
+        getWindow().setNavigationBarContrastEnforced(false);
         pingServer();
         initService();
         consumePendingPlaybackIntent();
@@ -887,22 +893,29 @@ public class MainActivity extends BaseActivity {
         ViewCompat.setOnApplyWindowInsetsListener(rootView, (v, insets) -> {
             Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
             Insets displayCutout = insets.getInsets(WindowInsetsCompat.Type.displayCutout());
-
             int topPadding = Math.max(systemBars.top, displayCutout.top);
-
-            rootView.setPadding(
-                    systemBars.left,
+            // Inset browsing content, not the activity: the player background fills the window.
+            bind.navHostFragment.setPadding(
+                    Math.max(systemBars.left, displayCutout.left),
                     topPadding,
-                    systemBars.right,
+                    Math.max(systemBars.right, displayCutout.right),
                     0
             );
-
+            bind.offlineModeTextView.setTranslationY(topPadding);
+            if (bottomSheetController != null) bottomSheetController.setBottomInset(systemBars.bottom);
+            return insets;
+        });
+        ViewCompat.setOnApplyWindowInsetsListener(bind.navHostFragment, (v, insets) -> {
+            // Browsing fragments already have this safe area supplied by their host.
+            Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
+            Insets displayCutout = insets.getInsets(WindowInsetsCompat.Type.displayCutout());
             return new WindowInsetsCompat.Builder(insets)
-                    .setInsets(WindowInsetsCompat.Type.systemBars(), Insets.of(systemBars.left, 0, systemBars.right, systemBars.bottom))
+                    .setInsets(WindowInsetsCompat.Type.systemBars(), Insets.of(0, 0, 0, systemBars.bottom))
                     .setInsets(WindowInsetsCompat.Type.statusBars(), Insets.NONE)
-                    .setInsets(WindowInsetsCompat.Type.displayCutout(), Insets.of(displayCutout.left, 0, displayCutout.right, displayCutout.bottom))
+                    .setInsets(WindowInsetsCompat.Type.displayCutout(), Insets.of(0, 0, 0, displayCutout.bottom))
                     .build();
         });
+        ViewCompat.requestApplyInsets(rootView);
     }
 
     private void setupLoginActivity() {

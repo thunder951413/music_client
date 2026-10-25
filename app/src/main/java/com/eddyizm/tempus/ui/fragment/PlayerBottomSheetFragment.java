@@ -38,6 +38,7 @@ import com.eddyizm.tempus.ui.player.CoverMorph;
 import com.eddyizm.tempus.ui.player.CoverScheme;
 import com.eddyizm.tempus.ui.player.PlayerBackdrop;
 import com.eddyizm.tempus.ui.player.PlayerMotion;
+import com.eddyizm.tempus.ui.player.VinylClock;
 import com.eddyizm.tempus.ui.queue.PlayerQueueBridge;
 import com.eddyizm.tempus.viewmodel.PlaybackViewModel;
 import com.bumptech.glide.Glide;
@@ -80,6 +81,7 @@ public class PlayerBottomSheetFragment extends Fragment {
         bind = FragmentPlayerBottomSheetBinding.inflate(inflater, container, false);
         View view = bind.getRoot();
         bind.playerBodyLayout.getRoot().setVisibility(((MainActivity) requireActivity()).isBottomSheetExpanded() ? View.VISIBLE : View.INVISIBLE);
+        insetPlayerContent();
 
         playerBottomSheetViewModel = new ViewModelProvider(requireActivity()).get(PlayerBottomSheetViewModel.class);
         playbackViewModel = new ViewModelProvider(requireActivity()).get(PlaybackViewModel.class);
@@ -148,16 +150,29 @@ public class PlayerBottomSheetFragment extends Fragment {
         bind.playerHeaderLayout.getRoot().setOnClickListener(view -> ((MainActivity) requireActivity()).expandBottomSheet());
     }
 
+    private void insetPlayerContent() {
+        // Only controls/queue avoid system bars and cutouts; the backdrop stays edge-to-edge.
+        ViewCompat.setOnApplyWindowInsetsListener(bind.playerBodyLayout.playerContent, (view, insets) -> {
+            int types = WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout();
+            Insets safeArea = insets.getInsets(types);
+            view.setPadding(safeArea.left, safeArea.top, safeArea.right, safeArea.bottom);
+            bind.playerHeaderLayout.getRoot().setPadding(safeArea.left, 0, safeArea.right, 0);
+            return new WindowInsetsCompat.Builder(insets).setInsets(types, Insets.NONE).build();
+        });
+        ViewCompat.requestApplyInsets(bind.playerBodyLayout.playerContent);
+    }
+
     private void initCoverMorph() {
-        float radius = CoverMorph.SOURCE_RADIUS_DP * getResources().getDisplayMetrics().density;
+        // The mini cover is a small record that turns with the full-player disc.
         View cover = bind.playerHeaderLayout.playerHeaderMediaCoverImage;
         cover.setOutlineProvider(new android.view.ViewOutlineProvider() {
             @Override
             public void getOutline(View view, android.graphics.Outline outline) {
-                outline.setRoundRect(0, 0, view.getWidth(), view.getHeight(), radius);
+                outline.setOval(0, 0, view.getWidth(), view.getHeight());
             }
         });
         cover.setClipToOutline(true);
+        VinylClock.spin(cover);
         coverMorph = new CoverMorph(bind.getRoot(), bind.playerFlyingCover);
         PlayerMotion.addListener(schemeListener);
         tintMiniPlayer();
@@ -169,8 +184,8 @@ public class PlayerBottomSheetFragment extends Fragment {
         View target = null;
         boolean queueOpen = playerQueueBridge != null && playerQueueBridge.isQueueOpen();
         if (!queueOpen && !isLyricsPage()) target = bind.getRoot().findViewById(R.id.now_playing_artwork_pager);
-        float coverScale = PlayerMotion.isPlaying() ? 1f : com.eddyizm.tempus.ui.components.NowPlayingArtworkPagerKt.PAUSED_COVER_SCALE;
-        coverMorph.update(slideOffset, bind.playerHeaderLayout.playerHeaderMediaCoverImage, target, coverScale);
+        coverMorph.update(slideOffset, bind.playerHeaderLayout.playerHeaderMediaCoverImage, target,
+                com.eddyizm.tempus.ui.components.NowPlayingArtworkPagerKt.VINYL_LABEL_FRACTION);
         // The full player is always dark, so system bar icons turn light once it covers the screen.
         boolean light = slideOffset < 0.5f && !isNightMode();
         if (lightSystemBars == null || lightSystemBars != light) {

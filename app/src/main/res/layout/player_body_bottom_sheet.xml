@@ -11,13 +11,19 @@
         android:importantForAccessibility="no" />
 
     <FrameLayout
-        android:id="@+id/player_controller_container"
+        android:id="@+id/player_content"
         android:layout_width="match_parent"
-        android:layout_height="match_parent" />
+        android:layout_height="match_parent">
 
-    <androidx.compose.ui.platform.ComposeView
-        android:id="@+id/player_queue_compose_view"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:visibility="gone" />
+        <FrameLayout
+            android:id="@+id/player_controller_container"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+
+        <androidx.compose.ui.platform.ComposeView
+            android:id="@+id/player_queue_compose_view"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:visibility="gone" />
+    </FrameLayout>
 </FrameLayout>
