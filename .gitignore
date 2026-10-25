@@ -24,3 +24,5 @@ app/tempus/
 app/degoogled/
 .agents/
 .kotlin
+# Release signing key and passwords (keep a backup elsewhere)
+.signing/

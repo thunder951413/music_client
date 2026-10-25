@@ -563,4 +563,9 @@
     <string name="la_perms_access_local_network_description">访问与当前设备位于同一局域网中的其他设备所必需。</string>
     <string name="la_perms_nearby_devices_title">附近设备</string>
     <string name="la_perms_nearby_devices_description">通过 UPnP 和 Chromecast 发现其他设备所必需。</string>
+    <string name="update_allow_install">请允许本应用安装更新，然后再点一次“立即下载”</string>
+    <string name="update_download_title">音乐客户端 %1$s</string>
+    <string name="update_downloading">正在下载更新…</string>
+    <string name="update_download_failed">更新下载失败</string>
+    <string name="update_dialog_release_notes">更新说明</string>
 </resources>

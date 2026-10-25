@@ -11,7 +11,10 @@ import androidx.fragment.app.DialogFragment;
 
 import com.eddyizm.tempus.R;
 import com.eddyizm.tempus.databinding.DialogGithubTempoUpdateBinding;
+import com.eddyizm.tempus.github.models.Assets;
 import com.eddyizm.tempus.github.models.LatestRelease;
+import com.eddyizm.tempus.github.utils.ApkUpdater;
+import com.eddyizm.tempus.github.utils.UpdateUtil;
 import com.eddyizm.tempus.util.Preferences;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
@@ -34,7 +37,7 @@ public class GithubTempoUpdateDialog extends DialogFragment {
                 .setTitle(R.string.github_update_dialog_title)
                 .setPositiveButton(R.string.github_update_dialog_positive_button, (dialog, id) -> { })
                 .setNegativeButton(R.string.github_update_dialog_negative_button, (dialog, id) -> { })
-                .setNeutralButton(R.string.github_update_dialog_neutral_button, (dialog, id) -> { });
+                .setNeutralButton(R.string.update_dialog_release_notes, (dialog, id) -> { });
 
         return builder.create();
     }
@@ -50,7 +53,12 @@ public class GithubTempoUpdateDialog extends DialogFragment {
         AlertDialog alertDialog = (AlertDialog) Objects.requireNonNull(getDialog());
 
         alertDialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
-            openLink(latestRelease.getHtmlUrl());
+            Assets apk = UpdateUtil.findApkAsset(latestRelease);
+            if (apk != null) {
+                ApkUpdater.start(requireActivity(), apk.getBrowserDownloadUrl(), latestRelease.getTagName());
+            } else {
+                openLink(latestRelease.getHtmlUrl());
+            }
             Objects.requireNonNull(getDialog()).dismiss();
         });
 
@@ -60,7 +68,7 @@ public class GithubTempoUpdateDialog extends DialogFragment {
         });
 
         alertDialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener(v -> {
-            openLink(getString(R.string.support_url));
+            openLink(latestRelease.getHtmlUrl());
             Objects.requireNonNull(getDialog()).dismiss();
         });
     }

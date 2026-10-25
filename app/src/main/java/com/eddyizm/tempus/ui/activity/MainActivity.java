@@ -731,7 +731,7 @@ public class MainActivity extends BaseActivity {
     }
 
     private void checkTempusUpdate() {
-        if (BuildConfig.FLAVOR.equals("tempus") && Preferences.isGithubUpdateEnabled() && Preferences.showTempusUpdateDialog()) {
+        if (BuildConfig.SELF_UPDATE && Preferences.isGithubUpdateEnabled() && Preferences.showTempusUpdateDialog()) {
             mainViewModel.checkTempusUpdate().observe(this, latestRelease -> {
                 if (latestRelease != null && UpdateUtil.showUpdateDialog(latestRelease)) {
                     GithubTempoUpdateDialog dialog = new GithubTempoUpdateDialog(latestRelease);

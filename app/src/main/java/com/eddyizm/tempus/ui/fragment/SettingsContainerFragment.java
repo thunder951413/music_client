@@ -226,7 +226,7 @@ public class SettingsContainerFragment extends PreferenceFragmentCompat {
     public void onCreatePreferences(Bundle savedInstanceState, String rootKey) {
         setPreferencesFromResource(R.xml.global_preferences, rootKey);
 
-        if (!BuildConfig.FLAVOR.equals("tempus")) {
+        if (!BuildConfig.SELF_UPDATE) {
             PreferenceCategory githubUpdateCategory = findPreference("settings_github_update_category_key");
             if (githubUpdateCategory != null) {
                 getPreferenceScreen().removePreference(githubUpdateCategory);

@@ -1,10 +1,11 @@
 package com.eddyizm.tempus.github;
 
+import com.eddyizm.tempus.BuildConfig;
 import com.eddyizm.tempus.github.api.release.ReleaseClient;
 
 public class Github {
-    private static final String OWNER = "eddyizm";
-    private static final String REPO = "Tempus";
+    private static final String OWNER = BuildConfig.UPDATE_REPO_OWNER;
+    private static final String REPO = BuildConfig.UPDATE_REPO_NAME;
     private ReleaseClient releaseClient;
 
     public ReleaseClient getReleaseClient() {

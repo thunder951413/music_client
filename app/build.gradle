@@ -4,6 +4,11 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
+// Release version of this fork, kept in gradle.properties; the release tag must be v<version>.
+def musicClientVersion = (project.findProperty('musicClientVersion') ?: '1.0.0').toString()
+def musicClientVersionParts = musicClientVersion.tokenize('.').collect { it.toInteger() }
+def releaseKeystore = System.getenv('MUSIC_CLIENT_KEYSTORE')
+
 android {
     namespace = 'com.eddyizm.tempus'
     //noinspection GradleDependency
@@ -15,8 +20,11 @@ android {
         //noinspection OldTargetApi
         targetSdk = 37
 
-        versionCode 51
-        versionName '4.30.0'
+        versionCode musicClientVersionParts[0] * 10000 + musicClientVersionParts[1] * 100 + musicClientVersionParts[2]
+        versionName musicClientVersion
+        buildConfigField "boolean", "SELF_UPDATE", "true"
+        buildConfigField "String", "UPDATE_REPO_OWNER", '"thunder951413"'
+        buildConfigField "String", "UPDATE_REPO_NAME", '"music_client"'
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
 
         javaCompileOptions {
@@ -59,12 +67,26 @@ android {
 
         degoogled {
             dimension = "default"
-            applicationId = "com.eddyizm.degoogled.tempus"
+            applicationId = "io.github.thunder951413.musicclient"
+        }
+    }
+
+    signingConfigs {
+        release {
+            if (releaseKeystore) {
+                storeFile = file(releaseKeystore)
+                storePassword = System.getenv('MUSIC_CLIENT_KEYSTORE_PASSWORD')
+                keyAlias = System.getenv('MUSIC_CLIENT_KEY_ALIAS')
+                keyPassword = System.getenv('MUSIC_CLIENT_KEY_PASSWORD')
+            }
         }
     }
 
     buildTypes {
         release {
+            if (releaseKeystore) {
+                signingConfig = signingConfigs.release
+            }
             shrinkResources = true
             minifyEnabled = true
             debuggable = false
