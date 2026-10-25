@@ -6,6 +6,8 @@ on:
   push:
     tags:
       - 'v*'
+  # Manual re-run: choose the release tag as the ref.
+  workflow_dispatch:
 
 permissions:
   contents: write
