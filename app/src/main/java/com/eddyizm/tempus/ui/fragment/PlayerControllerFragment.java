@@ -48,6 +48,7 @@ import androidx.transition.TransitionSet;
 import androidx.viewpager2.widget.ViewPager2;
 
 import com.eddyizm.tempus.R;
+import com.eddyizm.tempus.ui.player.PlayerBackdrop;
 import com.eddyizm.tempus.databinding.InnerFragmentPlayerControllerBinding;
 import com.eddyizm.tempus.service.MediaService;
 import com.eddyizm.tempus.ui.activity.MainActivity;
@@ -125,7 +126,7 @@ public class PlayerControllerFragment extends Fragment {
     public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
         activity = (MainActivity) getActivity();
 
-        bind = InnerFragmentPlayerControllerBinding.inflate(inflater, container, false);
+        bind = InnerFragmentPlayerControllerBinding.inflate(PlayerBackdrop.themedInflater(inflater), container, false);
         View view = bind.getRoot();
 
         playerBottomSheetViewModel = new ViewModelProvider(requireActivity()).get(PlayerBottomSheetViewModel.class);

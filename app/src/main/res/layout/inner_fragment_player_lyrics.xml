@@ -22,6 +22,7 @@
     <TextView
         android:id="@+id/title_empty_description_label"
         style="@style/LabelMedium"
+        android:textColor="?attr/colorOnSurfaceVariant"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:paddingTop="12dp"
@@ -44,6 +45,7 @@
         <TextView
             android:id="@+id/now_playing_song_lyrics_text_view"
             style="@style/BodyLarge"
+            android:textColor="?attr/colorOnSurface"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:gravity="center_horizontal"
@@ -91,6 +93,7 @@
     <TextView
         android:id="@+id/temp_lyrics_line_text_view"
         style="@style/BodyLarge"
+        android:textColor="?attr/colorOnSurface"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         app:layout_constraintEnd_toEndOf="parent"

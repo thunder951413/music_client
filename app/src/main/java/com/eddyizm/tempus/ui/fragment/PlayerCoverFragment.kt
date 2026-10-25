@@ -33,6 +33,7 @@ import com.eddyizm.tempus.service.MediaService
 import com.eddyizm.tempus.subsonic.models.Child
 import com.eddyizm.tempus.ui.components.NowPlayingArtworkPager
 import com.eddyizm.tempus.ui.dialog.PlaylistChooserDialog
+import com.eddyizm.tempus.ui.player.PlayerBackdrop
 import com.eddyizm.tempus.util.Constants
 import com.eddyizm.tempus.util.DownloadUtil
 import com.eddyizm.tempus.util.ExternalAudioWriter
@@ -62,7 +63,7 @@ class PlayerCoverFragment : Fragment() {
     private var radioStationCoverArtId by mutableStateOf<String?>(null)
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
-        val binding = InnerFragmentPlayerCoverBinding.inflate(inflater, container, false)
+        val binding = InnerFragmentPlayerCoverBinding.inflate(PlayerBackdrop.themedInflater(inflater), container, false)
         bind = binding
 
         playerBottomSheetViewModel = ViewModelProvider(requireActivity())[PlayerBottomSheetViewModel::class.java]

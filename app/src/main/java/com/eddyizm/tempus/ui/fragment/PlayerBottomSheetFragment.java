@@ -32,6 +32,7 @@ import com.eddyizm.tempus.service.MediaManager;
 import com.eddyizm.tempus.service.MediaService;
 import com.eddyizm.tempus.subsonic.models.PlayQueue;
 import com.eddyizm.tempus.ui.activity.MainActivity;
+import com.eddyizm.tempus.ui.player.PlayerBackdrop;
 import com.eddyizm.tempus.ui.queue.PlayerQueueBridge;
 import com.eddyizm.tempus.viewmodel.PlaybackViewModel;
 import com.bumptech.glide.Glide;
@@ -299,11 +300,13 @@ public class PlayerBottomSheetFragment extends Fragment {
                                 mediaMetadata.extras.getString("coverArtId"), CustomGlideRequest.ResourceType.Radio));
                 request = RadioCoverArtDownloader.applyLocalFileSignature(request, mediaMetadata.artworkUri);
                 request.into(bind.playerHeaderLayout.playerHeaderMediaCoverImage);
+                PlayerBackdrop.apply(bind.playerBodyLayout.playerBodyRoot, null);
             } else {
                 CustomGlideRequest.Builder
                         .from(requireContext(), mediaMetadata.extras.getString("coverArtId"), CustomGlideRequest.ResourceType.Song)
                         .build()
                         .into(bind.playerHeaderLayout.playerHeaderMediaCoverImage);
+                PlayerBackdrop.apply(bind.playerBodyLayout.playerBodyRoot, mediaMetadata.extras.getString("coverArtId"));
             }
         }
     }

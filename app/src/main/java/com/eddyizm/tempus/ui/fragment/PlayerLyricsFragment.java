@@ -27,6 +27,8 @@ import androidx.media3.session.MediaBrowser;
 import androidx.media3.session.SessionToken;
 
 import com.eddyizm.tempus.R;
+import com.eddyizm.tempus.ui.player.PlayerBackdrop;
+import com.google.android.material.color.MaterialColors;
 import com.eddyizm.tempus.databinding.InnerFragmentPlayerLyricsBinding;
 import com.eddyizm.tempus.service.MediaService;
 import com.eddyizm.tempus.subsonic.models.Line;
@@ -58,7 +60,7 @@ public class PlayerLyricsFragment extends Fragment {
 
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
-        bind = InnerFragmentPlayerLyricsBinding.inflate(inflater, container, false);
+        bind = InnerFragmentPlayerLyricsBinding.inflate(PlayerBackdrop.themedInflater(inflater), container, false);
         View view = bind.getRoot();
 
         playerBottomSheetViewModel = new ViewModelProvider(requireActivity()).get(PlayerBottomSheetViewModel.class);
@@ -323,6 +325,8 @@ public class PlayerLyricsFragment extends Fragment {
             Spannable spannableString = new SpannableString(lyrics);
 
             // Make each line clickable for navigation and highlight the current one
+            int highlightColor = MaterialColors.getColor(bind.getRoot(), com.google.android.material.R.attr.colorOnSurface);
+            int shadowColor = MaterialColors.getColor(bind.getRoot(), com.google.android.material.R.attr.colorOnSurfaceVariant);
             int offset = 0;
             int highlightStart = -1;
             for (int i = 0; i < lines.size(); ++i) {
@@ -344,9 +348,9 @@ public class PlayerLyricsFragment extends Fragment {
                         super.updateDrawState(ds);
                         ds.setUnderlineText(false);
                         if (highlight) {
-                            ds.setColor(requireContext().getResources().getColor(R.color.lyricsTextColor, null));
+                            ds.setColor(highlightColor);
                         } else {
-                            ds.setColor(requireContext().getResources().getColor(R.color.shadowsLyricsTextColor, null));
+                            ds.setColor(shadowColor);
                         }
                     }
                 }, offset, offset + len, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);

@@ -1,3 +1,4 @@
 <resources>
     <item name="tag_link_original_color" type="id" />
+    <item name="tag_player_backdrop_animator" type="id" />
 </resources>
