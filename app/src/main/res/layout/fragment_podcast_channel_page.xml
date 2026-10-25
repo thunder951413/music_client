@@ -47,12 +47,27 @@
                     style="@style/TitleMedium"
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
+                    android:maxLines="5"
+                    android:ellipsize="end"
                     android:paddingStart="16dp"
                     android:paddingTop="8dp"
                     android:paddingEnd="16dp"
                     app:layout_constraintEnd_toEndOf="parent"
                     app:layout_constraintStart_toStartOf="parent"
                     app:layout_constraintTop_toBottomOf="@+id/podcast_channel_description_label" />
+
+                <TextView
+                    android:id="@+id/podcast_feed_status"
+                    style="@style/LabelMedium"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:minHeight="48dp"
+                    android:gravity="center_vertical"
+                    android:paddingHorizontal="16dp"
+                    android:textColor="?attr/colorPrimary"
+                    android:background="?attr/selectableItemBackground"
+                    android:visibility="gone"
+                    app:layout_constraintTop_toBottomOf="@id/podcast_channel_description_text_view" />
 
                 <View
                     android:id="@+id/upper_button_divider"
@@ -61,7 +76,7 @@
                     android:layout_marginTop="16dp"
                     app:layout_constraintEnd_toEndOf="parent"
                     app:layout_constraintStart_toStartOf="parent"
-                    app:layout_constraintTop_toBottomOf="@+id/podcast_channel_description_text_view" />
+                    app:layout_constraintTop_toBottomOf="@+id/podcast_feed_status" />
 
                 <TextView
                     android:id="@+id/podcast_episodes_section_label"

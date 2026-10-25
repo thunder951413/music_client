@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:id="@+id/action_track_info" android:title="@string/track_info_dialog_title" />
+    <item android:id="@+id/action_audio_details" android:title="@string/player_audio_details" android:checkable="true" />
+    <item android:id="@+id/action_playback_speed" android:title="@string/playback_speed_dialog_title" />
+    <item android:id="@+id/action_sleep_timer" android:title="@string/sleep_timer_dialog_title" />
+    <item android:id="@+id/action_show_lyrics" android:title="@string/player_show_lyrics" />
     <item android:id="@+id/action_lan_playback" android:title="@string/lan_play_on" />
     <item
         android:id="@+id/action_open_equalizer"

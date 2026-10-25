@@ -78,6 +78,7 @@ public class PodcastChannelBottomSheetDialog extends BottomSheetDialogFragment i
         titlePodcast.setText(podcastChannelBottomSheetViewModel.getPodcastChannel().getTitle());
 
         TextView delete = view.findViewById(R.id.delete_text_view);
+        if (com.eddyizm.tempus.podcast.LocalPodcastStore.isLocal(podcastChannel.getId())) delete.setText(R.string.podcast_rss_unsubscribe);
         delete.setOnClickListener(v -> {
             podcastChannelBottomSheetViewModel.deletePodcastChannel();
             dismissBottomSheet();

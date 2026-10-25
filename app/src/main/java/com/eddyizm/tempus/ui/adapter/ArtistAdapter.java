@@ -22,6 +22,7 @@ import java.util.List;
 @UnstableApi
 public class ArtistAdapter extends RecyclerView.Adapter<ArtistAdapter.ViewHolder> implements StandardViewTypeAdapter {
     private final ClickCallback click;
+    private final boolean compactPreview;
     private final boolean mix;
     private final boolean bestOf;
 
@@ -29,7 +30,12 @@ public class ArtistAdapter extends RecyclerView.Adapter<ArtistAdapter.ViewHolder
     private List<ArtistID3> artists;
 
     public ArtistAdapter(ClickCallback click, Boolean mix, Boolean bestOf) {
+        this(click, mix, bestOf, false);
+    }
+
+    public ArtistAdapter(ClickCallback click, Boolean mix, Boolean bestOf, boolean compactPreview) {
         this.click = click;
+        this.compactPreview = compactPreview;
         this.mix = mix;
         this.bestOf = bestOf;
         this.artists = Collections.emptyList();
@@ -42,6 +48,7 @@ public class ArtistAdapter extends RecyclerView.Adapter<ArtistAdapter.ViewHolder
 
         TileSizeManager.getInstance().calculateTileSize(parent.getContext());
         sizePx = TileSizeManager.getInstance().getTileSizePx(parent.getContext());
+        if (compactPreview) sizePx = Math.min(sizePx, Math.round(152 * parent.getResources().getDisplayMetrics().density));
 
         return new ViewHolder(view);
     }

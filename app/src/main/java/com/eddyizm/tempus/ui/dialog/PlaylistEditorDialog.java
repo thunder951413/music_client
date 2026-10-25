@@ -28,7 +28,9 @@ public class PlaylistEditorDialog extends DialogFragment {
     private DialogPlaylistEditorBinding bind;
     private PlaylistEditorViewModel playlistEditorViewModel;
 
-    private final PlaylistCallback playlistCallback;
+    private PlaylistCallback playlistCallback;
+    private String selectedIcon="🎧";
+    public PlaylistEditorDialog() {}
 
     private String playlistName;
 
@@ -45,7 +47,7 @@ public class PlaylistEditorDialog extends DialogFragment {
 
         return new MaterialAlertDialogBuilder(getActivity())
                 .setView(bind.getRoot())
-                .setTitle(R.string.playlist_details_dialog_title)
+                .setTitle(R.string.collection_title)
                 .setPositiveButton(R.string.playlist_editor_dialog_positive_button, (dialog, id) -> { })
                 .setNeutralButton(R.string.playlist_editor_dialog_neutral_button, (dialog, id) -> dialog.cancel())
                 .setNegativeButton(R.string.playlist_editor_dialog_negative_button, (dialog, id) -> dialog.cancel())
@@ -57,6 +59,7 @@ public class PlaylistEditorDialog extends DialogFragment {
         super.onStart();
 
         setParameterInfo();
+        initIconPicker();
         setButtonAction();
     }
 
@@ -75,8 +78,22 @@ public class PlaylistEditorDialog extends DialogFragment {
             playlistEditorViewModel.setPlaylistToEdit(requireArguments().getParcelable(Constants.PLAYLIST_OBJECT));
 
             if (playlistEditorViewModel.getPlaylistToEdit() != null) {
-                bind.playlistNameTextView.setText(playlistEditorViewModel.getPlaylistToEdit().getName());
+                String name=playlistEditorViewModel.getPlaylistToEdit().getName();
+                selectedIcon=com.eddyizm.tempus.collection.CollectionName.icon(name);
+                bind.playlistNameTextView.setText(com.eddyizm.tempus.collection.CollectionName.title(name));
             }
+        }
+    }
+
+    private void initIconPicker() {
+        bind.collectionIconChoices.removeAllViews();
+        for (String icon:com.eddyizm.tempus.collection.CollectionName.ICONS) {
+            var chip=new com.google.android.material.chip.Chip(requireContext());
+            chip.setId(View.generateViewId()); chip.setCheckable(true);
+            chip.setText(icon.isEmpty()?getString(R.string.collection_use_artwork):icon);
+            chip.setTextSize(20);chip.setChecked(icon.equals(selectedIcon));
+            chip.setOnCheckedChangeListener((button,checked) -> { if (checked) selectedIcon=icon; });
+            bind.collectionIconChoices.addView(chip);
         }
     }
 
@@ -85,6 +102,7 @@ public class PlaylistEditorDialog extends DialogFragment {
 
         alertDialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
             if (validateInput()) {
+                alertDialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE).setEnabled(false);
                 PlaylistRepository.PlaylistActionCallback callback = new PlaylistRepository.PlaylistActionCallback() {
                     @Override
                     public void onSuccess() {
@@ -103,6 +121,7 @@ public class PlaylistEditorDialog extends DialogFragment {
                     public void onFailure() {
                         if (isAdded() && getContext() != null) {
                             requireActivity().runOnUiThread(() -> {
+                                alertDialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE).setEnabled(true);
                                 Toast.makeText(getContext(), R.string.playlist_editor_dialog_action_save_failure, Toast.LENGTH_SHORT).show();
                             });
                         }
@@ -154,7 +173,7 @@ public class PlaylistEditorDialog extends DialogFragment {
             });
         });
 
-        bind.playlistShareButton.setVisibility(Preferences.isSharingEnabled() ? View.VISIBLE : View.GONE);
+        bind.playlistShareButton.setVisibility(Preferences.isSharingEnabled() && playlistEditorViewModel.getPlaylistToEdit()!=null ? View.VISIBLE : View.GONE);
     }
 
     private boolean validateInput() {
@@ -165,6 +184,7 @@ public class PlaylistEditorDialog extends DialogFragment {
             return false;
         }
 
+        playlistName=com.eddyizm.tempus.collection.CollectionName.encode(playlistName,selectedIcon);
         return true;
     }
 

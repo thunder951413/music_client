@@ -40,6 +40,18 @@ public class HomeTabRadioFragment extends Fragment implements ClickCallback, Rad
     private InternetRadioStationAdapter internetRadioStationAdapter;
 
     private ListenableFuture<MediaBrowser> mediaBrowserListenableFuture;
+    private java.util.List<com.eddyizm.tempus.subsonic.models.InternetRadioStation> stations = new java.util.ArrayList<>();
+    private String selectedCategory = "";
+
+    private void filterStations() {
+        java.util.List<com.eddyizm.tempus.subsonic.models.InternetRadioStation> filtered = new java.util.ArrayList<>();
+        for (var station : stations) {
+            var entry = com.eddyizm.tempus.catalog.AudioCatalog.radioEntry(station.getId());
+            if (selectedCategory.isEmpty() || entry != null && selectedCategory.equals(entry.category)) filtered.add(station);
+        }
+        internetRadioStationAdapter.setItems(filtered);
+    }
+
 
     @Nullable
     @Override
@@ -91,6 +103,14 @@ public class HomeTabRadioFragment extends Fragment implements ClickCallback, Rad
             return true;
         });
 
+        for (String category : new String[]{"", "新闻资讯", "音乐", "故事文艺", "财经商业", "交通生活"}) {
+            var chip = new com.google.android.material.chip.Chip(requireContext());
+            chip.setId(View.generateViewId());
+            chip.setText(category.isEmpty() ? getString(com.eddyizm.tempus.R.string.audio_all) : category);
+            chip.setCheckable(true); chip.setChecked(category.equals(selectedCategory));
+            bind.radioCategories.addView(chip);
+            chip.setOnCheckedChangeListener((button, checked) -> { if (checked) { selectedCategory=category; filterStations(); } });
+        }
         bind.hideSectionButton.setOnClickListener(v -> Preferences.setRadioSectionHidden());
     }
 
@@ -110,7 +130,8 @@ public class HomeTabRadioFragment extends Fragment implements ClickCallback, Rad
                 if (bind != null)
                     bind.emptyRadioStationLayout.setVisibility(internetRadioStations.isEmpty() ? View.VISIBLE : View.GONE);
 
-                internetRadioStationAdapter.setItems(internetRadioStations);
+                stations = internetRadioStations;
+                filterStations();
             }
         });
     }

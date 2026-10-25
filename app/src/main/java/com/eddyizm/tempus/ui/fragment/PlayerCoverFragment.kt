@@ -57,6 +57,7 @@ class PlayerCoverFragment : Fragment() {
 
     private var queueItems by mutableStateOf<List<Child>>(emptyList())
     private var localQueue: List<Child> = emptyList()
+    private var isPodcast = false
     private var currentPlayingIndex by mutableIntStateOf(0)
     private var isRadioStation by mutableStateOf(false)
     private var radioStationArtworkUri by mutableStateOf<Uri?>(null)
@@ -103,6 +104,8 @@ class PlayerCoverFragment : Fragment() {
         }
 
         initOverlay()
+        playerBottomSheetViewModel.getLiveLyrics().observe(viewLifecycleOwner) { updateLyricsAction() }
+        playerBottomSheetViewModel.getLiveLyricsList().observe(viewLifecycleOwner) { updateLyricsAction() }
         initInnerButton()
         observeQueue()
 
@@ -130,7 +133,7 @@ class PlayerCoverFragment : Fragment() {
     private fun observeQueue() {
         playerBottomSheetViewModel.getQueueSong().observe(viewLifecycleOwner) { queue ->
             localQueue = queue?.map { it as Child } ?: emptyList()
-            if (!LanRemoteSession.isActive()) queueItems = localQueue
+            if (!LanRemoteSession.isActive() && !isPodcast) queueItems = localQueue
         }
         LanRemoteSession.queueState().observe(viewLifecycleOwner) { if (LanRemoteSession.isActive()) refreshRemoteArtwork() }
         LanRemoteSession.state().observe(viewLifecycleOwner) { state ->
@@ -187,12 +190,22 @@ class PlayerCoverFragment : Fragment() {
         binding.nowPlayingSongCoverButtonGroup.visibility = if (isVisible) View.VISIBLE else View.GONE
         binding.nowPlayingTapButton.visibility = if (isVisible) View.GONE else View.VISIBLE
 
-        binding.innerButtonBottomRight.visibility = if (Preferences.isSyncronizationEnabled()) View.VISIBLE else View.GONE
-        binding.innerButtonBottomRightAlternative.visibility = if (Preferences.isSyncronizationEnabled()) View.GONE else View.VISIBLE
+        val isMusic = mediaBrowser?.mediaMetadata?.extras?.getString("type") == Constants.MEDIA_TYPE_MUSIC
+        binding.innerButtonTopLeft.visibility = if (isMusic) View.VISIBLE else View.GONE
+        binding.innerButtonTopRight.visibility = if (isMusic) View.VISIBLE else View.GONE
+        binding.innerButtonBottomLeft.visibility = if (isMusic) View.VISIBLE else View.GONE
+        binding.innerButtonBottomRight.visibility = if (isMusic && Preferences.isSyncronizationEnabled()) View.VISIBLE else View.GONE
+        binding.innerButtonBottomRightAlternative.visibility =
+            if (!Preferences.isSyncronizationEnabled() && playerBottomSheetViewModel.hasLyrics()) View.VISIBLE else View.GONE
 
         if (!isVisible) {
             initTapButtonHideTransition()
         }
+    }
+
+    private fun updateLyricsAction() {
+        bind?.innerButtonBottomRightAlternative?.visibility =
+            if (!Preferences.isSyncronizationEnabled() && playerBottomSheetViewModel.hasLyrics()) View.VISIBLE else View.GONE
     }
 
     private fun initInnerButton() {
@@ -281,6 +294,10 @@ class PlayerCoverFragment : Fragment() {
                 toggleOverlayVisibility(false)
             }
 
+            override fun onTimelineChanged(timeline: androidx.media3.common.Timeline, reason: Int) {
+                if (isPodcast) updatePlaybackState(browser.mediaMetadata,browser.currentMediaItemIndex)
+            }
+
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 updatePlaybackState(browser.mediaMetadata, browser.currentMediaItemIndex)
                 toggleOverlayVisibility(false)
@@ -294,6 +311,13 @@ class PlayerCoverFragment : Fragment() {
         val extras = mediaMetadata.extras
         val isRadio = extras != null && Constants.MEDIA_TYPE_RADIO == extras.getString("type")
 
+        val wasPodcast = isPodcast
+        isPodcast = extras?.getString("type") == Constants.MEDIA_TYPE_PODCAST
+        if (isPodcast) {
+            mediaBrowser?.let { browser ->
+                queueItems = (0 until browser.mediaItemCount).mapNotNull { MappingUtil.mapToChild(browser.getMediaItemAt(it)) }
+            }
+        } else if (wasPodcast) queueItems = localQueue
         isRadioStation = isRadio
         radioStationArtworkUri = mediaMetadata.artworkUri
         radioStationCoverArtId = extras?.getString("coverArtId")

@@ -155,7 +155,7 @@ object Preferences {
     // MB of JSON churn per operation (see capResumePoints).
     private const val MAX_RESUME_POINTS = 200
 
-    data class ResumePoint(
+    data class ResumePoint @JvmOverloads constructor(
         val id: String,
         val position: Long,
         val title: String?,
@@ -167,13 +167,15 @@ object Preferences {
         // same resumability it had when the point was saved (see isResumable in MediaManager).
         val type: String?,
         val timestamp: Long,
+        val mediaUrl: String? = null,
     )
 
     @JvmStatic
-    fun saveResumePoint(id: String, position: Long, title: String?, album: String?, artist: String?, albumId: String?, coverArtId: String?, type: String?) {
+    @JvmOverloads
+    fun saveResumePoint(id: String, position: Long, title: String?, album: String?, artist: String?, albumId: String?, coverArtId: String?, type: String?, mediaUrl: String? = null) {
         if (id.isNullOrBlank() || position <= 0L) return
         val pts = getResumePoints()
-        pts[id] = ResumePoint(id, position, title, album, artist, albumId, coverArtId, type, System.currentTimeMillis())
+        pts[id] = ResumePoint(id, position, title, album, artist, albumId, coverArtId, type, System.currentTimeMillis(), mediaUrl)
         writeResumePoints(pts)
     }
 
@@ -774,7 +776,7 @@ object Preferences {
 
     @JvmStatic
     fun isCornerRoundingEnabled(): Boolean {
-        return App.getInstance().preferences.getBoolean(ROUNDED_CORNER, false)
+        return App.getInstance().preferences.getBoolean(ROUNDED_CORNER, true)
     }
 
     @JvmStatic

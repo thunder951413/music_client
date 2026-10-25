@@ -1,0 +1,9 @@
+<resources>
+    <string name="player_now_playing">正在播放</string><string name="player_collapse">收起播放器</string>
+    <string name="player_local_output">本机播放</string><string name="player_remote_output">远程播放</string>
+    <string name="player_audio_details">音频参数</string><string name="player_show_lyrics">歌词</string>
+    <string name="player_more_options">更多选项</string>
+    <string name="playback_speed_dialog_title">播放速度</string>
+    <string name="sleep_timer_dialog_title">睡眠定时</string>
+    <string name="player_overflow_menu_add_to_playlist">添加到歌单</string>
+</resources>

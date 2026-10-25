@@ -94,7 +94,7 @@
     <color name="gray">#808080</color>
 
     <color name="brand_red">#EC4141</color>
-    <color name="player_backdrop_fallback">#2B2B2E</color>
+    <color name="player_backdrop_fallback">#F2F1E9</color>
 
     <color name="lyricsTextColor">#252525</color>
     <color name="shadowsLyricsTextColor">#B4B4B4</color>

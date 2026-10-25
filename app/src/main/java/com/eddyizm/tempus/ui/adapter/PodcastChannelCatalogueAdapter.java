@@ -22,18 +22,22 @@ import java.util.List;
 
 public class PodcastChannelCatalogueAdapter extends RecyclerView.Adapter<PodcastChannelCatalogueAdapter.ViewHolder> implements Filterable, StandardViewTypeAdapter {
     private final ClickCallback click;
+    private volatile String category = "";
+    private String query = "";
+
+    public void setCategory(String value) { category=value; filtering.filter(query); }
     private final Filter filtering = new Filter() {
         @Override
         protected FilterResults performFiltering(CharSequence constraint) {
             List<PodcastChannel> filteredList = new ArrayList<>();
 
             if (constraint == null || constraint.length() == 0) {
-                filteredList.addAll(podcastChannelsFull);
+                for (PodcastChannel item : podcastChannelsFull) if (category.isEmpty() || category.equals(item.getCategory())) filteredList.add(item);
             } else {
                 String filterPattern = constraint.toString().toLowerCase().trim();
 
                 for (PodcastChannel item : podcastChannelsFull) {
-                    if (item.getTitle().toLowerCase().contains(filterPattern)) {
+                    if ((category.isEmpty() || category.equals(item.getCategory())) && (item.getTitle()+" "+item.getCategory()+" "+item.getRegion()).toLowerCase(java.util.Locale.ROOT).contains(filterPattern)) {
                         filteredList.add(item);
                     }
                 }
@@ -41,12 +45,14 @@ public class PodcastChannelCatalogueAdapter extends RecyclerView.Adapter<Podcast
 
             FilterResults results = new FilterResults();
             results.values = filteredList;
+            results.count = filteredList.size();
 
             return results;
         }
 
         @Override
         protected void publishResults(CharSequence constraint, FilterResults results) {
+            query=constraint == null ? "" : constraint.toString();
             podcastChannels.clear();
             if (results.count > 0) podcastChannels.addAll((List) results.values);
             notifyDataSetChanged();
@@ -54,11 +60,12 @@ public class PodcastChannelCatalogueAdapter extends RecyclerView.Adapter<Podcast
     };
 
     private List<PodcastChannel> podcastChannels;
-    private List<PodcastChannel> podcastChannelsFull;
+    private volatile List<PodcastChannel> podcastChannelsFull;
 
     public PodcastChannelCatalogueAdapter(ClickCallback click) {
         this.click = click;
-        this.podcastChannels = Collections.emptyList();
+        this.podcastChannels = new ArrayList<>();
+        this.podcastChannelsFull = new ArrayList<>();
     }
 
     @NonNull
@@ -73,6 +80,7 @@ public class PodcastChannelCatalogueAdapter extends RecyclerView.Adapter<Podcast
         PodcastChannel podcastChannel = podcastChannels.get(position);
 
         holder.item.podcastChannelTitleLabel.setText(podcastChannel.getTitle());
+        holder.item.podcastChannelCategoryLabel.setText(podcastChannel.getCategory() == null ? "" : podcastChannel.getCategory()+" · "+podcastChannel.getRegion());
 
         CustomGlideRequest.Builder
                 .from(holder.itemView.getContext(), podcastChannel.getCoverArtId(), CustomGlideRequest.ResourceType.Podcast)
@@ -90,9 +98,9 @@ public class PodcastChannelCatalogueAdapter extends RecyclerView.Adapter<Podcast
     }
 
     public void setItems(List<PodcastChannel> podcastChannels) {
-        this.podcastChannels = podcastChannels;
+        this.podcastChannels = new ArrayList<>(podcastChannels);
         this.podcastChannelsFull = new ArrayList<>(podcastChannels);
-        notifyDataSetChanged();
+        filtering.filter(query);
     }
 
     @Override

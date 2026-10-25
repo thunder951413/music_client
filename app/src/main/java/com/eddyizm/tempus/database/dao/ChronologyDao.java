@@ -18,6 +18,9 @@ public interface ChronologyDao {
     @Query("SELECT * FROM chronology WHERE timestamp >= :endDate AND timestamp < :startDate AND server == :server GROUP BY id ORDER BY COUNT(id) DESC LIMIT 20")
     LiveData<List<Chronology>> getAllFrom(long startDate, long endDate, String server);
 
+    @Query("SELECT DISTINCT id FROM chronology WHERE server = :server")
+    List<String> getHeardIds(String server);
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     void insert(Chronology chronologyObject);
 }

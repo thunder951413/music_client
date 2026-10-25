@@ -12,7 +12,7 @@
         android:paddingEnd="30dp"
         android:checked="false"
         android:showText="false"
-        android:text="@string/playlist_chooser_dialog_visibility_switch_label" />
+        android:text="@string/collection_mark_public" />
 
     <TextView
         android:id="@+id/playlist_dialog_chooser_visibility_summary"

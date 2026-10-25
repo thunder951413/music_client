@@ -36,6 +36,8 @@ public class PodcastChannelEditorDialog extends DialogFragment {
 
         podcastChannelEditorViewModel = new ViewModelProvider(requireActivity()).get(PodcastChannelEditorViewModel.class);
 
+        podcastChannelEditorViewModel.reset();
+
         return new MaterialAlertDialogBuilder(getActivity())
                 .setView(bind.getRoot())
                 .setTitle(R.string.podcast_channel_editor_dialog_title)
@@ -49,6 +51,14 @@ public class PodcastChannelEditorDialog extends DialogFragment {
         super.onStart();
 
         setButtonAction();
+        podcastChannelEditorViewModel.getIsSuccess().observe(this, success -> {
+            if (Boolean.TRUE.equals(success) && bind != null) dismissDialog();
+        });
+        podcastChannelEditorViewModel.getErrorMessage().observe(this, error -> {
+            if (error != null && getDialog() instanceof androidx.appcompat.app.AlertDialog) {
+                ((androidx.appcompat.app.AlertDialog)getDialog()).getButton(Dialog.BUTTON_POSITIVE).setEnabled(true);
+            }
+        });
     }
 
     @Override
@@ -64,7 +74,7 @@ public class PodcastChannelEditorDialog extends DialogFragment {
             positiveButton.setOnClickListener(v -> {
                 if (validateInput()) {
                     podcastChannelEditorViewModel.createChannel(channelUrl);
-                    dismissDialog();
+                    positiveButton.setEnabled(false);
                 }
             });
         }

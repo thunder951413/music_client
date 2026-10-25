@@ -39,7 +39,8 @@ public class PodcastChannelHorizontalAdapter extends RecyclerView.Adapter<Podcas
         PodcastChannel podcastChannel = podcastChannels.get(position);
 
         holder.item.podcastChannelTitleTextView.setText(podcastChannel.getTitle());
-        holder.item.podcastChannelDescriptionTextView.setText(MusicUtil.getReadableString(podcastChannel.getDescription()));
+        holder.item.podcastChannelDescriptionTextView.setText(podcastChannel.getCategory() != null
+                ? podcastChannel.getCategory()+" · "+podcastChannel.getRegion() : MusicUtil.getReadableString(podcastChannel.getDescription()));
 
         CustomGlideRequest.Builder
                 .from(holder.itemView.getContext(), podcastChannel.getCoverArtId(), CustomGlideRequest.ResourceType.Podcast)

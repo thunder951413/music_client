@@ -3,7 +3,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
-    android:paddingEnd="8dp">
+    android:paddingEnd="12dp">
 
     <com.google.android.material.imageview.ShapeableImageView
         android:id="@+id/artist_cover_image_view"
@@ -20,10 +20,9 @@
         style="@style/LabelMedium"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:ellipsize="marquee"
-        android:gravity="center"
-        android:maxWidth="120dp"
-        android:paddingTop="8dp"
+        android:ellipsize="end"
+        android:gravity="start"
+        android:paddingTop="10dp"
         android:singleLine="true"
         app:layout_constraintEnd_toEndOf="@+id/artist_cover_image_view"
         app:layout_constraintStart_toStartOf="@+id/artist_cover_image_view"

@@ -1,0 +1,16 @@
+<resources>
+    <string name="audio_refresh">Refresh</string>
+    <string name="audio_all">All</string>
+    <string name="audio_builtin">Included</string>
+    <string name="audio_subscriptions_count">See all %1$d</string>
+    <string name="podcast_rss_loading">Fetching episodes… Tap to retry.</string>
+    <string name="podcast_rss_ready">%1$d recent episodes · Refresh</string>
+    <string name="podcast_rss_refresh_failed">Could not refresh. Cached episodes remain available. Tap to retry.</string>
+    <string name="podcast_rss_invalid_url">Enter an HTTP or HTTPS RSS feed URL.</string>
+    <string name="podcast_rss_save_failed">Could not save subscriptions. Please try again.</string>
+    <string name="podcast_rss_add_failed">Could not read an audio RSS feed at this address. Check the URL and connection.</string>
+    <string name="podcast_rss_source">Device RSS subscription</string>
+    <string name="podcast_rss_unsubscribe">Unsubscribe</string>
+    <string name="audio_subscriptions">My subscriptions</string>
+    <string name="audio_feed_hint">News, music, stories, technology and business · Public sources included</string>
+</resources>

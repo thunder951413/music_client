@@ -4,13 +4,13 @@
     android:layout_height="wrap_content"
     android:clipChildren="false"
     android:orientation="horizontal"
-    android:paddingTop="4dp"
-    android:paddingBottom="4dp">
+    android:paddingTop="8dp"
+    android:paddingBottom="8dp">
 
     <ImageView
         android:id="@+id/music_folder_cover_image_view"
-        android:layout_width="52dp"
-        android:layout_height="52dp"
+        android:layout_width="36dp"
+        android:layout_height="36dp"
         android:layout_gravity="center"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
@@ -19,7 +19,7 @@
     <View
         android:id="@+id/cover_image_separator"
         android:layout_width="12dp"
-        android:layout_height="52dp"
+        android:layout_height="36dp"
         app:layout_constraintBottom_toBottomOf="@+id/music_folder_cover_image_view"
         app:layout_constraintEnd_toStartOf="@+id/music_folder_title_text_view"
         app:layout_constraintStart_toEndOf="@+id/music_folder_cover_image_view"

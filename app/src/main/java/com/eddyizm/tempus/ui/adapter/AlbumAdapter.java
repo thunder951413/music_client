@@ -20,13 +20,19 @@ import java.util.List;
 
 public class AlbumAdapter extends RecyclerView.Adapter<AlbumAdapter.ViewHolder> {
     private final ClickCallback click;
+    private final boolean compactPreview;
 
     private List<AlbumID3> albums;
 
     private int sizePx = 400;
 
     public AlbumAdapter(ClickCallback click) {
+        this(click, false);
+    }
+
+    public AlbumAdapter(ClickCallback click, boolean compactPreview) {
         this.click = click;
+        this.compactPreview = compactPreview;
         this.albums = Collections.emptyList();
     }
 
@@ -37,6 +43,13 @@ public class AlbumAdapter extends RecyclerView.Adapter<AlbumAdapter.ViewHolder> 
 
         TileSizeManager.getInstance().calculateTileSize(parent.getContext());
         sizePx = TileSizeManager.getInstance().getTileSizePx(parent.getContext());
+        if (compactPreview) {
+            sizePx = Math.min(sizePx, Math.round(152 * parent.getResources().getDisplayMetrics().density));
+            view.albumNameLabel.setSingleLine(false);
+            view.albumNameLabel.setMinLines(2);
+            view.albumNameLabel.setMaxLines(2);
+            view.albumNameLabel.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        }
 
         return new ViewHolder(view);
     }

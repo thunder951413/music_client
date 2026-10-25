@@ -70,6 +70,7 @@ public class PlayerBottomSheetFragment extends Fragment {
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
         bind = FragmentPlayerBottomSheetBinding.inflate(inflater, container, false);
         View view = bind.getRoot();
+        bind.playerBodyLayout.getRoot().setVisibility(((MainActivity) requireActivity()).isBottomSheetExpanded() ? View.VISIBLE : View.INVISIBLE);
 
         playerBottomSheetViewModel = new ViewModelProvider(requireActivity()).get(PlayerBottomSheetViewModel.class);
         playbackViewModel = new ViewModelProvider(requireActivity()).get(PlaybackViewModel.class);
@@ -189,6 +190,7 @@ public class PlayerBottomSheetFragment extends Fragment {
         setMetadata(mediaBrowser.getMediaMetadata());
         setContentDuration(mediaBrowser.getContentDuration());
         setPlayingState(mediaBrowser.isPlaying());
+        bind.playerHeaderLayout.playerHeaderButton.setEnabled(mediaBrowser.getCurrentMediaItem() != null);
         setHeaderMediaController();
         setHeaderNextButtonState(mediaBrowser.hasNextMediaItem());
 
@@ -226,6 +228,9 @@ public class PlayerBottomSheetFragment extends Fragment {
 
             @Override
             public void onEvents(Player player, Player.Events events) {
+                if (bind != null && !com.eddyizm.tempus.lan.LanRemoteSession.isActive()) {
+                    bind.playerHeaderLayout.playerHeaderButton.setEnabled(player.getCurrentMediaItem() != null);
+                }
                 setHeaderNextButtonState(mediaBrowser.hasNextMediaItem());
             }
 
@@ -349,6 +354,8 @@ public class PlayerBottomSheetFragment extends Fragment {
     private void setPlayingState(boolean isPlaying) {
         if (com.eddyizm.tempus.lan.LanRemoteSession.isActive() || bind == null) return;
         bind.playerHeaderLayout.playerHeaderButton.setChecked(isPlaying);
+        bind.playerHeaderLayout.playerHeaderButton.setContentDescription(getString(
+                isPlaying ? R.string.player_queue_pause : R.string.player_queue_play));
         runProgressBarHandler(isPlaying);
     }
 
@@ -371,6 +378,8 @@ public class PlayerBottomSheetFragment extends Fragment {
         bind.playerHeaderLayout.playerHeaderNextMediaButton.setEnabled(isEnabled);
         bind.playerHeaderLayout.playerHeaderNextMediaButton.setAlpha(isEnabled ? (float) 1.0 : (float) 0.3);
     }
+
+    public View getPlayerBody() { return bind == null ? null : bind.playerBodyLayout.getRoot(); }
 
     public View getPlayerHeader() {
         return bind != null ? bind.playerHeaderLayout.getRoot() : null;

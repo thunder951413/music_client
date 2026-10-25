@@ -2,9 +2,11 @@ package com.eddyizm.tempus.ui.player
 
 import android.animation.ValueAnimator
 import android.graphics.Bitmap
-import android.graphics.Color
-import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.Drawable
+import android.graphics.drawable.GradientDrawable
+import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.view.LayoutInflater
 import android.view.View
 import androidx.appcompat.view.ContextThemeWrapper
@@ -17,72 +19,77 @@ import com.bumptech.glide.request.transition.Transition
 import com.eddyizm.tempus.R
 import com.eddyizm.tempus.glide.CustomGlideRequest
 
-/**
- * Apple Music style now-playing backdrop: the expanded player takes a dark colour picked
- * from the current cover, and its content is inflated with light-on-dark colours.
- */
+/** A restrained cover tint with a stable, theme-aware surface behind the player controls. */
 object PlayerBackdrop {
     private const val SAMPLE_SIZE = 128
-    private const val MAX_LUMINANCE = 0.12
-    private const val FADE_DURATION_MS = 450L
+    private const val FADE_DURATION_MS = 350L
 
-    /** Inflater whose views resolve theme colours as light content on the dark backdrop. */
     @JvmStatic
     fun themedInflater(inflater: LayoutInflater): LayoutInflater =
         inflater.cloneInContext(ContextThemeWrapper(inflater.context, R.style.ThemeOverlay_App_Player))
 
-    /** Fades [target]'s background to a colour from the cover, or to the neutral fallback. */
     @JvmStatic
     fun apply(target: View, coverArtId: String?) {
-        if (coverArtId.isNullOrEmpty()) {
-            fadeTo(target, fallbackColor(target))
+        val key = coverArtId ?: ""
+        if (target.getTag(R.id.tag_player_backdrop_request) == key) return
+        target.setTag(R.id.tag_player_backdrop_request, key)
+        val base = ContextCompat.getColor(target.context, R.color.player_backdrop_fallback)
+        if (key.isEmpty()) {
+            fadeTo(target, intArrayOf(base, base, base))
             return
         }
-
         Glide.with(target.context.applicationContext)
             .asBitmap()
             .load(CustomGlideRequest.createUrl(coverArtId, SAMPLE_SIZE))
             .diskCacheStrategy(CustomGlideRequest.DEFAULT_DISK_CACHE_STRATEGY)
             .into(object : CustomTarget<Bitmap>(SAMPLE_SIZE, SAMPLE_SIZE) {
                 override fun onResourceReady(resource: Bitmap, transition: Transition<in Bitmap>?) {
-                    fadeTo(target, pickColor(Palette.from(resource).generate(), fallbackColor(target)))
+                    // A late cover request must never repaint the next track's background.
+                    if (target.getTag(R.id.tag_player_backdrop_request) == key) {
+                        val palette = Palette.from(resource).generate()
+                        val primary = palette.getMutedColor(palette.getDominantColor(base))
+                        val secondary = palette.getVibrantColor(primary)
+                        val tint = if (ColorUtils.calculateLuminance(base) > 0.5) 0.18f else 0.22f
+                        fadeTo(target, intArrayOf(
+                            ColorUtils.blendARGB(base, primary, tint),
+                            ColorUtils.blendARGB(base, secondary, tint * 0.45f),
+                            base
+                        ))
+                    }
+                    Handler(Looper.getMainLooper()).post {
+                        Glide.with(target.context.applicationContext).clear(this)
+                    }
                 }
 
                 override fun onLoadFailed(errorDrawable: Drawable?) {
-                    fadeTo(target, fallbackColor(target))
+                    if (target.getTag(R.id.tag_player_backdrop_request) == key) {
+                        fadeTo(target, intArrayOf(base, base, base))
+                    }
                 }
 
-                override fun onLoadCleared(placeholder: Drawable?) {}
+                override fun onLoadCleared(placeholder: Drawable?) = Unit
             })
     }
 
-    private fun pickColor(palette: Palette, fallback: Int): Int {
-        val swatch = palette.darkVibrantSwatch
-            ?: palette.darkMutedSwatch
-            ?: palette.dominantSwatch
-            ?: return fallback
-
-        // Darken until white text stays readable on top of it.
-        var color = swatch.rgb
-        repeat(12) {
-            if (ColorUtils.calculateLuminance(color) <= MAX_LUMINANCE) return color
-            color = ColorUtils.blendARGB(color, Color.BLACK, 0.15f)
-        }
-        return color
-    }
-
-    private fun fallbackColor(target: View): Int =
-        ContextCompat.getColor(target.context, R.color.player_backdrop_fallback)
-
-    private fun fadeTo(target: View, color: Int) {
+    private fun fadeTo(target: View, colors: IntArray) {
         (target.getTag(R.id.tag_player_backdrop_animator) as? ValueAnimator)?.cancel()
-
-        val from = (target.background as? ColorDrawable)?.color ?: fallbackColor(target)
-        if (from == color) return
-
-        val animator = ValueAnimator.ofArgb(from, color).apply {
+        val base = ContextCompat.getColor(target.context, R.color.player_backdrop_fallback)
+        val from = target.getTag(R.id.tag_player_backdrop_colors) as? IntArray
+            ?: intArrayOf(base, base, base)
+        val gradient = GradientDrawable(GradientDrawable.Orientation.TL_BR, from)
+        target.background = gradient
+        fun draw(fraction: Float) {
+            val blended = IntArray(3) { ColorUtils.blendARGB(from[it], colors[it], fraction) }
+            gradient.colors = blended
+            target.setTag(R.id.tag_player_backdrop_colors, blended)
+        }
+        if (from.contentEquals(colors) || (Build.VERSION.SDK_INT >= 26 && !ValueAnimator.areAnimatorsEnabled())) {
+            draw(1f)
+            return
+        }
+        val animator = ValueAnimator.ofFloat(0f, 1f).apply {
             duration = FADE_DURATION_MS
-            addUpdateListener { target.setBackgroundColor(it.animatedValue as Int) }
+            addUpdateListener { draw(it.animatedValue as Float) }
         }
         target.setTag(R.id.tag_player_backdrop_animator, animator)
         animator.start()

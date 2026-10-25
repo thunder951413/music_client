@@ -62,6 +62,7 @@ public class PodcastChannelPageFragment extends Fragment implements ClickCallbac
         init(channelArg);
         initAppBar();
         initPodcastChannelInfo();
+        if (com.eddyizm.tempus.podcast.LocalPodcastStore.isLocal(channelArg.getId())) bind.podcastEpisodesFilterImageView.setVisibility(View.GONE);
         initPodcastChannelEpisodesView();
 
         return view;
@@ -120,6 +121,18 @@ public class PodcastChannelPageFragment extends Fragment implements ClickCallbac
         podcastEpisodeAdapter = new PodcastEpisodeAdapter(this);
         bind.podcastEpisodesRecyclerView.setAdapter(podcastEpisodeAdapter);
         podcastChannelPageViewModel.getPodcastChannelEpisodes().observe(getViewLifecycleOwner(), channels -> {
+            if (channels != null && !channels.isEmpty() && bind != null
+                    && com.eddyizm.tempus.podcast.LocalPodcastStore.isLocal(channels.get(0).getId())) {
+                PodcastChannel channel=channels.get(0);
+                bind.podcastFeedStatus.setVisibility(View.VISIBLE);
+                bind.podcastFeedStatus.setText(channel.getErrorMessage() != null ? channel.getErrorMessage()
+                        : channel.getEpisodes()==null ? getString(R.string.podcast_rss_loading)
+                        : getString(R.string.podcast_rss_ready,channel.getEpisodes().size()));
+                bind.podcastFeedStatus.setOnClickListener(v -> {
+                    bind.podcastFeedStatus.setText(R.string.podcast_rss_loading);
+                    com.eddyizm.tempus.podcast.LocalPodcastStore.getInstance().refresh(channel.getId(),true);
+                });
+            }
             if (channels == null) {
                 if (bind != null) {
                     bind.podcastEpisodesRecyclerView.setVisibility(View.GONE);

@@ -1,0 +1,5 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:paddingHorizontal="16dp" android:paddingTop="12dp" android:paddingBottom="8dp">
+    <com.google.android.material.button.MaterialButton android:id="@+id/open_music_discovery" style="@style/Widget.Material3.Button.TonalButton" android:layout_width="0dp" android:layout_height="56dp" android:layout_weight="1" android:layout_marginEnd="6dp" android:text="@string/discovery_title" android:textAllCaps="false" app:icon="@drawable/ic_search" app:cornerRadius="16dp" />
+    <com.google.android.material.button.MaterialButton android:id="@+id/open_music_collections" style="@style/Widget.Material3.Button.OutlinedButton" android:layout_width="0dp" android:layout_height="56dp" android:layout_weight="1" android:layout_marginStart="6dp" android:text="@string/collection_title" android:textAllCaps="false" app:icon="@drawable/ic_playlist" app:cornerRadius="16dp" />
+</LinearLayout>

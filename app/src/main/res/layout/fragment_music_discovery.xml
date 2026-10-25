@@ -1,0 +1,20 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical">
+    <com.google.android.material.appbar.MaterialToolbar android:id="@+id/discovery_toolbar" android:layout_width="match_parent" android:layout_height="?attr/actionBarSize" app:title="@string/discovery_title" app:navigationIcon="@drawable/ic_arrow_back" />
+    <TextView style="@style/LabelMedium" android:layout_width="match_parent" android:layout_height="wrap_content" android:paddingHorizontal="16dp" android:paddingBottom="8dp" android:text="@string/discovery_intro" android:textColor="?attr/colorOnSurfaceVariant" />
+    <com.google.android.material.chip.ChipGroup android:id="@+id/discovery_modes" android:layout_width="match_parent" android:layout_height="wrap_content" android:paddingHorizontal="12dp" app:singleSelection="true" app:selectionRequired="true" />
+    <LinearLayout android:id="@+id/discovery_chart_options" android:layout_width="match_parent" android:layout_height="wrap_content" android:paddingHorizontal="12dp" android:gravity="center_vertical" android:orientation="horizontal" android:visibility="gone">
+        <Spinner android:id="@+id/discovery_chart_source" android:layout_width="0dp" android:layout_weight="1" android:layout_height="48dp" />
+        <com.google.android.material.chip.Chip android:id="@+id/discovery_playable" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/discovery_playable_only" android:checkable="true" />
+    </LinearLayout>
+    <com.google.android.material.button.MaterialButton android:id="@+id/discovery_genre" style="@style/Widget.Material3.Button.TextButton" android:layout_width="match_parent" android:layout_height="48dp" android:layout_marginHorizontal="8dp" android:text="@string/discovery_choose_genre" android:visibility="gone" />
+    <TextView android:id="@+id/discovery_status" style="@style/LabelSmall" android:layout_width="match_parent" android:layout_height="wrap_content" android:paddingHorizontal="16dp" android:paddingVertical="8dp" android:textColor="?attr/colorOnSurfaceVariant" />
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:paddingHorizontal="12dp" android:gravity="center_vertical" android:orientation="horizontal">
+        <com.google.android.material.button.MaterialButton android:id="@+id/discovery_play" style="@style/Widget.Material3.Button.TonalButton" android:layout_width="wrap_content" android:layout_height="48dp" android:text="@string/discovery_play_all" android:textAllCaps="false" />
+        <com.google.android.material.button.MaterialButton android:id="@+id/discovery_match" style="@style/Widget.Material3.Button.TextButton" android:layout_width="wrap_content" android:layout_height="48dp" android:text="@string/discovery_match" android:textAllCaps="false" android:visibility="gone" />
+    </LinearLayout>
+    <com.google.android.material.progressindicator.LinearProgressIndicator android:id="@+id/discovery_progress" android:layout_width="match_parent" android:layout_height="4dp" android:indeterminate="true" android:visibility="gone" />
+    <TextView android:id="@+id/discovery_empty" style="@style/LabelMedium" android:layout_width="match_parent" android:layout_height="wrap_content" android:padding="24dp" android:text="@string/discovery_no_results" android:visibility="gone" />
+    <androidx.recyclerview.widget.RecyclerView android:id="@+id/discovery_list" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:paddingBottom="@dimen/global_padding_bottom" android:clipToPadding="false" />
+    <com.google.android.material.button.MaterialButton android:layout_marginBottom="@dimen/global_padding_bottom" android:id="@+id/discovery_more" style="@style/Widget.Material3.Button.TextButton" android:layout_width="match_parent" android:layout_height="48dp" android:text="@string/discovery_more" android:visibility="gone" />
+</LinearLayout>

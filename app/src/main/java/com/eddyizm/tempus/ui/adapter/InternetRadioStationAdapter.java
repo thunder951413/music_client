@@ -46,10 +46,12 @@ public class InternetRadioStationAdapter extends RecyclerView.Adapter<InternetRa
         InternetRadioStation internetRadioStation = internetRadioStations.get(position);
 
         holder.item.internetRadioStationTitleTextView.setText(internetRadioStation.getName());
-        holder.item.internetRadioStationSubtitleTextView.setText(internetRadioStation.getStreamUrl());
+        var entry = com.eddyizm.tempus.catalog.AudioCatalog.radioEntry(internetRadioStation.getId());
+        holder.item.internetRadioStationSubtitleTextView.setText(entry != null ? entry.label() : internetRadioStation.getStreamUrl());
 
         if (internetRadioStation.getId() != null && internetRadioStation.getId().startsWith("local_")) {
             holder.item.internetRadioStationLocalBadge.setVisibility(android.view.View.VISIBLE);
+            holder.item.internetRadioStationLocalBadge.setText(entry != null ? R.string.audio_builtin : R.string.radio_local_badge);
         } else {
             holder.item.internetRadioStationLocalBadge.setVisibility(android.view.View.GONE);
         }

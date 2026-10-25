@@ -1,0 +1,1 @@
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android"><item android:width="24dp" android:height="24dp" android:gravity="center" android:drawable="@drawable/player_heart_outline"/></layer-list>

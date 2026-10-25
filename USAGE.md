@@ -50,7 +50,7 @@
 
 ## Prerequisites
 
-**Important Notice**: This app is a Subsonic-compatible client and does not provide any music content itself. To use this application, you must have:
+**Music library requirements**: Tempus is a Subsonic-compatible client. Your personal music library requires the following; bundled public radio and podcast sources are documented below:
 
 - An active Subsonic API server (or compatible service) already set up
 - Valid login credentials for your Subsonic server
@@ -199,21 +199,19 @@ Tap the artwork to show four buttons over it, and tap again to hide them.
 1. Downloads the track.
 2. Adds the track to a playlist.
 3. Adds this track again, followed by songs similar to it, right after the current track (Instant Mix). It uses [getSimilarSongs](https://opensubsonic.netlify.app/docs/endpoints/getsimilarsongs/) of the OpenSubsonic API, so which songs you get depends on your server. For example, Navidrome gets 15 similar artists from Last.fm, then 20 top songs from each.
-4. With **Sync play queue for this user** turned on under Settings → Miscellaneous, saves the play queue. With it off, this button opens the lyrics instead.
+4. With **Sync play queue for this user** turned on under Settings → Miscellaneous, saves the play queue. With it off and lyrics available, this button opens the lyrics instead.
 
-Below the playback controls is a row of three buttons.
+On phones in portrait, the player puts the cover, title, progress and transport controls first. Its background softly takes colours from the cover and follows the app's light or dark appearance. The down arrow closes it back to a compact player above the bottom navigation.
 
-- **Sleep timer** stops playback after 5 to 60 minutes, after a number of minutes you type in, or at the end of the current track. The volume fades out before playback pauses. While a timer is set, the time left shows under the button, and tapping it again lets you cancel.
-- **Lyrics** slides over to the lyrics. Tap it again or swipe back to return.
-- **Queue** opens the queue.
+Below the playback controls, **Sleep timer** stops playback after 5 to 60 minutes, a number of minutes you type in, or at the end of the current track. The centre label identifies local or remote playback, and **Queue** opens the queue. The mini player's controls are disabled when there is no track; clearing the queue hides the collapsed player.
 
-Long press the format label above the artwork, "flac" for example, to hide this row, and long press it again to bring it back. A short tap on the label shows or hides the bitrate.
+The menu at the top right contains **Track info**, **Audio details**, **Playback Speed**, **Sleep Timer**, and the existing playlist, device and equalizer actions. **Audio details** reveals the format/bitrate row; these controls remain available without occupying the default cover view. **Lyrics** appears in this menu only after the server or local cache returns lyrics. No external lyrics-search service is required. When lyrics are missing, the player stays on the cover. Landscape and tablet layouts retain their dedicated arrangements.
 
 Tap the title to open its album, or the artist to open the artist. Long press either one to copy it.
 
 To show the track number in front of the title, turn on **Show track number** under **Settings → UI**.
 
-The ⋮ menu next to the heart has **Play on…** and **Add to playlist**, plus **Built-in equalizer** when Built-in is picked under Settings → Sound. Tablets do not have this menu.
+The player menu also has **Play on…** and **Add to playlist**, plus **Built-in equalizer** when Built-in is picked under Settings → Sound. Tablets keep their dedicated controls.
 
 **Format and bitrate**
 
@@ -221,27 +219,20 @@ The player's format and bitrate label gives what was actually decoded, not the t
 
 Downloaded tracks show the format on disk. When Tempus transcodes a download, the row and the track info dialog carry the transcoded format and bitrate instead of the source values.
 
-### Podcasts  
-If your server supports it - add a podcast rss feed
-<p align="left">
-    <img src="mockup/usage/add_podcast_feed.png" width=317>
-</p>
+### Podcasts
+- The app includes 36 public Chinese-language podcast subscriptions, including 日谈公园, 故事FM, 忽左忽右, 硅谷101 and overseas Chinese shows. They appear automatically in **My subscriptions** on first use; **See all** opens the full list with category filters and search by name, category or region.
+- Bundled and manually added RSS feeds are read directly by the client. They work even when the signed-in music server does not implement podcast APIs. Existing server subscriptions remain available.
+- **Add podcast channel** accepts a public HTTP/HTTPS audio RSS or Atom URL and validates it before saving. **Refresh** updates feeds; each feed caches up to 60 recent episodes and normally refreshes after six hours. Tap a channel’s status to retry a failed refresh.
+- Tap an episode to play; use the player’s skip controls or add it to the queue from its menu. RSS audio streams from the original publisher. Cached episode lists do not mean the audio is downloaded.
+- Long-press a channel and choose **Unsubscribe** to remove it. Default subscriptions you remove stay removed on restart and upgrade. Server-only download/delete actions are not offered for client RSS episodes.
+- See [Chinese audio sources](CHINESE_AUDIO_SOURCES.md) for the complete list, attribution and verification tool.
 
 ### Radio Stations
-
-The Radio tab on Home lists your stations by name. Tap one to play it.
-<p align="left">
-    <img src="mockup/usage/add_radio_station.png" width=326>
-</p>
-
-Tap **Add a new radio** to add a station. Type the name and stream address yourself, or tap the search icon next to the name to look the station up by name, country or both. The search uses [radio-browser.info](https://www.radio-browser.info/), a public directory, not your server. It lists up to 30 stations, the most voted first, and **Use** fills in the fields for you.
-
-Under **Save to**, pick where the station is kept.
-
-- **Server** saves it on your server, if your server supports radio stations. If saving fails, the dialog stays open so you can switch to **Local**.
-- **Local** keeps it on the phone, marked **LOCAL** in the list. A local station can also have a cover image, which Tempus downloads and keeps on the phone. Local stations show up with every server you log into.
-
-Long press a station, or tap its ⋮, to edit or delete it. A saved station cannot be moved between Server and Local.
+- The app includes 42 Chinese stations, covering news, music, stories and arts, business and finance, and traffic and daily life. They are automatically added to the local radio list on first use, alongside existing custom and server stations.
+- Category chips filter bundled stations; **All** also includes your custom and server stations. Bundled rows show a category and region instead of a technical stream URL.
+- Radio streaming and local subscriptions do not depend on the music server’s radio support. Tap a station to play. Long-press to edit or delete it; deleted defaults are remembered.
+- Add more stations through Radio Browser search or paste a direct MP3, AAC or HLS URL. Choose device storage to keep a station local; server storage still requires Subsonic internet-radio support.
+- Public stream availability can change. See [Chinese audio sources](CHINESE_AUDIO_SOURCES.md) for all bundled stations and their sources.
 
 ### Downloads
 
@@ -600,6 +591,20 @@ Shortcuts are displayed only if the function is selected from root level:
 - On starred artists page: jump to artists
 
 [Back to top](#table-of-contents)
+
+## Music discovery and collections
+
+**Home → Music** and **Library** both provide **Discover music** and **Collections & playlists** shortcuts.
+
+- **Unheard exploration** selects up to 40 songs without a known play count or a local listening-history entry. Use the refresh icon to get another batch. Tap the explanatory text for the record limits: servers with incomplete counts cannot identify everything heard on other devices.
+- **Random roaming** offers a fresh set of 40 songs. **Recently added** and **Most played** show server album lists. **Genres** uses server tags and loads another 100 songs at a time.
+- **External charts** offers NetEase Hot, New and Rising charts plus Apple Music most-played charts for mainland China, Japan and the US, up to 100 entries each. Choose **Match my library**, then optionally **Library matches only**. Playback always uses your own music server. An exact title/artist match with a compatible duration is required for automatic selection; ambiguous versions require a choice. Other search candidates can be reviewed manually. A missing match does not fetch or import external audio.
+- Charts normally reuse a six-hour cache. Refresh requests current data; a failed refresh can use the last validated cache and labels it as cached. Chart access does not receive music-server credentials. Library requests respect the active server and music folder.
+- Open **Collections & playlists → +** to create a named collection and choose an icon. Use a song’s **Add to collection / playlist** action to add it to any collection; repeat this for multiple collections. Existing heart favorites are independent. The existing duplicate-playlist preference still applies.
+- Collections are standard server playlists. The icon is a Unicode prefix in the server playlist name, so another client can display it too; Tempus renders it as a cover tile in the collection list. Existing playlists can be renamed and assigned an icon through **Edit details**. Save and add actions wait for the server result and report failures.
+- Tapping a song keeps the current list visible and updates the mini player. Tap the mini player to open the full player; asynchronous queue initialization preserves an explicit expansion.
+
+See [Discovery and collection implementation notes](MUSIC_DISCOVERY.md) for research references, source details and validation.
 
 ## Known Issues
 

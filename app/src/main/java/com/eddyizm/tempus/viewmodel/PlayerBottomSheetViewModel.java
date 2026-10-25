@@ -373,6 +373,11 @@ public class PlayerBottomSheetViewModel extends AndroidViewModel {
         lyricsCachedLiveData.postValue(true);
     }
 
+    public boolean hasLyrics() {
+        String text = lyricsLiveData.getValue();
+        return (text != null && !text.trim().isEmpty()) || hasStructuredLyrics(lyricsListLiveData.getValue());
+    }
+
     private boolean hasStructuredLyrics(LyricsList lyricsList) {
         return lyricsList != null
                 && lyricsList.getStructuredLyrics() != null

@@ -27,7 +27,6 @@ public class PlaylistChooserDialog extends DialogFragment implements ClickCallba
     @NonNull
     @Override
     public Dialog onCreateDialog(Bundle savedInstanceState) {
-        DialogPlaylistChooserBinding.inflate(getLayoutInflater());
         bind = DialogPlaylistChooserBinding.inflate(getLayoutInflater());
 
         playlistChooserViewModel = new ViewModelProvider(requireActivity()).get(PlaylistChooserViewModel.class);
@@ -43,7 +42,7 @@ public class PlaylistChooserDialog extends DialogFragment implements ClickCallba
 
         MaterialAlertDialogBuilder builder = new MaterialAlertDialogBuilder(requireContext())
                 .setView(bind.getRoot())
-                .setTitle(R.string.playlist_chooser_dialog_title);
+                .setTitle(R.string.collection_add_song);
         return builder.create();
     }
 

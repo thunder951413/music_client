@@ -1,0 +1,17 @@
+<resources>
+    <style name="LibrarySectionTitle" parent="InterFontFamily">
+        <item name="android:textSize">20sp</item>
+        <item name="android:textFontWeight">600</item>
+        <item name="android:textColor">?attr/colorOnSurface</item>
+    </style>
+    <style name="LibrarySectionAction" parent="InterFontFamily">
+        <item name="android:textSize">13sp</item>
+        <item name="android:textFontWeight">500</item>
+        <item name="android:textColor">?attr/colorOnSurfaceVariant</item>
+    </style>
+    <style name="PlayerSongTitle" parent="InterFontFamily">
+        <item name="android:textSize">22sp</item>
+        <item name="android:textFontWeight">600</item>
+        <item name="android:textColor">?attr/colorOnSurface</item>
+    </style>
+</resources>

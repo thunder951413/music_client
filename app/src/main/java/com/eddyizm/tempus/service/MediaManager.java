@@ -385,6 +385,10 @@ public class MediaManager {
     }
 
     public static void startPodcast(ListenableFuture<MediaBrowser> mediaBrowserListenableFuture, PodcastEpisode podcastEpisode) {
+        startPodcast(mediaBrowserListenableFuture,podcastEpisode,0);
+    }
+
+    public static void startPodcast(ListenableFuture<MediaBrowser> mediaBrowserListenableFuture, PodcastEpisode podcastEpisode, long position) {
         if (LanRemoteSession.rejectUnsupported()) return;
         if (mediaBrowserListenableFuture != null) {
             mediaBrowserListenableFuture.addListener(() -> {
@@ -393,7 +397,10 @@ public class MediaManager {
                         if (LanRemoteSession.isActive()) return;
                         MediaBrowser browser = mediaBrowserListenableFuture.get();
                         justStarted.set(true);
-                        browser.setMediaItem(MappingUtil.mapMediaItem(podcastEpisode));
+                        MediaItem item=MappingUtil.mapMediaItem(podcastEpisode);
+                        if (com.eddyizm.tempus.podcast.LocalPodcastStore.isLocal(podcastEpisode.getId()))
+                            enqueueDatabase(MappingUtil.mapToChild(item),true,0);
+                        browser.setMediaItem(item,position);
                         browser.prepare();
                         browser.play();
                     }
@@ -624,7 +631,8 @@ public class MediaManager {
         String artist = metadata.artist != null ? metadata.artist.toString() : null;
         String albumId = metadata.extras != null ? metadata.extras.getString("albumId") : null;
         String coverArtId = metadata.extras != null ? metadata.extras.getString("coverArtId") : null;
-        Preferences.saveResumePoint(mediaItem.mediaId, ms, title, album, artist, albumId, coverArtId, type);
+        String rssUrl = mediaItem.mediaId.startsWith("rss_") && metadata.extras != null ? metadata.extras.getString("path") : null;
+        Preferences.saveResumePoint(mediaItem.mediaId, ms, title, album, artist, albumId, coverArtId, type, rssUrl);
         // Mirror the resume point to the server bookmark so it syncs across devices.
         getQueueRepository().createServerBookmark(mediaItem.mediaId, ms);
     }

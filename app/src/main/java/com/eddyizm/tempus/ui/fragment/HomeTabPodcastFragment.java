@@ -97,6 +97,11 @@ public class HomeTabPodcastFragment extends Fragment implements ClickCallback, P
         });
 
         bind.podcastChannelsTextViewClickable.setOnClickListener(v -> activity.navController.navigate(R.id.action_homeFragment_to_podcastChannelCatalogueFragment));
+        bind.podcastRefresh.setOnClickListener(v -> {
+            com.eddyizm.tempus.podcast.LocalPodcastStore.getInstance().refreshAll(true);
+            podcastViewModel.refreshPodcastChannels(getViewLifecycleOwner());
+            podcastViewModel.refreshNewestPodcastEpisodes(getViewLifecycleOwner());
+        });
         bind.hideSectionButton.setOnClickListener(v -> Preferences.setPodcastSectionHidden());
     }
 
@@ -126,7 +131,8 @@ public class HomeTabPodcastFragment extends Fragment implements ClickCallback, P
                 if (bind != null)
                     bind.homePodcastChannelsSector.setVisibility(!podcastChannels.isEmpty() ? View.VISIBLE : View.GONE);
 
-                podcastChannelHorizontalAdapter.setItems(podcastChannels);
+                podcastChannelHorizontalAdapter.setItems(new java.util.ArrayList<>(podcastChannels.subList(0,Math.min(6,podcastChannels.size()))));
+                if (bind != null) bind.podcastChannelsTextViewClickable.setText(getString(R.string.audio_subscriptions_count,podcastChannels.size()));
             }
         });
     }

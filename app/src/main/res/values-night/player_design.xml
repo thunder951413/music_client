@@ -1,0 +1,6 @@
+<resources>
+    <color name="player_foreground">#F2F4EC</color><color name="player_secondary">#BAC3B2</color>
+    <color name="player_on_action">#20291E</color><color name="player_track">#4E5A46</color>
+    <color name="player_control_surface">#26D5E5C5</color>
+    <color name="player_backdrop_fallback">#182018</color>
+</resources>

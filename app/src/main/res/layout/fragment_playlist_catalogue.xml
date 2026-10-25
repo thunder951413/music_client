@@ -30,6 +30,7 @@
                 app:layout_scrollFlags="scroll|exitUntilCollapsed|snap">
 
                 <TextView
+                    android:id="@+id/collection_heading"
                     style="@style/TitleLarge"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -37,7 +38,7 @@
                     android:paddingTop="16dp"
                     android:paddingEnd="16dp"
                     android:paddingBottom="24dp"
-                    android:text="@string/playlist_catalogue_title_expanded"
+                    android:text="@string/collection_title"
                     app:layout_constraintBottom_toBottomOf="parent"
                     app:layout_constraintEnd_toEndOf="parent"
                     app:layout_constraintStart_toEndOf="parent" />
@@ -71,6 +72,16 @@
             android:paddingStart="2dp"
             android:paddingEnd="2dp"
             android:paddingBottom="@dimen/global_padding_bottom"
+            app:layout_behavior="@string/appbar_scrolling_view_behavior" />
+        <TextView
+            android:id="@+id/collection_empty"
+            style="@style/LabelMedium"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:padding="24dp"
+            android:text="@string/collection_empty"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            android:visibility="gone"
             app:layout_behavior="@string/appbar_scrolling_view_behavior" />
     </androidx.coordinatorlayout.widget.CoordinatorLayout>
 </LinearLayout>

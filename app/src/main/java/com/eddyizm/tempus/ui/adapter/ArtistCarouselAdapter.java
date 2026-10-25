@@ -32,7 +32,8 @@ public class ArtistCarouselAdapter extends RecyclerView.Adapter<ArtistCarouselAd
     public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
         ItemArtistCarouselBinding view = ItemArtistCarouselBinding.inflate(LayoutInflater.from(parent.getContext()), parent, false);
         TileSizeManager.getInstance().calculateTileSize(parent.getContext());
-        sizePx = TileSizeManager.getInstance().getTileSizePx(parent.getContext());
+        sizePx = Math.min(TileSizeManager.getInstance().getTileSizePx(parent.getContext()),
+                Math.round(152 * parent.getResources().getDisplayMetrics().density));
         return new ViewHolder(view);
     }
 

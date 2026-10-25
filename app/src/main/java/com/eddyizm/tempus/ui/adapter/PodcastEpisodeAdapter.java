@@ -76,9 +76,9 @@ public class PodcastEpisodeAdapter extends RecyclerView.Adapter<PodcastEpisodeAd
                 .build()
                 .into(holder.item.podcastCoverImageView);
 
-        holder.item.podcastPlayButton.setEnabled(podcastEpisode.getStatus().equals("completed"));
-        holder.item.podcastMoreButton.setVisibility(podcastEpisode.getStatus().equals("completed") ? View.VISIBLE : View.GONE);
-        holder.item.podcastDownloadRequestButton.setVisibility(podcastEpisode.getStatus().equals("completed") ? View.GONE : View.VISIBLE);
+        holder.item.podcastPlayButton.setEnabled("completed".equals(podcastEpisode.getStatus()));
+        holder.item.podcastMoreButton.setVisibility("completed".equals(podcastEpisode.getStatus()) ? View.VISIBLE : View.GONE);
+        holder.item.podcastDownloadRequestButton.setVisibility("completed".equals(podcastEpisode.getStatus()) ? View.GONE : View.VISIBLE);
     }
 
     @Override
@@ -128,9 +128,11 @@ public class PodcastEpisodeAdapter extends RecyclerView.Adapter<PodcastEpisodeAd
         }
 
         public void onClick() {
-            PodcastEpisode podcastEpisode = podcastEpisodes.get(getBindingAdapterPosition());
+            int position=getBindingAdapterPosition();
+            if (position==RecyclerView.NO_POSITION) return;
+            PodcastEpisode podcastEpisode = podcastEpisodes.get(position);
 
-            if (podcastEpisode.getStatus().equals("completed")) {
+            if ("completed".equals(podcastEpisode.getStatus())) {
                 Bundle bundle = new Bundle();
                 bundle.putParcelable(Constants.PODCAST_OBJECT, podcastEpisodes.get(getBindingAdapterPosition()));
 
@@ -139,9 +141,11 @@ public class PodcastEpisodeAdapter extends RecyclerView.Adapter<PodcastEpisodeAd
         }
 
         private boolean openMore() {
-            PodcastEpisode podcastEpisode = podcastEpisodes.get(getBindingAdapterPosition());
+            int position=getBindingAdapterPosition();
+            if (position==RecyclerView.NO_POSITION) return false;
+            PodcastEpisode podcastEpisode = podcastEpisodes.get(position);
 
-            if (podcastEpisode.getStatus().equals("completed")) {
+            if ("completed".equals(podcastEpisode.getStatus())) {
                 Bundle bundle = new Bundle();
                 bundle.putParcelable(Constants.PODCAST_OBJECT, podcastEpisodes.get(getBindingAdapterPosition()));
 
@@ -154,9 +158,11 @@ public class PodcastEpisodeAdapter extends RecyclerView.Adapter<PodcastEpisodeAd
         }
 
         public void requestDownload() {
-            PodcastEpisode podcastEpisode = podcastEpisodes.get(getBindingAdapterPosition());
+            int position=getBindingAdapterPosition();
+            if (position==RecyclerView.NO_POSITION) return;
+            PodcastEpisode podcastEpisode = podcastEpisodes.get(position);
 
-            if (!podcastEpisode.getStatus().equals("completed")) {
+            if (!"completed".equals(podcastEpisode.getStatus())) {
                 Bundle bundle = new Bundle();
                 bundle.putParcelable(Constants.PODCAST_OBJECT, podcastEpisodes.get(getBindingAdapterPosition()));
 

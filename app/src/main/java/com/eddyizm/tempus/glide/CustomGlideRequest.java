@@ -53,7 +53,7 @@ public class CustomGlideRequest {
                 .error(getPlaceholder(context, type))
                 .diskCacheStrategy(DEFAULT_DISK_CACHE_STRATEGY)
                 .signature(new ObjectKey(item != null ? item : 0))
-                .transform(new CenterCrop(), new RoundedCorners(CustomGlideRequest.CORNER_RADIUS));
+                .transform(new CenterCrop(), new RoundedCorners(Math.max(1, Math.round(CustomGlideRequest.CORNER_RADIUS * context.getResources().getDisplayMetrics().density))));
     }
 
     @Nullable
@@ -82,6 +82,7 @@ public class CustomGlideRequest {
     }
 
     public static String createUrl(String item, int size) {
+        if (com.eddyizm.tempus.catalog.AudioCatalog.isWebUrl(item)) return item;
         // TODO Removed log statement but we should considering caching cover art using a hash
         Map<String, String> params = App.getSubsonicClientInstance(false).getParams();
 

@@ -37,4 +37,5 @@ class PodcastEpisode(
     var description: String? = null,
     var status: String? = null,
     var publishDate: Date? = null,
+    var mediaUrl: String? = null,
 ) : Parcelable

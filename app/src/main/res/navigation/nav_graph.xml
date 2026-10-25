@@ -4,6 +4,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/nav_graph"
     app:startDestination="@id/landingFragment">
+    <fragment android:id="@+id/musicDiscoveryFragment" android:name="com.eddyizm.tempus.ui.fragment.MusicDiscoveryFragment" android:label="@string/discovery_title" tools:layout="@layout/fragment_music_discovery" />
     <fragment
         android:id="@+id/landingFragment"
         android:name="com.eddyizm.tempus.ui.fragment.LandingFragment"

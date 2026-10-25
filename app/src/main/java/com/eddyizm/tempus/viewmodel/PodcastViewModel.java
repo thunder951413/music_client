@@ -1,52 +1,36 @@
 package com.eddyizm.tempus.viewmodel;
 
 import android.app.Application;
-
 import androidx.annotation.NonNull;
-import androidx.lifecycle.AndroidViewModel;
-import androidx.lifecycle.LifecycleOwner;
-import androidx.lifecycle.LiveData;
-import androidx.lifecycle.MutableLiveData;
-
+import androidx.lifecycle.*;
 import com.eddyizm.tempus.repository.PodcastRepository;
 import com.eddyizm.tempus.subsonic.models.PodcastChannel;
 import com.eddyizm.tempus.subsonic.models.PodcastEpisode;
-
 import java.util.List;
 
 public class PodcastViewModel extends AndroidViewModel {
-    private final PodcastRepository podcastRepository;
-
-    private final MutableLiveData<List<PodcastEpisode>> newestPodcastEpisodes = new MutableLiveData<>(null);
-    private final MutableLiveData<List<PodcastChannel>> podcastChannels = new MutableLiveData<>(null);
-
-    public PodcastViewModel(@NonNull Application application) {
-        super(application);
-
-        podcastRepository = new PodcastRepository();
-    }
-
+    private final PodcastRepository repository = new PodcastRepository();
+    private final MediatorLiveData<List<PodcastEpisode>> newest = new MediatorLiveData<>();
+    private final MediatorLiveData<List<PodcastChannel>> channels = new MediatorLiveData<>();
+    private LiveData<List<PodcastEpisode>> newestSource;
+    private LiveData<List<PodcastChannel>> channelSource;
+    public PodcastViewModel(@NonNull Application application) { super(application); }
     public LiveData<List<PodcastEpisode>> getNewestPodcastEpisodes(LifecycleOwner owner) {
-        if (newestPodcastEpisodes.getValue() == null) {
-            podcastRepository.getNewestPodcastEpisodes(20).observe(owner, newestPodcastEpisodes::postValue);
-        }
-
-        return newestPodcastEpisodes;
+        if (newestSource == null) refreshNewestPodcastEpisodes(owner);
+        return newest;
     }
-
     public LiveData<List<PodcastChannel>> getPodcastChannels(LifecycleOwner owner) {
-        if (podcastChannels.getValue() == null) {
-            podcastRepository.getPodcastChannels(false, null).observe(owner, podcastChannels::postValue);
-        }
-
-        return podcastChannels;
+        if (channelSource == null) refreshPodcastChannels(owner);
+        return channels;
     }
-
     public void refreshNewestPodcastEpisodes(LifecycleOwner owner) {
-        podcastRepository.getNewestPodcastEpisodes(20).observe(owner, newestPodcastEpisodes::postValue);
+        if (newestSource != null) newest.removeSource(newestSource);
+        newestSource=repository.getNewestPodcastEpisodes(20);
+        newest.addSource(newestSource,newest::setValue);
     }
-
     public void refreshPodcastChannels(LifecycleOwner owner) {
-        podcastRepository.getPodcastChannels(false, null).observe(owner, podcastChannels::postValue);
+        if (channelSource != null) channels.removeSource(channelSource);
+        channelSource=repository.getPodcastChannels(false,null);
+        channels.addSource(channelSource,channels::setValue);
     }
 }

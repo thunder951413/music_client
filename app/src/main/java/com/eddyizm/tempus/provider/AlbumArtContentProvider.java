@@ -58,7 +58,9 @@ public class AlbumArtContentProvider extends ContentProvider {
         Uri artworkUri = null;
         File localFile = null;
 
-        if (albumId != null && albumId.startsWith("rl_")) {
+        if (com.eddyizm.tempus.catalog.AudioCatalog.isWebUrl(albumId)) {
+            artworkUri = Uri.parse(albumId);
+        } else if (albumId != null && albumId.startsWith("rl_")) {
             // Local radio cover: stored in our app-private files dir, which other processes
             // (SystemUI media controls, Android Auto) cannot open directly. Reading it here in the
             // provider's own process and piping the bytes makes it accessible cross-process.

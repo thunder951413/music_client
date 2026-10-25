@@ -17,5 +17,7 @@
     app:show_shuffle_button="true"
     app:show_rewind_button="false"
     app:show_fastforward_button="false"
+    app:play_icon="@drawable/ic_play"
+    app:pause_icon="@drawable/ic_pause"
     app:show_timeout="0" />
 </LinearLayout>

@@ -102,6 +102,14 @@ public class PodcastChannelCatalogueFragment extends Fragment implements ClickCa
         podcastChannelCatalogueAdapter = new PodcastChannelCatalogueAdapter(this);
         podcastChannelCatalogueAdapter.setStateRestorationPolicy(RecyclerView.Adapter.StateRestorationPolicy.PREVENT_WHEN_EMPTY);
         bind.podcastChannelCatalogueRecyclerView.setAdapter(podcastChannelCatalogueAdapter);
+        for (String category : new String[]{"", "谈话故事", "人文文化", "影视娱乐", "新闻观察", "科技互联网", "商业财经"}) {
+            var chip=new com.google.android.material.chip.Chip(requireContext());
+            chip.setId(View.generateViewId());
+            chip.setText(category.isEmpty() ? getString(R.string.audio_all) : category);
+            chip.setCheckable(true); chip.setChecked(category.isEmpty());
+            bind.podcastCategories.addView(chip);
+            chip.setOnCheckedChangeListener((button,checked) -> { if (checked) podcastChannelCatalogueAdapter.setCategory(category); });
+        }
         podcastChannelCatalogueViewModel.getPodcastChannels(getViewLifecycleOwner()).observe(getViewLifecycleOwner(), albums -> {
             if (albums != null) {
                 podcastChannelCatalogueAdapter.setItems(albums);

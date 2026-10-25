@@ -91,6 +91,16 @@ public class ContinueListeningAdapter extends RecyclerView.Adapter<ContinueListe
 
         private void resume(Preferences.ResumePoint resumePoint) {
             if (mediaBrowserListenableFuture == null) return;
+            if (com.eddyizm.tempus.podcast.LocalPodcastStore.isLocal(resumePoint.getId())) {
+                if (com.eddyizm.tempus.catalog.AudioCatalog.isWebUrl(resumePoint.getMediaUrl())) {
+                    playSingle(resumePoint);
+                } else {
+                    com.eddyizm.tempus.podcast.LocalPodcastStore.getInstance().findEpisode(resumePoint.getId(), episode -> {
+                        if (episode != null) MediaManager.startPodcast(mediaBrowserListenableFuture,episode,resumePoint.getPosition());
+                    });
+                }
+                return;
+            }
             String albumId = resumePoint.getAlbumId();
             if (albumId == null) {
                 playSingle(resumePoint);
@@ -126,6 +136,7 @@ public class ContinueListeningAdapter extends RecyclerView.Adapter<ContinueListe
             child.setAlbumId(resumePoint.getAlbumId());
             child.setCoverArtId(resumePoint.getCoverArtId());
             child.setType(resumePoint.getType());
+            child.setPath(resumePoint.getMediaUrl());
             MediaManager.startQueue(mediaBrowserListenableFuture, Collections.singletonList(child), 0, resumePoint.getPosition());
         }
     }

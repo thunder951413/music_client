@@ -98,6 +98,7 @@ public class PlayerControllerFragment extends Fragment {
     private RatingBar songRatingBar;
     private TextView playerMediaTitleLabel;
     private TextView playerArtistNameLabel;
+    private TextView playerOutputLabel;
     private Button playbackSpeedButton;
     private ToggleButton skipSilenceToggleButton;
     private Chip playerMediaExtension;
@@ -145,6 +146,10 @@ public class PlayerControllerFragment extends Fragment {
         initMediaListenable();
         initMediaLabelButton();
         initArtistLabelButton();
+        View collapse = view.findViewById(R.id.player_collapse_button);
+        if (collapse != null) collapse.setOnClickListener(v -> activity.collapseBottomSheetDelayed());
+        playerBottomSheetViewModel.getLiveLyrics().observe(getViewLifecycleOwner(), ignored -> updateLyricsAvailability());
+        playerBottomSheetViewModel.getLiveLyricsList().observe(getViewLifecycleOwner(), ignored -> updateLyricsAvailability());
 
         // Sync UI immediately in case a timer survived a rotation.
         updateSleepTimerUI();
@@ -225,6 +230,7 @@ public class PlayerControllerFragment extends Fragment {
         playerOverflowButton = bind.getRoot().findViewById(R.id.player_overflow_button);
         playerMediaTitleLabel = bind.getRoot().findViewById(R.id.player_media_title_label);
         playerArtistNameLabel = bind.getRoot().findViewById(R.id.player_artist_name_label);
+        playerOutputLabel = bind.getRoot().findViewById(R.id.player_output_label);
         playbackSpeedButton = bind.getRoot().findViewById(R.id.player_playback_speed_button);
         skipSilenceToggleButton = bind.getRoot().findViewById(R.id.player_skip_silence_toggle_button);
         playerMediaExtension = bind.getRoot().findViewById(R.id.player_media_extension);
@@ -251,6 +257,11 @@ public class PlayerControllerFragment extends Fragment {
             playerOverflowButton.setOnClickListener(v -> {
                 PopupMenu popup = new PopupMenu(requireContext(), v);
                 popup.inflate(R.menu.player_overflow_menu);
+                popup.getMenu().findItem(R.id.action_show_lyrics).setVisible(playerBottomSheetViewModel.hasLyrics());
+                View audioDetails = bind.getRoot().findViewById(R.id.player_media_quality_sector);
+                popup.getMenu().findItem(R.id.action_audio_details)
+                        .setVisible(playerOutputLabel != null)
+                        .setChecked(audioDetails.getVisibility() == View.VISIBLE);
 
                 int selectedEq = Preferences.getSelectedEqualizer();
                 if (selectedEq != 1) {
@@ -261,6 +272,24 @@ public class PlayerControllerFragment extends Fragment {
                 }
 
                 popup.setOnMenuItemClickListener(item -> {
+                    if (item.getItemId() == R.id.action_track_info) {
+                        playerTrackInfo.performClick();
+                        return true;
+                    } else if (item.getItemId() == R.id.action_playback_speed) {
+                        playbackSpeedButton.performClick();
+                        return true;
+                    } else if (item.getItemId() == R.id.action_sleep_timer) {
+                        sleepTimerButton.performClick();
+                        return true;
+                    } else if (item.getItemId() == R.id.action_show_lyrics) {
+                        goToLyricsPage();
+                        return true;
+                    } else if (item.getItemId() == R.id.action_audio_details) {
+                        boolean show = audioDetails.getVisibility() != View.VISIBLE;
+                        audioDetails.setVisibility(show ? View.VISIBLE : View.GONE);
+                        bind.getRoot().findViewById(R.id.player_asset_link_row).setVisibility(show ? View.VISIBLE : View.GONE);
+                        return true;
+                    }
                     if (item.getItemId() == R.id.action_lan_playback) {
                         com.eddyizm.tempus.lan.LanDevicePicker.toggle(requireActivity());
                         return true;
@@ -299,6 +328,25 @@ public class PlayerControllerFragment extends Fragment {
                 playerMediaCoverViewPager.setCurrentItem(0, true);
             }
         });
+    }
+
+    private void updateLyricsAvailability() {
+        if (bind == null || playerOutputLabel == null) return;
+        // Lyrics are optional and never reserve space on the default cover screen.
+        playerOpenLyricsButton.setVisibility(View.GONE);
+        if (!playerBottomSheetViewModel.hasLyrics() && isLyricsPage()) goToControllerPage();
+    }
+
+    private void updatePlaybackDestinationLabel() {
+        if (playerOutputLabel == null) return;
+        if (com.eddyizm.tempus.lan.LanRemoteSession.isActive()) {
+            playerOutputLabel.setText(com.eddyizm.tempus.lan.LanRemoteSession.current().getName());
+        } else {
+            MediaBrowser browser = getBrowser();
+            boolean remote = browser != null && browser.getDeviceInfo().playbackType
+                    == androidx.media3.common.DeviceInfo.PLAYBACK_TYPE_REMOTE;
+            playerOutputLabel.setText(remote ? R.string.player_remote_output : R.string.player_local_output);
+        }
     }
 
     private void initializeBrowser() {
@@ -369,6 +417,7 @@ public class PlayerControllerFragment extends Fragment {
 
     private void setMetadata(MediaMetadata mediaMetadata) {
         if (bind == null || (com.eddyizm.tempus.lan.LanRemoteSession.isActive() && !renderingRemote)) return;
+        updatePlaybackDestinationLabel();
         String type = mediaMetadata.extras != null ? mediaMetadata.extras.getString("type") : null;
 
         if (Objects.equals(type, Constants.MEDIA_TYPE_RADIO)) {
@@ -1115,7 +1164,8 @@ public class PlayerControllerFragment extends Fragment {
 
     private void updateRemoteToggleVisibility() {
         if (bind == null) return;
-        bind.playerRemoteToggle.setVisibility(com.eddyizm.tempus.lan.LanDevicePicker.isOffered() ? View.VISIBLE : View.GONE);
+        bind.playerRemoteToggle.setVisibility(playerOutputLabel == null && com.eddyizm.tempus.lan.LanDevicePicker.isOffered() ? View.VISIBLE : View.GONE);
+        updatePlaybackDestinationLabel();
     }
 
     @Override

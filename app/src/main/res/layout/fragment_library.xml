@@ -31,6 +31,8 @@
             android:paddingBottom="@dimen/global_padding_bottom">
 
             <!--  Music Folder  -->
+            <include android:id="@+id/discovery_shortcuts" layout="@layout/music_discovery_shortcuts" />
+
             <LinearLayout
                 android:id="@+id/library_music_folder_sector"
                 android:layout_width="match_parent"
@@ -40,7 +42,7 @@
                 tools:visibility="visible">
 
                 <TextView
-                    style="@style/TitleLarge"
+                    style="@style/LibrarySectionAction"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:paddingStart="16dp"
@@ -52,14 +54,14 @@
                     android:id="@+id/music_folder_recycler_view"
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
-                    android:layout_marginTop="8dp"
-                    android:layout_marginBottom="8dp"
+                    android:layout_marginTop="4dp"
+                    android:layout_marginBottom="0dp"
                     android:nestedScrollingEnabled="false"
                     android:clipToPadding="false"
                     android:paddingStart="16dp"
-                    android:paddingTop="8dp"
+                    android:paddingTop="0dp"
                     android:paddingEnd="8dp"
-                    android:paddingBottom="8dp" />
+                    android:paddingBottom="0dp" />
             </LinearLayout>
 
             <!--  Album  -->
@@ -78,9 +80,9 @@
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
                     android:paddingStart="8dp"
-                    android:paddingTop="16dp"
+                    android:paddingTop="24dp"
                     android:paddingEnd="8dp"
-                    android:paddingBottom="8dp">
+                    android:paddingBottom="12dp">
 
                     <!-- Refreshable area -->
                     <LinearLayout
@@ -89,7 +91,7 @@
                         android:layout_height="wrap_content" >
 
                         <TextView
-                            style="@style/TitleLarge"
+                            style="@style/LibrarySectionTitle"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:paddingStart="8dp"
@@ -97,10 +99,10 @@
                             android:text="@string/library_title_album" />
 
                         <ImageView
-                            android:layout_width="28dp"
-                            android:layout_height="28dp"
-                            android:layout_gravity="bottom"
-                            android:layout_marginBottom="2dp"
+                            android:layout_width="16dp"
+                            android:layout_height="16dp"
+                            android:layout_gravity="center_vertical"
+                            android:layout_marginStart="6dp"
                             android:alpha="0.4"
                             android:src="@drawable/ic_refresh"/>
 
@@ -113,7 +115,7 @@
 
                     <TextView
                         android:id="@+id/album_catalogue_text_view_clickable"
-                        style="@style/TitleMedium"
+                        style="@style/LibrarySectionAction"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_gravity="end|center_vertical"
@@ -133,7 +135,7 @@
                     android:paddingStart="16dp"
                     android:paddingTop="8dp"
                     android:paddingEnd="8dp"
-                    android:paddingBottom="8dp" />
+                    android:paddingBottom="12dp" />
             </LinearLayout>
 
             <LinearLayout
@@ -151,9 +153,9 @@
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
                     android:paddingStart="8dp"
-                    android:paddingTop="16dp"
+                    android:paddingTop="24dp"
                     android:paddingEnd="8dp"
-                    android:paddingBottom="8dp">
+                    android:paddingBottom="12dp">
 
                     <!-- Refreshable area -->
                     <LinearLayout
@@ -162,7 +164,7 @@
                         android:layout_height="wrap_content" >
 
                         <TextView
-                            style="@style/TitleLarge"
+                            style="@style/LibrarySectionTitle"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:paddingStart="8dp"
@@ -170,10 +172,10 @@
                             android:text="@string/library_title_artist" />
 
                         <ImageView
-                            android:layout_width="28dp"
-                            android:layout_height="28dp"
-                            android:layout_gravity="bottom"
-                            android:layout_marginBottom="2dp"
+                            android:layout_width="16dp"
+                            android:layout_height="16dp"
+                            android:layout_gravity="center_vertical"
+                            android:layout_marginStart="6dp"
                             android:alpha="0.4"
                             android:src="@drawable/ic_refresh"/>
 
@@ -186,7 +188,7 @@
 
                     <TextView
                         android:id="@+id/artist_catalogue_text_view_clickable"
-                        style="@style/TitleMedium"
+                        style="@style/LibrarySectionAction"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_gravity="end|center_vertical"
@@ -206,7 +208,7 @@
                     android:paddingStart="16dp"
                     android:paddingTop="8dp"
                     android:paddingEnd="8dp"
-                    android:paddingBottom="8dp" />
+                    android:paddingBottom="12dp" />
             </LinearLayout>
 
             <LinearLayout
@@ -224,9 +226,9 @@
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
                     android:paddingStart="8dp"
-                    android:paddingTop="16dp"
+                    android:paddingTop="24dp"
                     android:paddingEnd="8dp"
-                    android:paddingBottom="8dp">
+                    android:paddingBottom="12dp">
 
                     <!-- Refreshable area -->
                     <LinearLayout
@@ -235,7 +237,7 @@
                         android:layout_height="wrap_content" >
 
                         <TextView
-                            style="@style/TitleLarge"
+                            style="@style/LibrarySectionTitle"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:paddingStart="8dp"
@@ -243,10 +245,10 @@
                             android:text="@string/library_title_genre" />
 
                         <ImageView
-                            android:layout_width="28dp"
-                            android:layout_height="28dp"
-                            android:layout_gravity="bottom"
-                            android:layout_marginBottom="2dp"
+                            android:layout_width="16dp"
+                            android:layout_height="16dp"
+                            android:layout_gravity="center_vertical"
+                            android:layout_marginStart="6dp"
                             android:alpha="0.4"
                             android:src="@drawable/ic_refresh"/>
 
@@ -259,7 +261,7 @@
 
                     <TextView
                         android:id="@+id/genre_catalogue_text_view_clickable"
-                        style="@style/TitleMedium"
+                        style="@style/LibrarySectionAction"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_gravity="end|center_vertical"
@@ -296,9 +298,9 @@
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
                     android:paddingStart="8dp"
-                    android:paddingTop="16dp"
+                    android:paddingTop="24dp"
                     android:paddingEnd="8dp"
-                    android:paddingBottom="8dp">
+                    android:paddingBottom="12dp">
 
                     <!-- Refreshable area -->
                     <LinearLayout
@@ -307,7 +309,7 @@
                         android:layout_height="wrap_content" >
 
                         <TextView
-                            style="@style/TitleLarge"
+                            style="@style/LibrarySectionTitle"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:paddingStart="8dp"
@@ -315,10 +317,10 @@
                             android:text="@string/library_title_playlist" />
 
                         <ImageView
-                            android:layout_width="28dp"
-                            android:layout_height="28dp"
-                            android:layout_gravity="bottom"
-                            android:layout_marginBottom="2dp"
+                            android:layout_width="16dp"
+                            android:layout_height="16dp"
+                            android:layout_gravity="center_vertical"
+                            android:layout_marginStart="6dp"
                             android:alpha="0.4"
                             android:src="@drawable/ic_refresh"/>
 
@@ -331,7 +333,7 @@
 
                     <TextView
                         android:id="@+id/playlist_catalogue_text_view_clickable"
-                        style="@style/TitleMedium"
+                        style="@style/LibrarySectionAction"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_gravity="end|center_vertical"
@@ -350,7 +352,7 @@
                     android:nestedScrollingEnabled="false"
                     android:clipToPadding="false"
                     android:paddingTop="8dp"
-                    android:paddingBottom="8dp" />
+                    android:paddingBottom="12dp" />
             </LinearLayout>
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>

@@ -1,0 +1,39 @@
+<resources>
+    <color name="player_foreground">#263025</color>
+    <color name="player_secondary">#606B5C</color>
+    <color name="player_on_action">#F5F6EE</color>
+    <color name="player_track">#CBD0C3</color>
+    <color name="player_control_surface">#1A526047</color>
+    <style name="PlayerIconButton" parent="">
+        <item name="android:layout_width">48dp</item><item name="android:layout_height">48dp</item>
+        <item name="android:padding">12dp</item><item name="android:background">?attr/selectableItemBackgroundBorderless</item>
+        <item name="android:scaleType">fitCenter</item><item name="tint">?attr/colorOnSurface</item>
+    </style>
+    <style name="PlayerMainButton" parent="PlayerIconButton">
+        <item name="android:layout_width">68dp</item><item name="android:layout_height">68dp</item>
+        <item name="android:padding">19dp</item><item name="android:background">@drawable/player_main_button</item>
+        <item name="tint">@color/player_on_action</item>
+    </style>
+    <style name="LibrarySectionTitle" parent="InterFontFamily">
+        <item name="android:textSize">20sp</item><item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:textColor">?attr/colorOnSurface</item>
+    </style>
+    <style name="LibrarySectionAction" parent="InterFontFamily">
+        <item name="android:textSize">13sp</item><item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:textColor">?attr/colorOnSurfaceVariant</item>
+    </style>
+    <style name="PlayerSongTitle" parent="InterFontFamily">
+        <item name="android:textSize">22sp</item><item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:textColor">?attr/colorOnSurface</item>
+    </style>
+    <string name="player_more_options">More options</string>
+    <style name="PlayerAlbumShape" parent="">
+        <item name="cornerFamily">rounded</item><item name="cornerSize">12dp</item>
+    </style>
+    <string name="player_now_playing">Now Playing</string>
+    <string name="player_collapse">Close player</string>
+    <string name="player_local_output">This device</string>
+    <string name="player_remote_output">Remote playback</string>
+    <string name="player_audio_details">Audio details</string>
+    <string name="player_show_lyrics">Lyrics</string>
+</resources>

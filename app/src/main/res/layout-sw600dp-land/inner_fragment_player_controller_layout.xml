@@ -313,7 +313,7 @@
 
     <ImageButton
         android:id="@id/exo_play_pause"
-        style="@style/ExoStyledControls.Button.Center.PlayPause"
+        style="@style/PlayerMainButton"
         android:layout_width="80dp"
         android:layout_height="80dp"
         app:layout_constraintTop_toTopOf="@+id/player_play_pause_placeholder_view"

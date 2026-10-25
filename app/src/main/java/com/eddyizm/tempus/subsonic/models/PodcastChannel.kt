@@ -20,4 +20,6 @@ class PodcastChannel(
     var originalImageUrl: String? = null,
     var status: String? = null,
     var errorMessage: String? = null,
+    var category: String? = null,
+    var region: String? = null,
 ) : Parcelable

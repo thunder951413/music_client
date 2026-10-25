@@ -425,19 +425,19 @@ public class MainActivity extends BaseActivity {
         // Ignore orientation change, bottom navbar always hidden
         if (Preferences.getHideBottomNavbarOnPortrait()) {
             navigationController.setNavbarVisibility(false);
-            bottomSheetController.setPeekHeight(56, displayDensity);
+            bottomSheetController.setPeekHeight(72, displayDensity);
             navigationController.setSystemBarsVisibility(this, !isLandscape);
             return;
         }
 
         if (!isLandscape) {
             // Show app navbar + show system bars
-            bottomSheetController.setPeekHeight(136, displayDensity);
+            bottomSheetController.setPeekHeight(152, displayDensity);
             navigationController.setNavbarVisibility(true);
             navigationController.setSystemBarsVisibility(this, true);
         } else {
             // Hide app navbar + hide system bars
-            bottomSheetController.setPeekHeight(56, displayDensity);
+            bottomSheetController.setPeekHeight(72, displayDensity);
             navigationController.setNavbarVisibility(false);
             navigationController.setSystemBarsVisibility(this, false);
         }
@@ -473,6 +473,16 @@ public class MainActivity extends BaseActivity {
         getMediaBrowserListenableFuture().addListener(() -> {
             try {
                 getMediaBrowserListenableFuture().get().addListener(new Player.Listener() {
+                    @Override
+                    public void onMediaItemTransition(@Nullable MediaItem mediaItem, int reason) {
+                        if (com.eddyizm.tempus.lan.LanRemoteSession.isActive()) return;
+                        if (mediaItem != null && bottomSheetBehavior.getState() == BottomSheetBehavior.STATE_HIDDEN) {
+                            setBottomSheetInPeek(true);
+                        } else if (mediaItem == null && bottomSheetBehavior.getState() == BottomSheetBehavior.STATE_COLLAPSED) {
+                            setBottomSheetInPeek(false);
+                        }
+                    }
+
                     @Override
                     public void onIsPlayingChanged(boolean isPlaying) {
                         if (isPlaying && bottomSheetBehavior.getState() == BottomSheetBehavior.STATE_HIDDEN) {
@@ -542,7 +552,7 @@ public class MainActivity extends BaseActivity {
             return;
         }
         if (collapsePlayer) {
-            setBottomSheetInPeek(true);
+            collapseBottomSheetDelayed();
         }
         if (assetLinkNavigator != null) {
             assetLinkNavigator.open(assetLink);

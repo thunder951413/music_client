@@ -13,6 +13,9 @@
         app:layout_collapseMode="pin"
         app:navigationIcon="@drawable/ic_arrow_back" />
 
+    <HorizontalScrollView android:layout_width="match_parent" android:layout_height="wrap_content" android:scrollbars="none" android:paddingHorizontal="12dp">
+        <com.google.android.material.chip.ChipGroup android:id="@+id/podcast_categories" android:layout_width="wrap_content" android:layout_height="wrap_content" app:singleLine="true" app:singleSelection="true" app:selectionRequired="true" />
+    </HorizontalScrollView>
     <androidx.coordinatorlayout.widget.CoordinatorLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent">
@@ -25,7 +28,7 @@
             <androidx.constraintlayout.widget.ConstraintLayout
                 android:id="@+id/podcast_channel_info_sector"
                 android:layout_width="match_parent"
-                android:layout_height="172dp"
+                android:layout_height="88dp"
                 android:background="?attr/colorSurface"
                 app:layout_scrollFlags="scroll|exitUntilCollapsed|snap">
 
@@ -37,7 +40,7 @@
                     android:paddingTop="16dp"
                     android:paddingEnd="16dp"
                     android:paddingBottom="24dp"
-                    android:text="@string/podcast_channel_catalogue_title_expanded"
+                    android:text="@string/audio_subscriptions"
                     app:layout_constraintBottom_toBottomOf="parent"
                     app:layout_constraintEnd_toEndOf="parent"
                     app:layout_constraintStart_toStartOf="parent" />

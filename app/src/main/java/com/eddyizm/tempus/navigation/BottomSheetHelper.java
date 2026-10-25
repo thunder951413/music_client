@@ -46,7 +46,7 @@ public class BottomSheetHelper {
     public boolean isExpanded() {
         return isTargetExpanded
                 || bottomSheetBehavior.getState() == BottomSheetBehavior.STATE_EXPANDED
-                || bottomSheetBehavior.getState() == BottomSheetBehavior.STATE_SETTLING;
+                || bottomSheetBehavior.getState() == BottomSheetBehavior.STATE_DRAGGING;
     }
 
     public BottomSheetHelper(@NonNull BottomSheetBehavior<View> bottomSheetBehavior,
@@ -74,11 +74,17 @@ public class BottomSheetHelper {
     }
 
     public void setStateInPeek(boolean isVisible) {
-        if (isVisible || com.eddyizm.tempus.lan.LanRemoteSession.isActive()) {
-            bottomSheetBehavior.setState(BottomSheetBehavior.STATE_COLLAPSED);
-        } else {
-            bottomSheetBehavior.setState(BottomSheetBehavior.STATE_HIDDEN);
-        }
+        boolean show = isVisible || com.eddyizm.tempus.lan.LanRemoteSession.isActive();
+        if (show && isExpanded()) return;
+        cancelPendingState();
+        isTargetExpanded = false;
+        animate(0.0f);
+        bottomSheetBehavior.setState(show ? BottomSheetBehavior.STATE_COLLAPSED : BottomSheetBehavior.STATE_HIDDEN);
+    }
+
+    private void cancelPendingState() {
+        if (pendingStateRunnable != null) handler.removeCallbacks(pendingStateRunnable);
+        pendingStateRunnable = null;
     }
 
     public void setVisibility(boolean visibility) {
@@ -106,7 +112,7 @@ public class BottomSheetHelper {
         }
         pendingStateRunnable = () -> {
             pendingStateRunnable = null;
-            setStateInPeek(mainViewModel.isQueueLoaded());
+            if (!isExpanded()) setStateInPeek(mainViewModel.isQueueLoaded());
         };
         handler.postDelayed(pendingStateRunnable, 100);
     }
@@ -117,6 +123,8 @@ public class BottomSheetHelper {
         }
         pendingStateRunnable = () -> {
             pendingStateRunnable = null;
+            isTargetExpanded = false;
+            animate(0.0f);
             bottomSheetBehavior.setState(BottomSheetBehavior.STATE_COLLAPSED);
         };
         handler.postDelayed(pendingStateRunnable, 100);
@@ -132,6 +140,8 @@ public class BottomSheetHelper {
 
     public void animate(float slideOffset) {
         if (playerBottomSheetFragment != null) {
+            View playerBody = playerBottomSheetFragment.getPlayerBody();
+            if (playerBody != null) playerBody.setVisibility(slideOffset > 0.0f ? View.VISIBLE : View.INVISIBLE);
             View playerHeader = playerBottomSheetFragment.getPlayerHeader();
             if (playerHeader != null) {
                 float condensedSlideOffset = Math.max(0.0f, Math.min(0.2f, slideOffset - 0.2f)) / 0.2f;

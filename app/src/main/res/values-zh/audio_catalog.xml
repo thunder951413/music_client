@@ -1,0 +1,16 @@
+<resources>
+    <string name="audio_refresh">刷新</string>
+    <string name="audio_all">全部</string>
+    <string name="audio_builtin">内置</string>
+    <string name="audio_subscriptions_count">查看全部 %1$d 档</string>
+    <string name="podcast_rss_loading">正在获取节目，点此重新尝试</string>
+    <string name="podcast_rss_ready">最近 %1$d 期 · 点此刷新</string>
+    <string name="podcast_rss_refresh_failed">刷新失败，仍可播放已缓存的节目列表 · 点此重试</string>
+    <string name="podcast_rss_invalid_url">请输入 HTTP 或 HTTPS 的 RSS 订阅地址</string>
+    <string name="podcast_rss_save_failed">无法保存订阅，请重试</string>
+    <string name="podcast_rss_add_failed">无法读取此地址的音频 RSS，请检查地址和网络</string>
+    <string name="podcast_rss_source">本机 RSS 订阅</string>
+    <string name="podcast_rss_unsubscribe">取消订阅</string>
+    <string name="audio_subscriptions">我的订阅</string>
+    <string name="audio_feed_hint">新闻、音乐、故事、科技与商业 · 已提供中文精选源</string>
+</resources>

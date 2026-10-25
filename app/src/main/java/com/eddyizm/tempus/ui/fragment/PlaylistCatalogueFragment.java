@@ -82,6 +82,7 @@ public class PlaylistCatalogueFragment extends Fragment implements ClickCallback
 
     private void initAppBar() {
         activity.setSupportActionBar(bind.toolbar);
+        if (Constants.PLAYLIST_DOWNLOADED.equals(playlistCatalogueViewModel.getType())) bind.collectionHeading.setText(R.string.playlist_catalogue_title_expanded);
 
         if (activity.getSupportActionBar() != null) {
             activity.getSupportActionBar().setDisplayHomeAsUpEnabled(true);
@@ -98,7 +99,7 @@ public class PlaylistCatalogueFragment extends Fragment implements ClickCallback
             if (bind == null) return;
 
             if ((bind.albumInfoSector.getHeight() + verticalOffset) < (2 * ViewCompat.getMinimumHeight(bind.toolbar))) {
-                bind.toolbar.setTitle(R.string.playlist_catalogue_title);
+                bind.toolbar.setTitle(Constants.PLAYLIST_DOWNLOADED.equals(playlistCatalogueViewModel.getType()) ? R.string.playlist_catalogue_title : R.string.collection_title);
             } else {
                 bind.toolbar.setTitle(R.string.empty_string);
             }
@@ -114,6 +115,7 @@ public class PlaylistCatalogueFragment extends Fragment implements ClickCallback
                 android.util.Log.d("TempusLog", "UI Update: Received " + playlists.size() + " items");
                 playlistHorizontalAdapter.setItems(playlists);
                 playlistHorizontalAdapter.notifyDataSetChanged(); 
+                bind.collectionEmpty.setVisibility(playlists.isEmpty() && !Constants.PLAYLIST_DOWNLOADED.equals(playlistCatalogueViewModel.getType()) ? View.VISIBLE : View.GONE);
             }
         });
     }
@@ -139,6 +141,14 @@ public class PlaylistCatalogueFragment extends Fragment implements ClickCallback
     @Override
     public void onCreateOptionsMenu(@NonNull Menu menu, @NonNull MenuInflater inflater) {
         inflater.inflate(R.menu.toolbar_menu, menu);
+        if (!Constants.PLAYLIST_DOWNLOADED.equals(playlistCatalogueViewModel.getType())) {
+            menu.add(R.string.collection_new).setIcon(R.drawable.ic_playlist_add)
+                    .setOnMenuItemClickListener(item -> {
+                        Bundle args=new Bundle();args.putParcelableArrayList(Constants.TRACKS_OBJECT,new java.util.ArrayList<>());
+                        var dialog=new com.eddyizm.tempus.ui.dialog.PlaylistEditorDialog();dialog.setArguments(args);
+                        dialog.show(getParentFragmentManager(),"collection_editor");return true;
+                    }).setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS);
+        }
 
         MenuItem searchItem = menu.findItem(R.id.action_search);
 

@@ -119,6 +119,11 @@ public class LibraryFragment extends Fragment implements ClickCallback {
     }
 
     private void init() {
+        bind.getRoot().findViewById(R.id.open_music_discovery).setOnClickListener(v -> activity.navController.navigate(R.id.musicDiscoveryFragment));
+        bind.getRoot().findViewById(R.id.open_music_collections).setOnClickListener(v -> {
+            Bundle args=new Bundle();args.putString(Constants.PLAYLIST_ALL,Constants.PLAYLIST_ALL);
+            activity.navController.navigate(R.id.playlistCatalogueFragment,args);
+        });
         bind.albumCatalogueTextViewClickable.setOnClickListener(v -> activity.navController.navigate(R.id.action_libraryFragment_to_albumCatalogueFragment));
         bind.artistCatalogueTextViewClickable.setOnClickListener(v -> activity.navController.navigate(R.id.action_libraryFragment_to_artistCatalogueFragment));
         bind.genreCatalogueTextViewClickable.setOnClickListener(v -> activity.navController.navigate(R.id.action_libraryFragment_to_genreCatalogueFragment));
@@ -201,7 +206,7 @@ public class LibraryFragment extends Fragment implements ClickCallback {
         bind.albumRecyclerView.setLayoutManager(new LinearLayoutManager(requireContext(), LinearLayoutManager.HORIZONTAL, false));
         bind.albumRecyclerView.setHasFixedSize(true);
 
-        albumAdapter = new AlbumAdapter(this);
+        albumAdapter = new AlbumAdapter(this, true);
         bind.albumRecyclerView.setAdapter(albumAdapter);
         libraryViewModel.getAlbumSample(getViewLifecycleOwner()).observe(getViewLifecycleOwner(), albums -> {
             if (albums == null) {
@@ -222,7 +227,7 @@ public class LibraryFragment extends Fragment implements ClickCallback {
         bind.artistRecyclerView.setLayoutManager(new LinearLayoutManager(requireContext(), LinearLayoutManager.HORIZONTAL, false));
         bind.artistRecyclerView.setHasFixedSize(true);
 
-        artistAdapter = new ArtistAdapter(this, false, false);
+        artistAdapter = new ArtistAdapter(this, false, false, true);
         bind.artistRecyclerView.setAdapter(artistAdapter);
         libraryViewModel.getArtistSample(getViewLifecycleOwner()).observe(getViewLifecycleOwner(), artists -> {
             if (artists == null) {

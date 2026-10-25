@@ -190,7 +190,7 @@ class SessionMediaItem() {
         suffix = podcastEpisode.suffix
         duration = podcastEpisode.duration
         bitrate = podcastEpisode.bitrate
-        path = podcastEpisode.path
+        path = podcastEpisode.mediaUrl ?: podcastEpisode.path
         isVideo = podcastEpisode.isVideo
         created = podcastEpisode.created
         artistId = podcastEpisode.artistId
@@ -294,7 +294,7 @@ class SessionMediaItem() {
             }
 
             Constants.MEDIA_TYPE_PODCAST -> {
-                MusicUtil.getStreamUri(streamId)
+                if (id?.startsWith("rss_") == true && com.eddyizm.tempus.catalog.AudioCatalog.isWebUrl(path)) Uri.parse(path) else MusicUtil.getStreamUri(streamId)
             }
 
             Constants.MEDIA_TYPE_RADIO -> {

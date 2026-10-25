@@ -1,0 +1,9 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="92dp" android:gravity="center_vertical" android:orientation="horizontal" android:paddingHorizontal="16dp" android:paddingVertical="10dp" android:background="?attr/selectableItemBackground">
+    <TextView android:id="@+id/chart_rank" android:layout_width="28dp" android:layout_height="wrap_content" android:textSize="15sp" android:textColor="?attr/colorPrimary" />
+    <ImageView android:importantForAccessibility="no" android:contentDescription="@null" android:id="@+id/chart_art" android:layout_width="52dp" android:layout_height="52dp" android:layout_marginEnd="12dp" />
+    <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
+        <TextView android:id="@+id/chart_title" style="@style/LabelMedium" android:layout_width="match_parent" android:layout_height="wrap_content" android:maxLines="2" android:ellipsize="end" />
+        <TextView android:id="@+id/chart_artist" style="@style/LabelSmall" android:layout_width="match_parent" android:layout_height="wrap_content" android:maxLines="1" android:ellipsize="end" android:textColor="?attr/colorOnSurfaceVariant" />
+        <TextView android:id="@+id/chart_availability" style="@style/LabelSmall" android:layout_width="match_parent" android:layout_height="wrap_content" android:paddingTop="3dp" android:textColor="?attr/colorPrimary" />
+    </LinearLayout>
+</LinearLayout>

@@ -79,9 +79,10 @@ public class PlaylistHorizontalAdapter extends RecyclerView.Adapter<PlaylistHori
     public void onBindViewHolder(ViewHolder holder, int position) {
         Playlist playlist = playlists.get(position);
 
-        holder.item.playlistTitleTextView.setText(playlist.getName());
+        holder.item.playlistTitleTextView.setText(com.eddyizm.tempus.collection.CollectionName.title(playlist.getName()));
         holder.item.playlistSubtitleTextView.setText(holder.itemView.getContext().getString(R.string.playlist_counted_tracks, playlist.getSongCount(), MusicUtil.getReadableDurationString(playlist.getDuration(), false)));
 
+        if (com.eddyizm.tempus.collection.CollectionIconDrawable.bind(holder.item.playlistCoverImageView,playlist.getName())) return;
         CustomGlideRequest.Builder
                 .from(holder.itemView.getContext(), playlist.getCoverArtId(), CustomGlideRequest.ResourceType.Playlist)
                 .build()

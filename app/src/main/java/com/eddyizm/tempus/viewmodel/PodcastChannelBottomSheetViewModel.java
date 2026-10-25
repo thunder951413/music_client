@@ -39,6 +39,12 @@ public class PodcastChannelBottomSheetViewModel extends AndroidViewModel {
 
     public void deletePodcastChannel() {
         if (podcastChannel != null && podcastChannel.getId() != null) {
+            if (com.eddyizm.tempus.podcast.LocalPodcastStore.isLocal(podcastChannel.getId())) {
+                com.eddyizm.tempus.podcast.LocalPodcastStore.getInstance().unsubscribe(podcastChannel.getId(), error -> {
+                    if (error != null) Toast.makeText(getApplication(),error,Toast.LENGTH_LONG).show();
+                });
+                return;
+            }
             podcastRepository.deletePodcastChannel(podcastChannel.getId())
                     .enqueue(new Callback<ApiResponse>() {
                         @Override

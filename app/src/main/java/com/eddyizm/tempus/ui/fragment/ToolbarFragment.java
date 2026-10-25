@@ -88,6 +88,10 @@ public class ToolbarFragment extends Fragment {
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
 
+        android.widget.TextView title = view.findViewById(R.id.toolbar_primary_text_view);
+        if (title != null && getParentFragment() instanceof LibraryFragment) {
+            title.setText(R.string.menu_library_label);
+        }
         initMusicLibrarySwitcher();
     }
 

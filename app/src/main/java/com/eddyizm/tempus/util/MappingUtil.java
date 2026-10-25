@@ -118,7 +118,7 @@ public class MappingUtil {
             bundle.putString("albumId", media.getAlbumId());
             bundle.putString("albumArtist", media.getAlbumArtist());
             bundle.putString("artistId", media.getArtistId());
-            bundle.putString("type", Constants.MEDIA_TYPE_MUSIC);
+            bundle.putString("type", com.eddyizm.tempus.podcast.LocalPodcastStore.isLocal(media.getId()) ? Constants.MEDIA_TYPE_PODCAST : Constants.MEDIA_TYPE_MUSIC);
             bundle.putLong("bookmarkPosition", media.getBookmarkPosition() != null ? media.getBookmarkPosition() : 0);
             bundle.putInt("originalWidth", media.getOriginalWidth() != null ? media.getOriginalWidth() : 0);
             bundle.putInt("originalHeight", media.getOriginalHeight() != null ? media.getOriginalHeight() : 0);
@@ -378,6 +378,7 @@ public class MappingUtil {
         bundle.putLong("created", podcastEpisode.getCreated() != null ? podcastEpisode.getCreated().getTime() : 0);
         bundle.putString("artistId", podcastEpisode.getArtistId());
         bundle.putString("description", podcastEpisode.getDescription());
+        bundle.putString("path", podcastEpisode.getMediaUrl() != null ? podcastEpisode.getMediaUrl() : podcastEpisode.getPath());
         bundle.putString("type", Constants.MEDIA_TYPE_PODCAST);
         bundle.putString("uri", uri.toString());
 
@@ -519,6 +520,8 @@ public class MappingUtil {
     }
 
     private static Uri getUri(Child media) {
+        if (com.eddyizm.tempus.podcast.LocalPodcastStore.isLocal(media.getId())
+                && com.eddyizm.tempus.catalog.AudioCatalog.isWebUrl(media.getPath())) return Uri.parse(media.getPath());
         String localUri = getDownloadUris().get(media.getId());
         if (localUri != null) {
             return Uri.parse(localUri);
@@ -535,6 +538,8 @@ public class MappingUtil {
     }
 
     private static Uri getUri(PodcastEpisode podcastEpisode) {
+        if (com.eddyizm.tempus.podcast.LocalPodcastStore.isLocal(podcastEpisode.getId())
+                && com.eddyizm.tempus.catalog.AudioCatalog.isWebUrl(podcastEpisode.getMediaUrl())) return Uri.parse(podcastEpisode.getMediaUrl());
         if (Preferences.getDownloadDirectoryUri() != null) {
             Uri local = ExternalAudioReader.getUri(podcastEpisode);
             return local != null ? local : MusicUtil.getStreamUri(podcastEpisode.getStreamId());

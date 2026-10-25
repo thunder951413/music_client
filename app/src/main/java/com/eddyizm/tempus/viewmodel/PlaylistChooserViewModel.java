@@ -58,25 +58,44 @@ public class PlaylistChooserViewModel extends AndroidViewModel {
         return playlistRepository.getSortedPlaylists(sortOrder);
     }
 
+    private boolean adding;
+
     @OptIn(markerClass = UnstableApi.class)
     public void addSongsToPlaylist(LifecycleOwner owner, Dialog dialog, String playlistId) {
-        List<String> songIds = Lists.transform(toAdd, Child::getId);
+        if (adding || dialog == null) return;
+        adding=true;
+        ArrayList<String> songIds=new ArrayList<>();
+        for (Child song:toAdd) if (!songIds.contains(song.getId())) songIds.add(song.getId());
+        PlaylistRepository.AddToPlaylistCallback callback=new PlaylistRepository.AddToPlaylistCallback() {
+            private void finish(boolean success,boolean skipped) {
+                adding=false;
+                android.widget.Toast.makeText(getApplication(),skipped ? com.eddyizm.tempus.R.string.collection_already_added
+                        : success ? com.eddyizm.tempus.R.string.collection_saved : com.eddyizm.tempus.R.string.collection_sync_failed,
+                        android.widget.Toast.LENGTH_LONG).show();
+                if (success || skipped) dialog.dismiss();
+            }
+            @Override public void onSuccess() { finish(true,false); }
+            @Override public void onAllSkipped() { finish(true,true); }
+            @Override public void onFailure() { finish(false,false); }
+        };
         if (Preferences.allowPlaylistDuplicates()) {
-            playlistRepository.addSongToPlaylist(playlistId, new ArrayList<>(songIds), getIsPlaylistPublic());
-            dialog.dismiss();
+            playlistRepository.addSongToPlaylist(playlistId,songIds,getIsPlaylistPublic(),callback);
         } else {
-            playlistRepository.getPlaylistSongs(playlistId).observe(owner, playlistSongs -> {
-                if (playlistSongs != null) {
-                    List<String> playlistSongIds = Lists.transform(playlistSongs, Child::getId);
-                    songIds.removeAll(playlistSongIds);
+            LiveData<List<Child>> source=playlistRepository.getPlaylistSongs(playlistId,false);
+            source.observe(owner,new androidx.lifecycle.Observer<List<Child>>() {
+                @Override public void onChanged(List<Child> existing) {
+                    source.removeObserver(this);
+                    if (existing==null) { callback.onFailure();return; }
+                    java.util.Set<String> ids=new java.util.HashSet<>();for (Child song:existing) ids.add(song.getId());
+                    songIds.removeAll(ids);
+                    playlistRepository.addSongToPlaylist(playlistId,songIds,getIsPlaylistPublic(),callback);
                 }
-                playlistRepository.addSongToPlaylist(playlistId, new ArrayList<>(songIds), getIsPlaylistPublic());
-                dialog.dismiss();
             });
         }
     }
 
     public void setSongsToAdd(ArrayList<Child> songs) {
+        adding = false;
         toAdd = songs;
     }
 

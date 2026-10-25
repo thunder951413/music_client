@@ -83,16 +83,14 @@ public class PodcastEpisodeBottomSheetDialog extends BottomSheetDialogFragment i
 
         TextView playNext = view.findViewById(R.id.play_next_text_view);
         playNext.setOnClickListener(v -> {
-            // TODO
-            // MediaManager.enqueue(mediaBrowserListenableFuture, podcast, true);
+            enqueueEpisode(true);
             ((MainActivity) requireActivity()).setBottomSheetInPeek(true);
             dismissBottomSheet();
         });
 
         TextView addToQueue = view.findViewById(R.id.add_to_queue_text_view);
         addToQueue.setOnClickListener(v -> {
-            // TODO
-            // MediaManager.enqueue(mediaBrowserListenableFuture, podcast, false);
+            enqueueEpisode(false);
             ((MainActivity) requireActivity()).setBottomSheetInPeek(true);
             dismissBottomSheet();
         });
@@ -126,10 +124,32 @@ public class PodcastEpisodeBottomSheetDialog extends BottomSheetDialogFragment i
         });
 
         TextView goToChannel = view.findViewById(R.id.go_to_channel_text_view);
+        if (com.eddyizm.tempus.podcast.LocalPodcastStore.isLocal(podcastEpisode.getId())) {
+            download.setVisibility(View.GONE); remove.setVisibility(View.GONE); delete.setVisibility(View.GONE);
+            goToChannel.setVisibility(View.GONE);
+        }
         goToChannel.setOnClickListener(v -> {
             Toast.makeText(requireContext(), "Open the channel", Toast.LENGTH_SHORT).show();
             dismissBottomSheet();
         });
+    }
+
+    private void enqueueEpisode(boolean next) {
+        if (mediaBrowserListenableFuture == null) return;
+        if (com.eddyizm.tempus.podcast.LocalPodcastStore.isLocal(podcastEpisode.getId())) {
+            com.eddyizm.tempus.service.MediaManager.enqueue(mediaBrowserListenableFuture,
+                    com.eddyizm.tempus.util.MappingUtil.mapToChild(com.eddyizm.tempus.util.MappingUtil.mapMediaItem(podcastEpisode)),next);
+            return;
+        }
+        var future = mediaBrowserListenableFuture;
+        future.addListener(() -> {
+            try {
+                MediaBrowser browser = future.get();
+                var item = com.eddyizm.tempus.util.MappingUtil.mapMediaItem(podcastEpisode);
+                if (browser.getMediaItemCount() == 0) { browser.setMediaItem(item); browser.prepare(); }
+                else browser.addMediaItem(next ? browser.getCurrentMediaItemIndex()+1 : browser.getMediaItemCount(),item);
+            } catch (Exception e) { android.util.Log.w("PodcastActions","Cannot enqueue episode",e); }
+        }, androidx.core.content.ContextCompat.getMainExecutor(requireContext()));
     }
 
     @Override

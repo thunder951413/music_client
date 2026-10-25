@@ -96,6 +96,7 @@ public class QueueRepository {
     }
 
     public void savePlayQueue(List<String> ids, String current, long position) {
+        if (ids.stream().anyMatch(id -> id != null && id.startsWith("rss_"))) return;
         Log.d(TAG, "Saving play queue to server - Items: " + ids.size() + ", Current: " + current);
 
         App.getSubsonicClientInstance(false)
@@ -138,7 +139,7 @@ public class QueueRepository {
      */
     public void createServerBookmark(String id, long positionMs) {
         // Skip trivial positions (a barely-started track isn't "in progress").
-        if (id == null || positionMs <= 5000L) return;
+        if (id == null || id.startsWith("rss_") || positionMs <= 5000L) return;
         App.getSubsonicClientInstance(false)
                 .getBookmarksClient()
                 .createBookmark(id, positionMs)
@@ -173,6 +174,7 @@ public class QueueRepository {
     public void deleteServerBookmark(String id) {
         if (id == null) return;
         Preferences.clearResumePoint(id);
+        if (id.startsWith("rss_")) return;
         App.getSubsonicClientInstance(false)
                 .getBookmarksClient()
                 .deleteBookmark(id)

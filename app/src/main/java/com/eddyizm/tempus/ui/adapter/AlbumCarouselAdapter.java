@@ -36,7 +36,8 @@ public class AlbumCarouselAdapter extends RecyclerView.Adapter<AlbumCarouselAdap
     public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
         ItemAlbumCarouselBinding view = ItemAlbumCarouselBinding.inflate(LayoutInflater.from(parent.getContext()), parent, false);
         TileSizeManager.getInstance().calculateTileSize(parent.getContext());
-        sizePx = TileSizeManager.getInstance().getTileSizePx(parent.getContext());
+        sizePx = Math.min(TileSizeManager.getInstance().getTileSizePx(parent.getContext()),
+                Math.round(152 * parent.getResources().getDisplayMetrics().density));
         return new ViewHolder(view);
     }
 
@@ -47,6 +48,10 @@ public class AlbumCarouselAdapter extends RecyclerView.Adapter<AlbumCarouselAdap
         lp.width = sizePx;
         lp.height = sizePx;
         holder.item.albumCoverImageView.setLayoutParams(lp);
+        float radius = Preferences.isCornerRoundingEnabled()
+                ? Preferences.getRoundedCornerSize() * holder.itemView.getResources().getDisplayMetrics().density : 0f;
+        holder.item.albumCoverImageView.setShapeAppearanceModel(
+                holder.item.albumCoverImageView.getShapeAppearanceModel().withCornerSize(radius));
 
         AlbumID3 album = albums.get(position);
 
