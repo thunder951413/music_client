@@ -62,7 +62,6 @@
     <string name="search_browse_title">Browse all</string>
     <string name="discover_provider_netease">NetEase Cloud Music</string>
     <string name="discover_provider_qq">QQ Music</string>
-    <string name="discover_provider_apple">Apple Music</string>
     <string name="browse_chart_matched">%1$d of %2$d in your library</string>
     <string name="discover_export_all">Export all missing</string>
     <string name="discover_export_all_title">Matching every chart</string>

@@ -64,7 +64,6 @@
     <string name="search_browse_title">浏览全部</string>
     <string name="discover_provider_netease">网易云音乐</string>
     <string name="discover_provider_qq">QQ 音乐</string>
-    <string name="discover_provider_apple">Apple Music</string>
     <string name="browse_chart_matched">曲库有 %1$d / %2$d 首</string>
     <string name="discover_export_all">导出全部缺失</string>
     <string name="discover_export_all_title">正在匹配全部榜单</string>

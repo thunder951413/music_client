@@ -94,13 +94,11 @@ private val chartColors = mapOf(
     ChartSource.NETEASE_RISING to 0xFFE0662E, ChartSource.NETEASE_ORIGINAL to 0xFF8A4FD8,
     ChartSource.QQ_HOT to 0xFF1E9E74, ChartSource.QQ_NEW to 0xFF0F8FA8,
     ChartSource.QQ_RISING to 0xFFBF8510, ChartSource.QQ_POPULAR to 0xFFC2457A,
-    ChartSource.APPLE_CN to 0xFFF0384F, ChartSource.APPLE_JP to 0xFF5E6AD2, ChartSource.APPLE_US to 0xFF2B2D33,
 )
 
 private val providerTitles = mapOf(
     ChartSource.Provider.NETEASE to R.string.discover_provider_netease,
     ChartSource.Provider.QQ to R.string.discover_provider_qq,
-    ChartSource.Provider.APPLE to R.string.discover_provider_apple,
 )
 
 private enum class DiscoverTab(val label: Int) {
@@ -212,7 +210,6 @@ private fun LazyListScope.chartsTab(actions: DiscoverActions, @Suppress("UNUSED_
             Text(stringResource(R.string.discover_external_hint), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
-    // NetEase and QQ Music first: their song and artist names match Chinese libraries best.
     ChartSource.Provider.values().forEach { provider ->
         item {
             Text(
