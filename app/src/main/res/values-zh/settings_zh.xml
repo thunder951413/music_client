@@ -74,4 +74,20 @@
     <string name="settings_track_number_summary">在正在播放的歌曲前显示曲目编号。</string>
     <string name="settings_upnp_summary">查找并投放到局域网中的 UPnP / DLNA 设备，只在打开投放选择器时搜索。</string>
     <string name="settings_upnp_title">UPnP / DLNA 设备</string>
+    <string name="update_progress_title">正在下载 %1$s</string>
+    <string name="update_progress_bytes">%1$s / %2$s · %3$d%%</string>
+    <string name="update_progress_bytes_unknown">已下载 %1$s</string>
+    <string name="update_progress_pending">等待开始…</string>
+    <string name="update_progress_waiting_network">等待网络连接</string>
+    <string name="update_progress_retrying">网络中断，稍后会自动重试</string>
+    <string name="update_progress_waiting_wifi">等待 Wi-Fi</string>
+    <string name="update_progress_paused">已暂停</string>
+    <string name="update_progress_done_title">%1$s 已下载</string>
+    <string name="update_progress_done">点此安装</string>
+    <string name="update_progress_failed_title">%1$s 下载失败</string>
+    <string name="update_progress_failed">点此重试（%1$s）</string>
+    <string name="update_progress_error_space">存储空间不足</string>
+    <string name="update_progress_error_network">网络错误</string>
+    <string name="update_progress_error_http">服务器返回 %1$d</string>
+    <string name="update_progress_error_other">错误 %1$d</string>
 </resources>

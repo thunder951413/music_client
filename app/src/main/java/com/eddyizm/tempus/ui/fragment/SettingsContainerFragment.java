@@ -62,6 +62,7 @@ import com.eddyizm.tempus.ui.dialog.StarredSyncDialog;
 import com.eddyizm.tempus.ui.dialog.StreamingCacheStorageDialog;
 import com.eddyizm.tempus.ui.login.LoginActivity;
 import com.eddyizm.tempus.util.ClickablePreferenceCategory;
+import com.eddyizm.tempus.github.utils.ApkUpdater;
 import com.eddyizm.tempus.util.DownloadUtil;
 import com.eddyizm.tempus.subsonic.models.MusicFolder;
 import com.eddyizm.tempus.util.ExternalAudioReader;
@@ -102,6 +103,8 @@ public class SettingsContainerFragment extends PreferenceFragmentCompat {
     private static final int PARAMETRIC_EQ_MAX_BYTES = 16 * 1024;
 
     private final Set<String> expandedCategories = new HashSet<>();
+    private final android.os.Handler progressHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+    private final Runnable progressTick = this::refreshUpdateProgress;
 
     private boolean musicFoldersObserved = false;
 
@@ -229,7 +232,7 @@ public class SettingsContainerFragment extends PreferenceFragmentCompat {
 
         if (!BuildConfig.SELF_UPDATE) {
             // Updates share a section with About, so only the update rows go.
-            for (String key : new String[]{"github_update_summary", "github_update_check", "update_now"}) {
+            for (String key : new String[]{"github_update_summary", "github_update_check", "update_now", "update_progress"}) {
                 Preference pref = findPreference(key);
                 if (pref != null && pref.getParent() != null) pref.getParent().removePreference(pref);
             }
@@ -317,6 +320,8 @@ public class SettingsContainerFragment extends PreferenceFragmentCompat {
                 }
             }
         }
+
+        refreshUpdateProgress();
 
         if (getListView() != null && getListView().getAdapter() != null) {
             getListView().getAdapter().notifyDataSetChanged();
@@ -690,27 +695,112 @@ public class SettingsContainerFragment extends PreferenceFragmentCompat {
         if (pref == null) return;
         pref.setSummary(getString(R.string.settings_update_now_summary, BuildConfig.VERSION_NAME));
         pref.setOnPreferenceClickListener(preference -> {
-            preference.setEnabled(false);
-            Toast.makeText(requireContext(), R.string.settings_update_checking, Toast.LENGTH_SHORT).show();
-            new com.eddyizm.tempus.repository.SystemRepository().checkTempusUpdate().observe(getViewLifecycleOwner(), release -> {
-                preference.setEnabled(true);
-                if (!isAdded()) return;
-                if (release == null) {
-                    Toast.makeText(requireContext(), R.string.settings_update_failed, Toast.LENGTH_LONG).show();
-                } else if (!com.eddyizm.tempus.github.utils.UpdateUtil.showUpdateDialog(release)) {
-                    Toast.makeText(requireContext(), getString(R.string.settings_update_latest, BuildConfig.VERSION_NAME), Toast.LENGTH_LONG).show();
-                } else {
-                    com.eddyizm.tempus.github.models.Assets apk = com.eddyizm.tempus.github.utils.UpdateUtil.findApkAsset(release);
-                    if (apk != null) {
-                        Toast.makeText(requireContext(), getString(R.string.settings_update_found, release.getTagName()), Toast.LENGTH_SHORT).show();
-                        com.eddyizm.tempus.github.utils.ApkUpdater.start(requireActivity(), apk.getBrowserDownloadUrl(), release.getTagName());
-                    } else {
-                        startActivity(new Intent(Intent.ACTION_VIEW, android.net.Uri.parse(release.getHtmlUrl())));
-                    }
-                }
-            });
+            checkAndUpdate(preference);
             return true;
         });
+        Preference row = findPreference("update_progress");
+        if (row != null) row.setOnPreferenceClickListener(preference -> {
+            ApkUpdater.Progress progress = ApkUpdater.progress(requireContext());
+            if (progress != null && progress.getStatus() == ApkUpdater.Status.SUCCESSFUL) {
+                ApkUpdater.installDownloaded(requireContext(), true);
+            } else if (progress == null || progress.getStatus() == ApkUpdater.Status.FAILED) {
+                ApkUpdater.clear();
+                checkAndUpdate(pref);
+            }
+            return true;
+        });
+    }
+
+    private void checkAndUpdate(Preference button) {
+        button.setEnabled(false);
+        Toast.makeText(requireContext(), R.string.settings_update_checking, Toast.LENGTH_SHORT).show();
+        new com.eddyizm.tempus.repository.SystemRepository().checkTempusUpdate().observe(getViewLifecycleOwner(), release -> {
+            button.setEnabled(true);
+            if (!isAdded()) return;
+            if (release == null) {
+                Toast.makeText(requireContext(), R.string.settings_update_failed, Toast.LENGTH_LONG).show();
+            } else if (!com.eddyizm.tempus.github.utils.UpdateUtil.showUpdateDialog(release)) {
+                Toast.makeText(requireContext(), getString(R.string.settings_update_latest, BuildConfig.VERSION_NAME), Toast.LENGTH_LONG).show();
+            } else {
+                com.eddyizm.tempus.github.models.Assets apk = com.eddyizm.tempus.github.utils.UpdateUtil.findApkAsset(release);
+                if (apk != null) {
+                    ApkUpdater.start(requireActivity(), apk.getBrowserDownloadUrl(), release.getTagName());
+                    // Keep the section open so the progress row is in view.
+                    if (button.getParent() != null) expandedCategories.add(button.getParent().getKey());
+                    applyAccordionState();
+                } else {
+                    startActivity(new Intent(Intent.ACTION_VIEW, android.net.Uri.parse(release.getHtmlUrl())));
+                }
+            }
+        });
+    }
+
+    /** Shows the update download's progress under Update now, polling while it runs. */
+    private void refreshUpdateProgress() {
+        progressHandler.removeCallbacks(progressTick);
+        com.eddyizm.tempus.ui.settings.UpdateProgressPreference row = findPreference("update_progress");
+        Preference button = findPreference("update_now");
+        if (row == null || button == null || !isAdded()) return;
+        ApkUpdater.Progress progress = ApkUpdater.progress(requireContext());
+        if (progress != null && !com.eddyizm.tempus.github.utils.UpdateUtil.isNewerThanInstalled(progress.getVersion())) {
+            // That version is installed now; the old download has served its purpose.
+            ApkUpdater.clear();
+            progress = null;
+        }
+        // The row belongs to its section: hidden while the section is collapsed or filtered out.
+        row.setVisible(progress != null && button.isVisible());
+        if (progress == null) return;
+        String version = progress.getVersion();
+        switch (progress.getStatus()) {
+            case SUCCESSFUL:
+                row.setState(getString(R.string.update_progress_done_title, version), getString(R.string.update_progress_done), 1f);
+                ApkUpdater.installDownloaded(requireContext());
+                return;
+            case FAILED:
+                row.setState(getString(R.string.update_progress_failed_title, version),
+                        getString(R.string.update_progress_failed, failureReason(progress.getReason())), 0f);
+                return;
+            case PENDING:
+                row.setState(getString(R.string.update_progress_title, version), getString(R.string.update_progress_pending), -1f);
+                break;
+            case PAUSED:
+                row.setState(getString(R.string.update_progress_title, version), pauseReason(progress.getReason()), progress.getFraction());
+                break;
+            default:
+                row.setState(getString(R.string.update_progress_title, version), bytesText(progress), progress.getFraction());
+                break;
+        }
+        progressHandler.postDelayed(progressTick, 500);
+    }
+
+    private String bytesText(ApkUpdater.Progress progress) {
+        String done = android.text.format.Formatter.formatShortFileSize(requireContext(), progress.getDownloaded());
+        if (progress.getTotal() <= 0) return getString(R.string.update_progress_bytes_unknown, done);
+        String total = android.text.format.Formatter.formatShortFileSize(requireContext(), progress.getTotal());
+        return getString(R.string.update_progress_bytes, done, total, Math.round(progress.getFraction() * 100));
+    }
+
+    private String pauseReason(int reason) {
+        switch (reason) {
+            case android.app.DownloadManager.PAUSED_WAITING_FOR_NETWORK: return getString(R.string.update_progress_waiting_network);
+            case android.app.DownloadManager.PAUSED_WAITING_TO_RETRY: return getString(R.string.update_progress_retrying);
+            case android.app.DownloadManager.PAUSED_QUEUED_FOR_WIFI: return getString(R.string.update_progress_waiting_wifi);
+            default: return getString(R.string.update_progress_paused);
+        }
+    }
+
+    private String failureReason(int reason) {
+        switch (reason) {
+            case android.app.DownloadManager.ERROR_INSUFFICIENT_SPACE: return getString(R.string.update_progress_error_space);
+            case android.app.DownloadManager.ERROR_HTTP_DATA_ERROR:
+            case android.app.DownloadManager.ERROR_CANNOT_RESUME:
+            case android.app.DownloadManager.ERROR_TOO_MANY_REDIRECTS:
+                return getString(R.string.update_progress_error_network);
+            default:
+                return reason >= 100 && reason < 1000
+                        ? getString(R.string.update_progress_error_http, reason)
+                        : getString(R.string.update_progress_error_other, reason);
+        }
     }
 
     private void setVersion() {
@@ -1144,6 +1234,7 @@ public class SettingsContainerFragment extends PreferenceFragmentCompat {
     @Override
     public void onPause() {
         super.onPause();
+        progressHandler.removeCallbacks(progressTick);
         if (isServiceBound) {
             requireActivity().unbindService(serviceConnection);
             isServiceBound = false;

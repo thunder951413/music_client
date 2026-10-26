@@ -14,6 +14,11 @@ public class UpdateUtil {
         return compareVersions(release.getTagName(), BuildConfig.VERSION_NAME) > 0;
     }
 
+    /** Whether a release tag such as "v1.2.0" is newer than the installed version. */
+    public static boolean isNewerThanInstalled(String tag) {
+        return tag != null && compareVersions(tag, BuildConfig.VERSION_NAME) > 0;
+    }
+
     /** The release's APK, or null when the release has none attached. */
     @Nullable
     public static Assets findApkAsset(LatestRelease release) {

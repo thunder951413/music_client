@@ -14,4 +14,20 @@
     <string name="settings_update_latest">You\'re on the latest version (%1$s).</string>
     <string name="settings_update_failed">Couldn\'t reach GitHub. Try again later.</string>
     <string name="settings_update_found">Downloading %1$s…</string>
+    <string name="update_progress_title">Downloading %1$s</string>
+    <string name="update_progress_bytes">%1$s of %2$s · %3$d%%</string>
+    <string name="update_progress_bytes_unknown">%1$s downloaded</string>
+    <string name="update_progress_pending">Waiting to start…</string>
+    <string name="update_progress_waiting_network">Waiting for a network connection</string>
+    <string name="update_progress_retrying">Connection dropped; it will retry by itself</string>
+    <string name="update_progress_waiting_wifi">Waiting for Wi-Fi</string>
+    <string name="update_progress_paused">Paused</string>
+    <string name="update_progress_done_title">%1$s downloaded</string>
+    <string name="update_progress_done">Tap to install</string>
+    <string name="update_progress_failed_title">%1$s didn\'t download</string>
+    <string name="update_progress_failed">Tap to try again (%1$s)</string>
+    <string name="update_progress_error_space">not enough storage</string>
+    <string name="update_progress_error_network">network error</string>
+    <string name="update_progress_error_http">server returned %1$d</string>
+    <string name="update_progress_error_other">error %1$d</string>
 </resources>

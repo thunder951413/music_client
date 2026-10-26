@@ -679,6 +679,10 @@
             android:title="@string/settings_update_now_title"
             android:summary="@string/settings_update_now_summary" />
 
+        <com.eddyizm.tempus.ui.settings.UpdateProgressPreference
+            android:key="update_progress"
+            app:isPreferenceVisible="false" />
+
         <Preference
             android:key="version"
             app:summary="@string/settings_version_summary"
