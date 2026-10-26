@@ -46,6 +46,7 @@ import com.bumptech.glide.request.transition.Transition
 import com.eddyizm.tempus.R
 import com.eddyizm.tempus.glide.CustomGlideRequest
 import com.eddyizm.tempus.subsonic.models.Child
+import com.eddyizm.tempus.ui.player.CoverCache
 import com.eddyizm.tempus.ui.player.PlayerMotion
 import com.eddyizm.tempus.ui.player.VinylClock
 import com.eddyizm.tempus.util.Preferences
@@ -186,6 +187,11 @@ fun NowPlayingArtworkPager(
         }
     }
 
+    val context = LocalContext.current
+    // Decode the covers either side of the current track before a swipe or skip needs them.
+    LaunchedEffect(safeIndex, queue) {
+        if (!isRadio) CoverCache.preload(context, (safeIndex - 1..safeIndex + 2).mapNotNull { queue.getOrNull(it)?.coverArtId })
+    }
     val isPlaying by rememberMotion { PlayerMotion.isPlaying }
     val coverInFlight by rememberMotion { PlayerMotion.coverInFlight }
 
@@ -240,34 +246,13 @@ private fun SongArtwork(
     title: String?
 ) {
     val appContext = LocalContext.current.applicationContext
-    var bitmap by remember(coverArtId) { mutableStateOf<Bitmap?>(null) }
+    // A cover already decoded for the mini player or a neighbouring page shows on the first frame.
+    var bitmap by remember(coverArtId) { mutableStateOf(CoverCache.get(coverArtId)) }
 
     DisposableEffect(coverArtId) {
-        if (coverArtId.isNullOrEmpty()) {
-            bitmap = null
-            return@DisposableEffect onDispose {}
-        }
-
-        val url = CustomGlideRequest.createUrl(coverArtId, Preferences.getImageSize())
-        val target = object : CustomTarget<Bitmap>() {
-            override fun onResourceReady(resource: Bitmap, transition: Transition<in Bitmap>?) {
-                bitmap = resource
-            }
-
-            override fun onLoadCleared(placeholder: Drawable?) {
-                bitmap = null
-            }
-        }
-
-        Glide.with(appContext)
-            .asBitmap()
-            .load(url)
-            .diskCacheStrategy(CustomGlideRequest.DEFAULT_DISK_CACHE_STRATEGY)
-            .into(target)
-
-        onDispose {
-            Glide.with(appContext).clear(target)
-        }
+        var active = true
+        if (bitmap == null) CoverCache.load(appContext, coverArtId) { if (active) bitmap = it }
+        onDispose { active = false }
     }
 
     val currentBitmap = bitmap

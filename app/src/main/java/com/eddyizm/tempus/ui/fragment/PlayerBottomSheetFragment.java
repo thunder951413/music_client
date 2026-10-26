@@ -7,6 +7,7 @@ import android.text.TextUtils;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ImageView;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -34,6 +35,7 @@ import com.eddyizm.tempus.service.MediaManager;
 import com.eddyizm.tempus.service.MediaService;
 import com.eddyizm.tempus.subsonic.models.PlayQueue;
 import com.eddyizm.tempus.ui.activity.MainActivity;
+import com.eddyizm.tempus.ui.player.CoverCache;
 import com.eddyizm.tempus.ui.player.CoverMorph;
 import com.eddyizm.tempus.ui.player.CoverScheme;
 import com.eddyizm.tempus.ui.player.PlayerBackdrop;
@@ -72,6 +74,7 @@ public class PlayerBottomSheetFragment extends Fragment {
     private Runnable progressBarRunnable;
 
     private CoverMorph coverMorph;
+    private String shownCoverId;
     private Boolean lightSystemBars = null;
     private final PlayerMotion.Listener schemeListener = this::tintMiniPlayer;
 
@@ -142,6 +145,7 @@ public class PlayerBottomSheetFragment extends Fragment {
         remoteVisible = false;
         remoteCover = null;
         remoteMediaSignature = null;
+        shownCoverId = null;
         bind = null;
     }
 
@@ -211,6 +215,34 @@ public class PlayerBottomSheetFragment extends Fragment {
         CoverScheme scheme = PlayerMotion.getScheme();
         int tint = isNightMode() ? scheme.getMiniDark() : scheme.getMiniLight();
         bind.playerHeaderLayout.miniPlayerCard.setBackgroundTintList(android.content.res.ColorStateList.valueOf(tint));
+    }
+
+    /**
+     * The mini and flying covers show the decoded bitmap shared with the record label, so the
+     * same artwork is on screen at once in all three places. Metadata updates for the same track
+     * leave the image alone instead of reloading it.
+     */
+    private void showSongCover(@Nullable String coverArtId) {
+        if (bind == null || (coverArtId != null && coverArtId.equals(shownCoverId))) return;
+        shownCoverId = coverArtId;
+        ImageView header = bind.playerHeaderLayout.playerHeaderMediaCoverImage;
+        Glide.with(this).clear(header);
+        Glide.with(this).clear(bind.playerFlyingCover);
+        android.graphics.Bitmap cached = CoverCache.get(coverArtId);
+        if (cached != null) {
+            setCoverBitmap(cached);
+            return;
+        }
+        header.setImageResource(R.drawable.ic_placeholder_song);
+        bind.playerFlyingCover.setImageResource(R.drawable.ic_placeholder_song);
+        CoverCache.load(requireContext(), coverArtId, bitmap -> {
+            if (bind != null && Objects.equals(coverArtId, shownCoverId)) setCoverBitmap(bitmap);
+        });
+    }
+
+    private void setCoverBitmap(android.graphics.Bitmap bitmap) {
+        bind.playerHeaderLayout.playerHeaderMediaCoverImage.setImageBitmap(bitmap);
+        bind.playerFlyingCover.setImageBitmap(bitmap);
     }
 
     private void loadFlyingCover(com.bumptech.glide.RequestBuilder<android.graphics.drawable.Drawable> request) {
@@ -387,18 +419,13 @@ public class PlayerBottomSheetFragment extends Fragment {
                         .apply(CustomGlideRequest.createRequestOptions(requireContext(),
                                 mediaMetadata.extras.getString("coverArtId"), CustomGlideRequest.ResourceType.Radio));
                 request = RadioCoverArtDownloader.applyLocalFileSignature(request, mediaMetadata.artworkUri);
+                shownCoverId = null;
+                Glide.with(this).clear(bind.playerHeaderLayout.playerHeaderMediaCoverImage);
                 request.into(bind.playerHeaderLayout.playerHeaderMediaCoverImage);
                 loadFlyingCover(request.clone());
                 PlayerBackdrop.apply(bind.playerBodyLayout.playerBodyRoot, null);
             } else {
-                CustomGlideRequest.Builder
-                        .from(requireContext(), mediaMetadata.extras.getString("coverArtId"), CustomGlideRequest.ResourceType.Song)
-                        .build()
-                        .into(bind.playerHeaderLayout.playerHeaderMediaCoverImage);
-                // The overlay grows to full size, so it loads the artwork without baked-in corners.
-                loadFlyingCover(Glide.with(this)
-                        .load(CustomGlideRequest.createUrl(mediaMetadata.extras.getString("coverArtId"), Preferences.getImageSize()))
-                        .diskCacheStrategy(CustomGlideRequest.DEFAULT_DISK_CACHE_STRATEGY));
+                showSongCover(mediaMetadata.extras.getString("coverArtId"));
                 PlayerBackdrop.apply(bind.playerBodyLayout.playerBodyRoot, mediaMetadata.extras.getString("coverArtId"));
             }
         }
@@ -525,8 +552,7 @@ public class PlayerBottomSheetFragment extends Fragment {
             bind.playerHeaderLayout.playerHeaderSeekBar.setProgress((int) (state.getPosition() / 1000));
             if (!Objects.equals(remoteCover, state.getCoverId())) {
                 remoteCover = state.getCoverId();
-                CustomGlideRequest.Builder.from(requireContext(), remoteCover.isEmpty() ? null : remoteCover,
-                        CustomGlideRequest.ResourceType.Song).build().into(bind.playerHeaderLayout.playerHeaderMediaCoverImage);
+                showSongCover(remoteCover.isEmpty() ? null : remoteCover);
             }
         } else if (wasRemote) {
             remoteCover = null;
