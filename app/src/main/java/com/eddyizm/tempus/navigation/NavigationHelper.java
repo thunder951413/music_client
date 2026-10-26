@@ -17,6 +17,7 @@ import androidx.drawerlayout.widget.DrawerLayout;
 import androidx.media3.common.util.UnstableApi;
 import androidx.navigation.NavController;
 import androidx.navigation.NavDestination;
+import androidx.navigation.NavOptions;
 import androidx.navigation.fragment.NavHostFragment;
 import androidx.navigation.ui.NavigationUI;
 
@@ -72,6 +73,24 @@ public class NavigationHelper {
                 });
 
         NavigationUI.setupWithNavController(bottomNavigationView, navController);
+        // Tabs swap at the Home level instead of stacking: NavigationUI pops to the graph's start
+        // (the landing page), which is no longer on the back stack, so every tab switch added a
+        // layer that Back then walked through. Back from a tab now returns Home, then exits.
+        bottomNavigationView.setOnItemSelectedListener(item -> {
+            NavOptions options = new NavOptions.Builder()
+                    .setLaunchSingleTop(true)
+                    .setRestoreState(true)
+                    .setPopUpTo(R.id.homeFragment, false, true)
+                    .build();
+            try {
+                navController.navigate(item.getItemId(), null, options);
+                return true;
+            } catch (IllegalArgumentException e) {
+                return false;
+            }
+        });
+        // Tapping the current tab again returns to its first page.
+        bottomNavigationView.setOnItemReselectedListener(item -> navController.popBackStack(item.getItemId(), false));
         NavigationUI.setupWithNavController(navigationView, navController);
     }
 

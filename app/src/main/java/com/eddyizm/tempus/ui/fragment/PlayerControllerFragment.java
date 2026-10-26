@@ -110,6 +110,7 @@ public class PlayerControllerFragment extends Fragment {
     private View playerOpenQueueButton;
     private View playerOpenLyricsButton;
     private TextView playerContextLabel;
+    private ImageButton playModeButton;
     private View playerFavoriteSurface;
     /** True for the portrait layout with glyph transport controls and pill shortcuts. */
     private boolean immersiveLayout;
@@ -190,6 +191,7 @@ public class PlayerControllerFragment extends Fragment {
     private void refreshPlaybackDestination() {
         if (bind == null || remotePlayer == null) return;
         updateRemoteToggleVisibility();
+        updatePlayModeButton();
         if (com.eddyizm.tempus.lan.LanRemoteSession.isActive()) {
             remotePlayer.refresh();
             bind.nowPlayingMediaControllerView.setPlayer(remotePlayer);
@@ -261,6 +263,8 @@ public class PlayerControllerFragment extends Fragment {
         sleepTimerButton = bind.getRoot().findViewById(R.id.player_sleep_timer_button);
         sleepTimerLabel = bind.getRoot().findViewById(R.id.player_sleep_timer_label);
         playerContextLabel = bind.getRoot().findViewById(R.id.player_context_label);
+        playModeButton = bind.getRoot().findViewById(R.id.player_play_mode_button);
+        if (playModeButton != null) playModeButton.setOnClickListener(v -> cyclePlayMode());
         playerFavoriteSurface = bind.getRoot().findViewById(R.id.player_favorite_surface);
         immersiveLayout = playerContextLabel != null;
         if (immersiveLayout) {
@@ -271,6 +275,44 @@ public class PlayerControllerFragment extends Fragment {
             playerOutputLabel.setOnClickListener(v -> openOutputSwitcher());
         }
         checkAndSetRatingContainerVisibility();
+    }
+
+    private com.eddyizm.tempus.ui.player.PlayMode currentPlayMode() {
+        if (com.eddyizm.tempus.lan.LanRemoteSession.isActive()) {
+            com.eddyizm.tempus.lan.LanRemoteState state = com.eddyizm.tempus.lan.LanRemoteSession.current();
+            return com.eddyizm.tempus.ui.player.PlayMode.of(state.getShuffle(), state.getRepeat());
+        }
+        MediaBrowser browser = getBrowser();
+        return browser != null
+                ? com.eddyizm.tempus.ui.player.PlayMode.of(browser.getShuffleModeEnabled(), browser.getRepeatMode())
+                : com.eddyizm.tempus.ui.player.PlayMode.of(Preferences.isShuffleModeEnabled(), Preferences.getRepeatMode());
+    }
+
+    /** Steps the play order: repeat queue, shuffle, repeat one, then in order without repeat. */
+    private void cyclePlayMode() {
+        com.eddyizm.tempus.ui.player.PlayMode next = currentPlayMode().next();
+        if (com.eddyizm.tempus.lan.LanRemoteSession.isActive()) {
+            com.eddyizm.tempus.lan.LanRemoteSession.command("shuffle", next.getShuffle() ? 1 : 0);
+            com.eddyizm.tempus.lan.LanRemoteSession.command("repeat", next.getRepeat());
+        } else {
+            MediaBrowser browser = getBrowser();
+            if (browser == null) return;
+            browser.setShuffleModeEnabled(next.getShuffle());
+            browser.setRepeatMode(next.getRepeat());
+        }
+        showPlayMode(next);
+        Toast.makeText(requireContext(), next.getLabel(), Toast.LENGTH_SHORT).show();
+    }
+
+    private void updatePlayModeButton() {
+        if (playModeButton != null) showPlayMode(currentPlayMode());
+    }
+
+    private void showPlayMode(com.eddyizm.tempus.ui.player.PlayMode mode) {
+        if (playModeButton == null) return;
+        playModeButton.setImageResource(mode.getIcon());
+        playModeButton.setContentDescription(getString(mode.getLabel()));
+        androidx.appcompat.widget.TooltipCompat.setTooltipText(playModeButton, getString(mode.getLabel()));
     }
 
     /** Picks a Tempus receiver when that feature is on, otherwise Android's own output switcher. */
@@ -445,13 +487,16 @@ public class PlayerControllerFragment extends Fragment {
             @Override
             public void onShuffleModeEnabledChanged(boolean shuffleModeEnabled) {
                 Preferences.setShuffleModeEnabled(shuffleModeEnabled);
+                updatePlayModeButton();
             }
 
             @Override
             public void onRepeatModeChanged(int repeatMode) {
                 Preferences.setRepeatMode(repeatMode);
+                updatePlayModeButton();
             }
         });
+        updatePlayModeButton();
     }
 
     private void setMetadata(MediaMetadata mediaMetadata) {
@@ -843,6 +888,8 @@ public class PlayerControllerFragment extends Fragment {
             }
         }
         syncFavoriteSurface();
+        // Play order only means something for music queues, not podcasts or radio.
+        if (playModeButton != null) playModeButton.setVisibility(buttonFavorite.getVisibility());
     }
 
     // -------------------------------------------------------------------------
