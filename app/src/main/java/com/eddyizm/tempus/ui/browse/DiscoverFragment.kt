@@ -80,8 +80,8 @@ class DiscoverFragment : Fragment(), DiscoverActions {
             )
             return
         }
-        val key = if (chart == LibraryChart.FREQUENT) Constants.MEDIA_MOST_PLAYED else Constants.MEDIA_RECENTLY_ADDED
-        findNavController().navigate(R.id.songListPageFragment, bundleOf(key to key))
+        val key = if (chart == LibraryChart.FREQUENT) Constants.ALBUM_MOST_PLAYED else Constants.ALBUM_RECENTLY_ADDED
+        findNavController().navigate(R.id.albumListPageFragment, bundleOf(key to key))
     }
 
     override fun openExternalChart(source: ChartSource) {

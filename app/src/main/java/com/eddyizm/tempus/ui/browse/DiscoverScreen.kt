@@ -62,6 +62,7 @@ import com.bumptech.glide.integration.compose.ExperimentalGlideComposeApi
 import com.bumptech.glide.integration.compose.GlideImage
 import com.bumptech.glide.integration.compose.placeholder
 import com.eddyizm.tempus.R
+import com.eddyizm.tempus.discovery.ChartMatches
 import com.eddyizm.tempus.discovery.ChartSource
 import com.eddyizm.tempus.glide.CustomGlideRequest
 import com.eddyizm.tempus.subsonic.models.ArtistID3
@@ -89,8 +90,16 @@ enum class LibraryChart(val title: Int, val hint: Int, val color: Long, val mode
 
 private val chartColors = mapOf(
     ChartSource.NETEASE_HOT to 0xFFC8303F, ChartSource.NETEASE_NEW to 0xFF2F6BD8,
-    ChartSource.NETEASE_RISING to 0xFFE0662E, ChartSource.APPLE_CN to 0xFFF0384F,
-    ChartSource.APPLE_JP to 0xFF8A4FD8, ChartSource.APPLE_US to 0xFF2B2D33,
+    ChartSource.NETEASE_RISING to 0xFFE0662E, ChartSource.NETEASE_ORIGINAL to 0xFF8A4FD8,
+    ChartSource.QQ_HOT to 0xFF1E9E74, ChartSource.QQ_NEW to 0xFF0F8FA8,
+    ChartSource.QQ_RISING to 0xFFBF8510, ChartSource.QQ_POPULAR to 0xFFC2457A,
+    ChartSource.APPLE_CN to 0xFFF0384F, ChartSource.APPLE_JP to 0xFF5E6AD2, ChartSource.APPLE_US to 0xFF2B2D33,
+)
+
+private val providerTitles = mapOf(
+    ChartSource.Provider.NETEASE to R.string.discover_provider_netease,
+    ChartSource.Provider.QQ to R.string.discover_provider_qq,
+    ChartSource.Provider.APPLE to R.string.discover_provider_apple,
 )
 
 private enum class DiscoverTab(val label: Int) {
@@ -198,15 +207,32 @@ private fun LazyListScope.chartsTab(actions: DiscoverActions) {
             Text(stringResource(R.string.discover_external_hint), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
-    grid(ChartSource.values().toList()) { source, modifier ->
-        val parts = source.label.split(" · ")
-        ChartCard(
-            title = parts.last(),
-            subtitle = stringResource(R.string.browse_chart_top100),
-            label = parts.first().uppercase(),
-            color = Color(chartColors.getValue(source)),
-            modifier = modifier,
-        ) { actions.openExternalChart(source) }
+    // NetEase and QQ Music first: their song and artist names match Chinese libraries best.
+    ChartSource.Provider.values().forEach { provider ->
+        item {
+            Text(
+                stringResource(providerTitles.getValue(provider)),
+                modifier = Modifier.padding(start = 20.dp, top = 12.dp, bottom = 2.dp),
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        grid(ChartSource.values().filter { it.provider == provider }) { source, modifier ->
+            val parts = source.label.split(" · ")
+            val summary = ChartMatches.summary(source)
+            ChartCard(
+                title = parts.last(),
+                subtitle = if (summary != null) {
+                    stringResource(R.string.browse_chart_matched, summary.available, summary.total)
+                } else {
+                    stringResource(R.string.browse_chart_top100)
+                },
+                label = parts.first().uppercase(),
+                color = Color(chartColors.getValue(source)),
+                modifier = modifier,
+            ) { actions.openExternalChart(source) }
+        }
     }
 }
 

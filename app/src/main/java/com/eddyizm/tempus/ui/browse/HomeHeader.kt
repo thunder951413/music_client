@@ -67,9 +67,10 @@ class HomeHeader private constructor(
         val nav = fragment.findNavController()
         when (quick) {
             Quick.STARRED -> nav.navigate(R.id.songListPageFragment, bundleOf(Constants.MEDIA_STARRED to Constants.MEDIA_STARRED))
-            Quick.RECENT -> nav.navigate(R.id.songListPageFragment, bundleOf(Constants.MEDIA_RECENTLY_PLAYED to Constants.MEDIA_RECENTLY_PLAYED))
-            Quick.FREQUENT -> nav.navigate(R.id.songListPageFragment, bundleOf(Constants.MEDIA_MOST_PLAYED to Constants.MEDIA_MOST_PLAYED))
-            Quick.ADDED -> nav.navigate(R.id.songListPageFragment, bundleOf(Constants.MEDIA_RECENTLY_ADDED to Constants.MEDIA_RECENTLY_ADDED))
+            // The server keeps these lists per album (recent, frequent, newest), shared by all devices.
+            Quick.RECENT -> nav.navigate(R.id.albumListPageFragment, bundleOf(Constants.ALBUM_RECENTLY_PLAYED to Constants.ALBUM_RECENTLY_PLAYED))
+            Quick.FREQUENT -> nav.navigate(R.id.albumListPageFragment, bundleOf(Constants.ALBUM_MOST_PLAYED to Constants.ALBUM_MOST_PLAYED))
+            Quick.ADDED -> nav.navigate(R.id.albumListPageFragment, bundleOf(Constants.ALBUM_RECENTLY_ADDED to Constants.ALBUM_RECENTLY_ADDED))
             Quick.PLAYLISTS -> nav.navigate(R.id.playlistCatalogueFragment, bundleOf(Constants.PLAYLIST_ALL to Constants.PLAYLIST_ALL))
             Quick.DOWNLOADS -> nav.navigate(R.id.downloadFragment)
         }

@@ -21,4 +21,14 @@ public class ChartParserTest {
         StringBuilder entries=new StringBuilder();for (int i=0;i<120;i++) { if(i>0)entries.append(',');entries.append("{\"id\":\"").append(i).append("\",\"name\":\"Song\",\"artistName\":\"Artist\"}"); }
         var r=ChartParser.parse(ChartSource.APPLE_CN,"{\"feed\":{\"results\":["+entries+"]}}");assertEquals(100,r.tracks.size());assertEquals("99",r.tracks.get(99).id);assertEquals(100,r.tracks.get(99).rank);
     }
+    @Test public void readsQqToplistWithAllSingersArtworkAndLink() {
+        var r=ChartParser.parse(ChartSource.QQ_NEW,"{\"code\":0,\"update_time\":\"2026-10-26\",\"songlist\":[{\"data\":{\"songmid\":\"mid1\",\"songname\":\"晴天\",\"interval\":269,\"albummid\":\"alb\",\"singer\":[{\"name\":\"周杰伦\"},{\"name\":\"合唱\"}]}}]}");
+        var t=r.tracks.get(0);
+        assertEquals("晴天",t.title);assertEquals("周杰伦 / 合唱",t.artist);assertEquals(2,t.artists.size());
+        assertEquals(Integer.valueOf(269),t.duration);assertEquals("2026-10-26",r.updated);
+        assertTrue(t.artwork.endsWith("M000alb.jpg"));assertEquals("https://y.qq.com/n/ryqq/songDetail/mid1",t.url);
+    }
+    @Test public void failedQqToplistStaysAFailure() {
+        try { ChartParser.parse(ChartSource.QQ_HOT,"{\"code\":-1}");fail("Expected failure"); } catch (IllegalArgumentException expected) {}
+    }
 }

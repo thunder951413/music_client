@@ -62,4 +62,8 @@
     <string name="home_roam_empty">先收藏一首歌，漫游才能从它出发</string>
 
     <string name="search_browse_title">浏览全部</string>
+    <string name="discover_provider_netease">网易云音乐</string>
+    <string name="discover_provider_qq">QQ 音乐</string>
+    <string name="discover_provider_apple">Apple Music</string>
+    <string name="browse_chart_matched">曲库有 %1$d / %2$d 首</string>
 </resources>

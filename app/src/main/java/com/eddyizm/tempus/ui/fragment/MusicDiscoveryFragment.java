@@ -38,7 +38,7 @@ public final class MusicDiscoveryFragment extends Fragment implements ClickCallb
     private AlbumHorizontalAdapter albums;
     private DiscoveryChartAdapter charts;
     private ListenableFuture<MediaBrowser> browser;
-    private boolean playableOnly;
+    private boolean playableOnly=true;
     private MenuItem refreshItem;
     @Override public void onCreate(Bundle saved) { super.onCreate(saved);setHasOptionsMenu(true); }
     @Override public void onCreateOptionsMenu(@NonNull Menu menu,@NonNull MenuInflater inflater) {
@@ -81,6 +81,7 @@ public final class MusicDiscoveryFragment extends Fragment implements ClickCallb
         bind.discoveryMore.setOnClickListener(v -> model.more());
         bind.discoveryMatch.setOnClickListener(v -> model.matchLibrary());
         bind.discoveryPlay.setOnClickListener(v -> playAll());
+        bind.discoveryExport.setOnClickListener(v -> exportMissing());
         bind.discoveryPlayable.setOnCheckedChangeListener((button,checked) -> {
             playableOnly=checked;if (current!=null) render(current);
         });
@@ -120,6 +121,9 @@ public final class MusicDiscoveryFragment extends Fragment implements ClickCallb
         bind.discoveryProgress.setVisibility(state.loading || state.matching?View.VISIBLE:View.GONE);
         bind.discoveryMatch.setVisibility(chart?View.VISIBLE:View.GONE);bind.discoveryMatch.setEnabled(!state.loading && !state.matching && !state.chart.isEmpty());
         bind.discoveryPlayable.setVisibility(chart?View.VISIBLE:View.GONE);
+        int missing=chart && !state.matching && state.checked==state.chart.size() ? ChartMatches.missing(state.chart).size() : 0;
+        bind.discoveryExport.setVisibility(missing>0?View.VISIBLE:View.GONE);
+        bind.discoveryExport.setText(getString(R.string.discovery_export_missing,missing));
         bind.discoveryMore.setVisibility(state.more?View.VISIBLE:View.GONE);bind.discoveryMore.setEnabled(!state.loading);
         bind.discoveryPlay.setVisibility(album?View.GONE:View.VISIBLE);
         int available=(int)state.chart.stream().filter(t->t.matches.size()==1).count();
@@ -150,6 +154,46 @@ public final class MusicDiscoveryFragment extends Fragment implements ClickCallb
             return value;
         }
     }
+    /**
+     * Hands the chart songs missing from the library to QQ Music or NetEase as text: one
+     * "title - artist" line each, copied or shared as a .txt file.
+     */
+    private void exportMissing() {
+        if (current==null || current.mode!=MusicDiscoveryViewModel.Mode.CHART) return;
+        List<ChartTrack> missing=ChartMatches.missing(current.chart);
+        if (missing.isEmpty()) return;
+        String text=ChartMatches.exportText(missing);
+        String name=current.source.label.replace(" · ","-").replace(' ','_')+"-"+getString(R.string.discovery_export_file_suffix)+".txt";
+        new MaterialAlertDialogBuilder(requireContext())
+                .setTitle(getString(R.string.discovery_export_title,missing.size()))
+                .setMessage(R.string.discovery_export_message)
+                .setPositiveButton(R.string.discovery_export_copy,(d,w)->{
+                    android.content.ClipboardManager clipboard=requireContext().getSystemService(android.content.ClipboardManager.class);
+                    clipboard.setPrimaryClip(android.content.ClipData.newPlainText(current.source.label,text));
+                    Toast.makeText(requireContext(),getString(R.string.discovery_export_copied,missing.size()),Toast.LENGTH_SHORT).show();
+                })
+                .setNeutralButton(R.string.discovery_export_share,(d,w)->shareText(name,text))
+                .setNegativeButton(android.R.string.cancel,null)
+                .show();
+    }
+
+    private void shareText(String fileName,String text) {
+        try {
+            java.io.File file=new java.io.File(requireContext().getExternalFilesDir(android.os.Environment.DIRECTORY_DOWNLOADS),fileName);
+            java.nio.file.Files.write(file.toPath(),text.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            android.net.Uri uri=androidx.core.content.FileProvider.getUriForFile(requireContext(),requireContext().getPackageName()+".updates.provider",file);
+            android.content.Intent send=new android.content.Intent(android.content.Intent.ACTION_SEND)
+                    .setType("text/plain")
+                    .putExtra(android.content.Intent.EXTRA_STREAM,uri)
+                    .putExtra(android.content.Intent.EXTRA_TEXT,text)
+                    .putExtra(android.content.Intent.EXTRA_SUBJECT,fileName)
+                    .addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            startActivity(android.content.Intent.createChooser(send,getString(R.string.discovery_export_share)));
+        } catch (Exception e) {
+            Toast.makeText(requireContext(),R.string.discovery_export_failed,Toast.LENGTH_LONG).show();
+        }
+    }
+
     private void chooseGenre() {
         if (current==null || current.genres.isEmpty()) return;
         String[] names=current.genres.stream().map(g->g.getGenre()+" · "+g.getSongCount()).toArray(String[]::new);

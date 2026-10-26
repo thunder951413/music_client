@@ -69,7 +69,7 @@ public final class DiscoveryRepository {
         }
         okhttp3.Call call=http.newCall(new Request.Builder().url(source.endpoint())
                 .header("User-Agent","Mozilla/5.0 (Linux; Android) Tempus/1.0")
-                .header("Referer",source.playlistId!=null?"https://music.163.com/":"https://music.apple.com/").build());
+                .header("Referer",source.referer()).build());
         publicCalls.add(call);
         try (Response response=call.execute()) {
             if (!response.isSuccessful() || response.body()==null) throw new IOException("Chart unavailable");

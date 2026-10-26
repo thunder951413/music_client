@@ -46,4 +46,12 @@
     <string name="collection_sync_failed">Could not sync to the music server. Please try again.</string>
     <string name="discovery_unheard_details">Uses available server play counts and listening history on this device. Incomplete history may include songs you have heard elsewhere.</string>
     <string name="discovery_shuffle">Reshuffle</string>
+    <string name="discovery_export_missing">Export %1$d missing</string>
+    <string name="discovery_export_title">Export missing songs (%1$d)</string>
+    <string name="discovery_export_message">One \"title - artist\" line per song.\n\nQQ Music: Me → Import playlist → Text import, paste and import.\nNetEase Cloud Music imports playlists only from a link: import into QQ Music first, then paste the QQ playlist link into NetEase\'s Import playlist.</string>
+    <string name="discovery_export_copy">Copy text</string>
+    <string name="discovery_export_share">Share file</string>
+    <string name="discovery_export_copied">Copied %1$d songs</string>
+    <string name="discovery_export_failed">Couldn\'t write the file</string>
+    <string name="discovery_export_file_suffix">missing</string>
 </resources>

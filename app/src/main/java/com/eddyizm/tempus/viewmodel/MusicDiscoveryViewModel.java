@@ -97,12 +97,18 @@ public final class MusicDiscoveryViewModel extends AndroidViewModel {
                         break;
                     case CHART:
                         ChartParser.Result chart=repository.chart(source,refresh);result.chart=chart.tracks;
-                        result.cached=chart.cached;result.updated=chart.updated;break;
+                        result.cached=chart.cached;result.updated=chart.updated;
+                        // A chart version already matched this session is not searched again.
+                        List<ChartTrack> known=refresh?null:ChartMatches.get(source,chart.updated);
+                        if (known!=null && known.size()==chart.tracks.size()) { result.chart=new ArrayList<>(known);result.checked=known.size(); }
+                        break;
                 }
                 main.post(() -> {
                     if (!current(token)) return;
                     state=result; if (mode==Mode.UNHEARD) for (Child song:result.songs) shown.add(song.getId());
                     if (shown.size()>1000) shown.clear(); publish();
+                    // Charts match the library by themselves, so only playable songs need showing.
+                    if (mode==Mode.CHART && result.checked<result.chart.size()) matchLibrary();
                 });
             } catch (Exception e) { main.post(() -> {
                 if (!current(token)) return;
@@ -141,7 +147,9 @@ public final class MusicDiscoveryViewModel extends AndroidViewModel {
                     ChartTrack result=track.matched(matched,choices);result.matchFailed=error;
                     chart.set(position,result);state.chart=chart;state.checked++;
                     if (error) state.failed++;
-                    state.matching=state.checked<chart.size();publish();
+                    state.matching=state.checked<chart.size();
+                    if (!state.matching && state.failed==0) ChartMatches.put(state.source,state.updated,chart);
+                    publish();
                 });
             });
         }
