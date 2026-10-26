@@ -368,7 +368,7 @@
     <string name="settings_github_title">Github</string>
     <string name="settings_github_update">更新</string>
     <string name="settings_github_update_summary">GitHub 版本默认会自动检查 APK 更新。您可以关闭此开关以禁用自动检查。</string>
-    <string name="settings_github_update_title">请访问 Github 以检查更新</string>
+    <string name="settings_github_update_title">启动时自动检查更新</string>
     <string name="settings_image_size">设置图像分辨率</string>
     <string name="settings_item_rating">显示评分</string>
     <string name="settings_item_rating_summary">启用后则显示项目的评分和收藏状态。</string>

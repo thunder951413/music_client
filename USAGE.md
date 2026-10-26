@@ -107,7 +107,7 @@ To edit a server, open the editor, pick the server in the menu at the top, chang
 
 Long press the Tempus icon and pick **Introduction** to open the welcome, permissions, themes and server pages on their own. The heart icon at the top of the server list opens the same pages.
 
-To switch servers, go to **Settings → General → Log out**, which takes you back to this list.
+To switch servers, go to **Settings → Account and library → Log out**, which takes you back to this list.
 
 If you intend to play to a TV or a network speaker, the address you enter here also has to be reachable from that device, because it fetches the music from your server itself. See [Playing on another device](#playing-on-another-device).
 
@@ -199,7 +199,7 @@ Tap the artwork to show four buttons over it, and tap again to hide them.
 1. Downloads the track.
 2. Adds the track to a playlist.
 3. Adds this track again, followed by songs similar to it, right after the current track (Instant Mix). It uses [getSimilarSongs](https://opensubsonic.netlify.app/docs/endpoints/getsimilarsongs/) of the OpenSubsonic API, so which songs you get depends on your server. For example, Navidrome gets 15 similar artists from Last.fm, then 20 top songs from each.
-4. With **Sync play queue for this user** turned on under Settings → Miscellaneous, saves the play queue. With it off and lyrics available, this button opens the lyrics instead.
+4. With **Sync play queue for this user** turned on under Settings → Devices and sync, saves the play queue. With it off and lyrics available, this button opens the lyrics instead.
 
 On phones in portrait, the player shows only the cover, the title and artist, the progress bar and three large controls: previous, play/pause and next. "Now playing" and the album name sit at the top. The player is always dark: behind it, colours taken from the cover flow slowly across the screen, and they move more slowly while playback is paused. This is the only continuous motion; the other effects happen only when something changes. The mini player takes a light tint of the same colours. The down arrow closes the player back to a compact player above the bottom navigation. The cover-colour background continues behind the status bar and system navigation area. Controls keep a safe distance from system bars and display cutouts.
 
@@ -213,9 +213,9 @@ The menu at the top right contains **Track info**, **Audio details**, **Playback
 
 Tap the title to open its album, or the artist to open the artist. Long press either one to copy it.
 
-To show the track number in front of the title, turn on **Show track number** under **Settings → UI**.
+To show the track number in front of the title, turn on **Show track number** under **Settings → What to show**.
 
-The player menu also has **Play on…** and **Add to playlist**, plus **Built-in equalizer** when Built-in is picked under Settings → Sound. Tablets keep their dedicated controls.
+The player menu also has **Play on…** and **Add to playlist**, plus **Built-in equalizer** when Built-in is picked under Settings → Playback and sound. Tablets keep their dedicated controls.
 
 **Format and bitrate**
 
@@ -250,7 +250,7 @@ The Track and Album lists are sorted by album artist, then album, then disc and 
 
 In a playlist's ⋮ menu, turn on **Keep synced**. Tempus downloads every track of the playlist that is not on the phone yet, then checks again each time you open the playlist and once each time the app starts, and downloads any track added since. Tracks removed from the playlist stay downloaded. There is no check while Tempus is closed.
 
-**Download only on Wi-Fi**, under Settings → Data, pauses downloads on mobile data and resumes them on Wi-Fi. It does not apply when downloads are saved to a folder you picked.
+**Download only on Wi-Fi**, under Settings → Downloads and storage, pauses downloads on mobile data and resumes them on Wi-Fi. It does not apply when downloads are saved to a folder you picked.
 
 ### Continue listening
 
@@ -359,7 +359,7 @@ Two things to know:
 
 ### Sorting playlists
 
-Open the full playlist list with **See all** next to Playlists on Home or Library, and tap the sort button to change the order. The same choice is under **Settings → Playlist → Playlist sorting**. It also orders the Playlists row on Home, which shows up to 20 playlists, and the list you pick from when you add songs to a playlist. Tempus remembers it.
+Open the full playlist list with **See all** next to Playlists on Home or Library, and tap the sort button to change the order. The same choice is under **Settings → What to show → Playlist sorting**. It also orders the Playlists row on Home, which shows up to 20 playlists, and the list you pick from when you add songs to a playlist. Tempus remembers it.
 
 - **Name** sorts A to Z. This is the default.
 - **Random** shuffles the list.
@@ -384,11 +384,11 @@ Tap the search icon at the top of Settings and type part of a setting's name or 
 
 ### Language
 
-Select **Settings → UI → Language** to choose an app language. Swedish is available as **Swedish** (or **Svenska**, depending on the current language). Select **System language** to follow your device language.
+Select **Settings → Appearance → Language** to choose an app language. Swedish is available as **Swedish** (or **Svenska**, depending on the current language). Select **System language** to follow your device language.
 
 ### Appearance
 
-Open **Settings → UI → Theme** to change how Tempus looks. Each change applies right away.
+Open **Settings → Appearance → Theme** to change how Tempus looks. Each change applies right away.
 
 - **Theme** is Light, Dark or System default, which follows the phone.
 - **True black background for dark mode** makes the backgrounds pure black while Tempus is dark. It does nothing in Light.
@@ -397,13 +397,13 @@ Open **Settings → UI → Theme** to change how Tempus looks. Each change appli
 
 Accent colors, from the wallpaper or picked, need Android 12 or newer, and some phones on Android 12 do not support them. Without them Tempus keeps its default colors.
 
-**Tiles size**, under **Settings → UI**, sets how big album and artist covers are in grids and rows, and the Discover cards on Home. **Default** is the largest and **Tiny** the smallest.
+**Tiles size**, under **Settings → Appearance**, sets how big album and artist covers are in grids and rows, and the Discover cards on Home. **Default** is the largest and **Tiny** the smallest.
 
 **Rounded corners** rounds the corners of covers and **Corners size** sets how much. Restart Tempus after changing either.
 
 ### Sound
 
-**Settings → Sound** holds the equalizer, ReplayGain and volume settings.
+**Settings → Playback and sound** holds the equalizer, ReplayGain and volume settings.
 
 **Select an equalizer to use** picks one of three:
 
@@ -423,7 +423,7 @@ Tempus takes the values from your server and, if the server sends none, from the
 
 ### Buffering and cache
 
-These are under **Settings → Data**.
+These are under **Settings → Downloads and storage**. **Settings → Updates and about → Update now** checks GitHub and installs a newer release straight away.
 
 **Song preload buffer** sets how much music ahead of where you are Tempus downloads while streaming, 1 minute by default. Restart Tempus after changing it.
 
@@ -433,7 +433,7 @@ These are under **Settings → Data**.
 
 ### Scrobbling
 
-**Enable music scrobbling**, under **Settings → Miscellaneous**, is on by default. It tells your server what you are playing and which tracks you played. Tempus sends this only to your server, which may pass it on to a service such as Last.fm if it is set up to.
+**Enable music scrobbling**, under **Settings → Devices and sync**, is on by default. It tells your server what you are playing and which tracks you played. Tempus sends this only to your server, which may pass it on to a service such as Last.fm if it is set up to.
 
 A track counts as played when it plays to the end. When you skip to another track in the queue, the one you left counts if it played past its halfway point or 4 minutes, whichever comes first, unless it is 30 seconds or shorter. Only music counts, not podcasts or radio. A play that does not reach the server is not sent again later.
 

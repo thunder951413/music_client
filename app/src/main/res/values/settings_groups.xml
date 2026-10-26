@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_group_account">Account and library</string>
+    <string name="settings_group_appearance">Appearance</string>
+    <string name="settings_group_content">What to show</string>
+    <string name="settings_group_playback">Playback and sound</string>
+    <string name="settings_group_storage">Downloads and storage</string>
+    <string name="settings_group_connect">Devices and sync</string>
+    <string name="settings_group_advanced">Advanced</string>
+    <string name="settings_group_about">Updates and about</string>
+    <string name="settings_update_now_title">Update now</string>
+    <string name="settings_update_now_summary">Current version %1$s. Checks GitHub and installs a newer release right away.</string>
+    <string name="settings_update_checking">Checking for updates…</string>
+    <string name="settings_update_latest">You\'re on the latest version (%1$s).</string>
+    <string name="settings_update_failed">Couldn\'t reach GitHub. Try again later.</string>
+    <string name="settings_update_found">Downloading %1$s…</string>
+</resources>

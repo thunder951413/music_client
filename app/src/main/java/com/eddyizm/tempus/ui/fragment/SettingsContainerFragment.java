@@ -185,6 +185,7 @@ public class SettingsContainerFragment extends PreferenceFragmentCompat {
         setAppLanguage();
         setMusicLibrary();
         setVersion();
+        actionUpdateNow();
         setNetorkPingTimeoutBase();
 
         actionPermission();
@@ -227,10 +228,13 @@ public class SettingsContainerFragment extends PreferenceFragmentCompat {
         setPreferencesFromResource(R.xml.global_preferences, rootKey);
 
         if (!BuildConfig.SELF_UPDATE) {
-            PreferenceCategory githubUpdateCategory = findPreference("settings_github_update_category_key");
-            if (githubUpdateCategory != null) {
-                getPreferenceScreen().removePreference(githubUpdateCategory);
+            // Updates share a section with About, so only the update rows go.
+            for (String key : new String[]{"github_update_summary", "github_update_check", "update_now"}) {
+                Preference pref = findPreference(key);
+                if (pref != null && pref.getParent() != null) pref.getParent().removePreference(pref);
             }
+            Preference about = findPreference("settings_github_update_category_key");
+            if (about != null) about.setTitle(R.string.settings_about_title);
         }
 
         if (BuildConfig.FLAVOR.equals("degoogled")) {
@@ -678,6 +682,35 @@ public class SettingsContainerFragment extends PreferenceFragmentCompat {
         libraryPref.setSummary(activeMusicFolderId != null
                 ? activeMusicFolderId
                 : getString(R.string.settings_music_library_all));
+    }
+
+    /** Checks the latest GitHub release and, if it is newer, downloads and installs it at once. */
+    private void actionUpdateNow() {
+        Preference pref = findPreference("update_now");
+        if (pref == null) return;
+        pref.setSummary(getString(R.string.settings_update_now_summary, BuildConfig.VERSION_NAME));
+        pref.setOnPreferenceClickListener(preference -> {
+            preference.setEnabled(false);
+            Toast.makeText(requireContext(), R.string.settings_update_checking, Toast.LENGTH_SHORT).show();
+            new com.eddyizm.tempus.repository.SystemRepository().checkTempusUpdate().observe(getViewLifecycleOwner(), release -> {
+                preference.setEnabled(true);
+                if (!isAdded()) return;
+                if (release == null) {
+                    Toast.makeText(requireContext(), R.string.settings_update_failed, Toast.LENGTH_LONG).show();
+                } else if (!com.eddyizm.tempus.github.utils.UpdateUtil.showUpdateDialog(release)) {
+                    Toast.makeText(requireContext(), getString(R.string.settings_update_latest, BuildConfig.VERSION_NAME), Toast.LENGTH_LONG).show();
+                } else {
+                    com.eddyizm.tempus.github.models.Assets apk = com.eddyizm.tempus.github.utils.UpdateUtil.findApkAsset(release);
+                    if (apk != null) {
+                        Toast.makeText(requireContext(), getString(R.string.settings_update_found, release.getTagName()), Toast.LENGTH_SHORT).show();
+                        com.eddyizm.tempus.github.utils.ApkUpdater.start(requireActivity(), apk.getBrowserDownloadUrl(), release.getTagName());
+                    } else {
+                        startActivity(new Intent(Intent.ACTION_VIEW, android.net.Uri.parse(release.getHtmlUrl())));
+                    }
+                }
+            });
+            return true;
+        });
     }
 
     private void setVersion() {
