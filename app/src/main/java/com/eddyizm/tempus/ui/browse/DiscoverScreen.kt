@@ -79,6 +79,7 @@ interface DiscoverActions {
     fun openAllGenres()
     fun openArtist(artist: ArtistID3)
     fun shuffleArtists(artists: List<ArtistID3>)
+    fun exportAllMissing()
 }
 
 enum class LibraryChart(val title: Int, val hint: Int, val color: Long, val mode: Mode?) {
@@ -142,7 +143,7 @@ fun DiscoverScreen(
                     TabRow(tab) { tab = it }
                 }
                 when (tab) {
-                    DiscoverTab.CHARTS -> chartsTab(actions)
+                    DiscoverTab.CHARTS -> chartsTab(actions, state.chartsVersion)
                     DiscoverTab.CATEGORIES -> categoriesTab(state, actions, onRetry) { language = it }
                     DiscoverTab.ARTISTS -> artistsTab(state, actions, onRetry) { letterIndex ->
                         // Title and tab row come first, then the letter strip.
@@ -190,7 +191,7 @@ private fun <T> LazyListScope.grid(items: List<T>, columns: Int = 2, cell: @Comp
     }
 }
 
-private fun LazyListScope.chartsTab(actions: DiscoverActions) {
+private fun LazyListScope.chartsTab(actions: DiscoverActions, @Suppress("UNUSED_PARAMETER") chartsVersion: Int) {
     item { SectionHeader(stringResource(R.string.discover_section_library_charts), Modifier.padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 6.dp)) }
     grid(LibraryChart.entries) { chart, modifier ->
         ChartCard(
@@ -203,7 +204,11 @@ private fun LazyListScope.chartsTab(actions: DiscoverActions) {
     }
     item {
         Column(Modifier.padding(start = 20.dp, end = 20.dp, top = 22.dp, bottom = 6.dp)) {
-            SectionHeader(stringResource(R.string.discover_section_external_charts))
+            SectionHeader(
+                stringResource(R.string.discover_section_external_charts),
+                action = stringResource(R.string.discover_export_all),
+                onAction = actions::exportAllMissing,
+            )
             Text(stringResource(R.string.discover_external_hint), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }

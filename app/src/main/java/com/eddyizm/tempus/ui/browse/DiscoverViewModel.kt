@@ -20,6 +20,8 @@ class DiscoverViewModel : ViewModel() {
         val decades: List<Int> = emptyList(),
         val languages: Map<Language, List<ArtistID3>> = emptyMap(),
         val sections: List<Pair<Char, List<ArtistID3>>> = emptyList(),
+        /** Bumped when chart matches change, so the chart cards re-read their library counts. */
+        val chartsVersion: Int = 0,
     )
 
     private val _state = MutableStateFlow(State())
@@ -82,6 +84,10 @@ class DiscoverViewModel : ViewModel() {
             at = System.currentTimeMillis()
             state = value
         }
+    }
+
+    fun chartsMatched() {
+        _state.value = _state.value.copy(chartsVersion = _state.value.chartsVersion + 1)
     }
 
     fun setDecades(decades: List<Int>?) {

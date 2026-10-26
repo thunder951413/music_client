@@ -154,44 +154,10 @@ public final class MusicDiscoveryFragment extends Fragment implements ClickCallb
             return value;
         }
     }
-    /**
-     * Hands the chart songs missing from the library to QQ Music or NetEase as text: one
-     * "title - artist" line each, copied or shared as a .txt file.
-     */
     private void exportMissing() {
         if (current==null || current.mode!=MusicDiscoveryViewModel.Mode.CHART) return;
         List<ChartTrack> missing=ChartMatches.missing(current.chart);
-        if (missing.isEmpty()) return;
-        String text=ChartMatches.exportText(missing);
-        String name=current.source.label.replace(" · ","-").replace(' ','_')+"-"+getString(R.string.discovery_export_file_suffix)+".txt";
-        new MaterialAlertDialogBuilder(requireContext())
-                .setTitle(getString(R.string.discovery_export_title,missing.size()))
-                .setMessage(R.string.discovery_export_message)
-                .setPositiveButton(R.string.discovery_export_copy,(d,w)->{
-                    android.content.ClipboardManager clipboard=requireContext().getSystemService(android.content.ClipboardManager.class);
-                    clipboard.setPrimaryClip(android.content.ClipData.newPlainText(current.source.label,text));
-                    Toast.makeText(requireContext(),getString(R.string.discovery_export_copied,missing.size()),Toast.LENGTH_SHORT).show();
-                })
-                .setNeutralButton(R.string.discovery_export_share,(d,w)->shareText(name,text))
-                .setNegativeButton(android.R.string.cancel,null)
-                .show();
-    }
-
-    private void shareText(String fileName,String text) {
-        try {
-            java.io.File file=new java.io.File(requireContext().getExternalFilesDir(android.os.Environment.DIRECTORY_DOWNLOADS),fileName);
-            java.nio.file.Files.write(file.toPath(),text.getBytes(java.nio.charset.StandardCharsets.UTF_8));
-            android.net.Uri uri=androidx.core.content.FileProvider.getUriForFile(requireContext(),requireContext().getPackageName()+".updates.provider",file);
-            android.content.Intent send=new android.content.Intent(android.content.Intent.ACTION_SEND)
-                    .setType("text/plain")
-                    .putExtra(android.content.Intent.EXTRA_STREAM,uri)
-                    .putExtra(android.content.Intent.EXTRA_TEXT,text)
-                    .putExtra(android.content.Intent.EXTRA_SUBJECT,fileName)
-                    .addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION);
-            startActivity(android.content.Intent.createChooser(send,getString(R.string.discovery_export_share)));
-        } catch (Exception e) {
-            Toast.makeText(requireContext(),R.string.discovery_export_failed,Toast.LENGTH_LONG).show();
-        }
+        com.eddyizm.tempus.ui.browse.MissingExport.show(this,getString(R.string.discovery_export_title,missing.size()),current.source.label,missing);
     }
 
     private void chooseGenre() {

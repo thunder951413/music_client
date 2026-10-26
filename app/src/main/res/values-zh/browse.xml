@@ -66,4 +66,13 @@
     <string name="discover_provider_qq">QQ 音乐</string>
     <string name="discover_provider_apple">Apple Music</string>
     <string name="browse_chart_matched">曲库有 %1$d / %2$d 首</string>
+    <string name="discover_export_all">导出全部缺失</string>
+    <string name="discover_export_all_title">正在匹配全部榜单</string>
+    <string name="discover_export_fetching_start">正在获取榜单…</string>
+    <string name="discover_export_fetching">正在获取第 %1$d / %2$d 个榜单</string>
+    <string name="discover_export_matching">正在比对曲库：%1$d / %2$d 首</string>
+    <string name="discover_export_none_missing">这些榜单上的歌你的曲库都有了。</string>
+    <string name="discover_export_partial">有 %1$d 个榜单没获取到、%2$d 首歌没查成，已略过。</string>
+    <string name="discover_export_all_result">全部榜单缺失歌曲（%1$d 首，来自 %2$d 个榜单）</string>
+    <string name="discover_export_all_file">全部榜单</string>
 </resources>

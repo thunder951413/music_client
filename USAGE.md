@@ -266,7 +266,7 @@ The spot is also saved as a bookmark on your server, if the server supports book
 
 ### Bottom Navigation Bar
 - **Home**: Shortcuts, a daily mix built from your liked songs, personal radio, and the existing sections
-- **Discover**: Library charts plus NetEase, QQ Music and Apple Music charts, browsing by language, decade and genre, and an A–Z artist index (language is guessed from the script of artist names). A public chart matches itself against your library and shows only playable songs; **Export missing** copies or shares the rest as "title - artist" lines for QQ Music's text import
+- **Discover**: Library charts plus NetEase, QQ Music and Apple Music charts, browsing by language, decade and genre, and an A–Z artist index (language is guessed from the script of artist names). A public chart matches itself against your library and shows only playable songs; **Export missing** copies or shares the rest as "title - artist" lines for QQ Music's text import; **Export all missing** above the public charts matches every chart and exports what all of them lack, each song once
 - **Search**: Genre tiles until you search
 - **Library**: Your collection, with **Downloads** at the top
 

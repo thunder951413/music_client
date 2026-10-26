@@ -64,4 +64,13 @@
     <string name="discover_provider_qq">QQ Music</string>
     <string name="discover_provider_apple">Apple Music</string>
     <string name="browse_chart_matched">%1$d of %2$d in your library</string>
+    <string name="discover_export_all">Export all missing</string>
+    <string name="discover_export_all_title">Matching every chart</string>
+    <string name="discover_export_fetching_start">Fetching charts…</string>
+    <string name="discover_export_fetching">Fetching chart %1$d of %2$d</string>
+    <string name="discover_export_matching">Checking your library: %1$d of %2$d songs</string>
+    <string name="discover_export_none_missing">Your library already has every song on these charts.</string>
+    <string name="discover_export_partial">%1$d charts didn\'t load and %2$d songs couldn\'t be checked; they\'re left out.</string>
+    <string name="discover_export_all_result">Missing from all charts (%1$d songs, %2$d charts)</string>
+    <string name="discover_export_all_file">All charts</string>
 </resources>

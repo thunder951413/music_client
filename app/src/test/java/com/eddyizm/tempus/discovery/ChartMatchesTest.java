@@ -43,4 +43,13 @@ public class ChartMatchesTest {
                 track("Song\nTwo ", Arrays.asList("A", "B"), true, false, false)));
         assertEquals("晴天 - 周杰伦\nSong Two - A/B\n", text);
     }
+
+    @Test
+    public void sameSongOnTwoChartsSharesOneKey() {
+        ChartTrack netease = track("晴天", Arrays.asList("周杰伦"), true, false, false);
+        ChartTrack qq = track("晴天（Live）".replace("（Live）", ""), Arrays.asList("周杰伦", "合唱"), true, false, false);
+        ChartTrack other = track("晴天", Arrays.asList("别人"), true, false, false);
+        assertEquals(AllChartsMatcher.songKey(netease), AllChartsMatcher.songKey(qq));
+        org.junit.Assert.assertNotEquals(AllChartsMatcher.songKey(netease), AllChartsMatcher.songKey(other));
+    }
 }

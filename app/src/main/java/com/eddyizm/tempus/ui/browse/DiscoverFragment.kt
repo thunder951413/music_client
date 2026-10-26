@@ -5,7 +5,11 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.LinearLayout
+import android.widget.TextView
 import android.widget.Toast
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.progressindicator.LinearProgressIndicator
 import androidx.annotation.OptIn
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -20,6 +24,7 @@ import androidx.media3.session.MediaBrowser
 import androidx.media3.session.SessionToken
 import androidx.navigation.fragment.findNavController
 import com.eddyizm.tempus.R
+import com.eddyizm.tempus.discovery.AllChartsMatcher
 import com.eddyizm.tempus.discovery.ChartSource
 import com.eddyizm.tempus.repository.AlbumRepository
 import com.eddyizm.tempus.service.MediaManager
@@ -30,6 +35,7 @@ import com.eddyizm.tempus.ui.activity.MainActivity
 import com.eddyizm.tempus.ui.fragment.MusicDiscoveryFragment
 import com.eddyizm.tempus.util.Constants
 import com.google.common.util.concurrent.ListenableFuture
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 /** The Discover tab: charts, categories (language, decade, genre) and an A–Z artist index. */
@@ -113,6 +119,78 @@ class DiscoverFragment : Fragment(), DiscoverActions {
 
     override fun openArtist(artist: ArtistID3) {
         findNavController().navigate(R.id.artistPageFragment, bundleOf(Constants.ARTIST_OBJECT to artist))
+    }
+
+    /**
+     * Matches every public chart against the library, then exports all missing songs at once,
+     * listing a song found on several charts only once.
+     */
+    override fun exportAllMissing() {
+        val context = requireContext()
+        val label = TextView(context).apply { setText(R.string.discover_export_fetching_start) }
+        val bar = LinearProgressIndicator(context).apply { isIndeterminate = true }
+        val content = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            val pad = (24 * resources.displayMetrics.density).toInt()
+            setPadding(pad, pad / 2, pad, 0)
+            addView(label)
+            addView(bar, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+                topMargin = pad / 2
+            })
+        }
+        val matcher = AllChartsMatcher()
+        val dialog = MaterialAlertDialogBuilder(context)
+            .setTitle(R.string.discover_export_all_title)
+            .setView(content)
+            .setCancelable(false)
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+        val job = viewLifecycleOwner.lifecycleScope.launch {
+            val result = runCatching {
+                matcher.run(ChartSource.values().toList()) { progress ->
+                    label.post {
+                        label.text = if (progress.phase == 0) {
+                            getString(R.string.discover_export_fetching, progress.done + 1, progress.total)
+                        } else {
+                            getString(R.string.discover_export_matching, progress.done, progress.total)
+                        }
+                        if (progress.phase == 1 && progress.total > 0) {
+                            if (bar.isIndeterminate) {
+                                bar.visibility = View.INVISIBLE
+                                bar.isIndeterminate = false
+                                bar.visibility = View.VISIBLE
+                            }
+                            bar.setProgressCompat(progress.done * 100 / progress.total, true)
+                        }
+                    }
+                }
+            }
+            // Cancelled from the dialog: nothing to report.
+            if (!isActive) return@launch
+            dialog.dismiss()
+            model.chartsMatched()
+            val done = result.getOrNull()
+            when {
+                done == null -> Toast.makeText(context, R.string.discovery_chart_failed, Toast.LENGTH_LONG).show()
+                done.missing.isEmpty() -> Toast.makeText(context, R.string.discover_export_none_missing, Toast.LENGTH_LONG).show()
+                else -> {
+                    if (done.failedCharts > 0 || done.failedSearches > 0) {
+                        Toast.makeText(context, getString(R.string.discover_export_partial, done.failedCharts, done.failedSearches), Toast.LENGTH_LONG).show()
+                    }
+                    MissingExport.show(
+                        this@DiscoverFragment,
+                        getString(R.string.discover_export_all_result, done.missing.size, done.charts),
+                        getString(R.string.discover_export_all_file),
+                        done.missing,
+                    )
+                }
+            }
+        }
+        dialog.getButton(android.content.DialogInterface.BUTTON_NEGATIVE).setOnClickListener {
+            matcher.cancel()
+            job.cancel()
+            dialog.dismiss()
+        }
     }
 
     override fun shuffleArtists(artists: List<ArtistID3>) {
