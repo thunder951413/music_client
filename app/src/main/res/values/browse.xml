@@ -72,4 +72,19 @@
     <string name="discover_export_partial">%1$d charts didn\'t load and %2$d songs couldn\'t be checked; they\'re left out.</string>
     <string name="discover_export_all_result">Missing from all charts (%1$d songs, %2$d charts)</string>
     <string name="discover_export_all_file">All charts</string>
+    <string name="library_mix_title">Organize my library</string>
+    <string name="library_mix_subtitle">Turn every song into playlists by language, decade and genre, saved on your server</string>
+    <string name="library_mix_subtitle_done">%1$d playlists made · tap to refresh them</string>
+    <string name="library_mix_confirm">Tempus will read every song in the library and create playlists on your server: by language, decade and main genres, plus newest, never played and most played. Running it again updates the same playlists. Your own playlists are not touched.</string>
+    <string name="library_mix_start">Organize</string>
+    <string name="library_mix_scanning_start">Reading the library…</string>
+    <string name="library_mix_scanning">Read %1$d songs…</string>
+    <string name="library_mix_writing">Saving playlist %1$d of %2$d…</string>
+    <string name="library_mix_done">Made %1$d playlists from %2$d songs</string>
+    <string name="library_mix_none">The library is too small to group into playlists</string>
+    <string name="library_mix_failed">Could not organize the library. Check the connection and try again.</string>
+    <string name="library_mix_name">Library · %1$s</string>
+    <string name="library_mix_newest">Newest</string>
+    <string name="library_mix_unplayed">Never played</string>
+    <string name="library_mix_most_played">Most played</string>
 </resources>

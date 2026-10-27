@@ -193,6 +193,8 @@ class DiscoverFragment : Fragment(), DiscoverActions {
         }
     }
 
+    override fun organizeLibrary() = LibraryOrganizer.confirmAndRun(this)
+
     override fun shuffleArtists(artists: List<ArtistID3>) {
         val ids = artists.mapNotNull { it.id }.toSet()
         viewLifecycleOwner.lifecycleScope.launch {

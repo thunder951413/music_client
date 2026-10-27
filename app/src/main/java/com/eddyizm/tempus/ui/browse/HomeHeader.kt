@@ -56,6 +56,7 @@ class HomeHeader private constructor(
     private val browser: Supplier<ListenableFuture<MediaBrowser>?>,
 ) {
     private var daily by mutableStateOf<List<Child>?>(null)
+    private var organized by mutableStateOf(LibraryOrganizer.playlistCount())
 
     private fun loadDaily() {
         fragment.viewLifecycleOwner.lifecycleScope.launch {
@@ -138,6 +139,15 @@ class HomeHeader private constructor(
                     modifier = Modifier.weight(1f),
                 ) { startRadio() }
             }
+            OrganizeRow(
+                title = stringResource(R.string.library_mix_title),
+                subtitle = if (organized > 0) {
+                    stringResource(R.string.library_mix_subtitle_done, organized)
+                } else {
+                    stringResource(R.string.library_mix_subtitle)
+                },
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 10.dp),
+            ) { LibraryOrganizer.confirmAndRun(fragment) { organized = LibraryOrganizer.playlistCount() } }
             Spacer(Modifier.padding(top = 8.dp))
         }
     }

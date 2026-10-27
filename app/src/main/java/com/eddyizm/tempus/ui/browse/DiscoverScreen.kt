@@ -80,6 +80,7 @@ interface DiscoverActions {
     fun openArtist(artist: ArtistID3)
     fun shuffleArtists(artists: List<ArtistID3>)
     fun exportAllMissing()
+    fun organizeLibrary()
 }
 
 enum class LibraryChart(val title: Int, val hint: Int, val color: Long, val mode: Mode?) {
@@ -247,6 +248,14 @@ private fun LazyListScope.categoriesTab(
     if (state.failed) {
         item { ErrorRow(onRetry) }
         return
+    }
+    item {
+        OrganizeRow(
+            title = stringResource(R.string.library_mix_title),
+            subtitle = stringResource(R.string.library_mix_subtitle),
+            modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 12.dp),
+            onClick = actions::organizeLibrary,
+        )
     }
     val languages = Language.entries.filter { it != Language.OTHER && state.languages[it].orEmpty().isNotEmpty() }
     if (languages.isNotEmpty()) {
