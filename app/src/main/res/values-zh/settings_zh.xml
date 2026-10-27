@@ -90,4 +90,12 @@
     <string name="update_progress_error_network">网络错误</string>
     <string name="update_progress_error_http">服务器返回 %1$d</string>
     <string name="update_progress_error_other">错误 %1$d</string>
+    <string name="cache_disabled">关闭</string>
+    <string name="settings_cache_limit_summary">上限 %1$s · 已用 %2$s</string>
+    <string name="settings_cache_limit_restart">上限 %1$s · 已用 %2$s\n新的上限在重启应用后生效。</string>
+    <string name="settings_clear_streaming_cache">清除播放缓存</string>
+    <string name="settings_clear_artwork_cache">清除封面缓存</string>
+    <string name="settings_cache_in_use">已用 %1$s</string>
+    <string name="settings_clear_cache_confirm">删除缓存的数据？已下载的歌曲不受影响。</string>
+    <string name="settings_cache_cleared">缓存已清除</string>
 </resources>

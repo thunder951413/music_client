@@ -63,6 +63,8 @@ public final class DownloadUtil {
     private static File downloadDirectory;
     private static Cache downloadCache;
     private static SimpleCache streamingCache;
+    /** The limit the open streaming cache was built with; a new setting applies after a restart. */
+    private static long activeStreamingCacheLimitMb = -1;
     private static DownloadManager downloadManager;
     private static DownloaderManager downloaderManager;
     private static DownloadNotificationHelper downloadNotificationHelper;
@@ -204,13 +206,30 @@ public final class DownloadUtil {
         return downloadCache;
     }
 
+    public static synchronized long getActiveStreamingCacheLimitMb() {
+        return activeStreamingCacheLimitMb;
+    }
+
+    /** Empties the streaming cache while it stays open; spans being played are skipped. */
+    public static void clearStreamingCache(Context context) {
+        SimpleCache cache = getStreamingCache(context);
+        for (String key : new java.util.HashSet<>(cache.getKeys())) {
+            try {
+                cache.removeResource(key);
+            } catch (Exception ignored) {
+                // A span still being read stays until playback moves on.
+            }
+        }
+    }
+
     private static synchronized SimpleCache getStreamingCache(Context context) {
         if (streamingCache == null) {
             File streamingCacheDirectory = new File(getStreamingCacheDirectory(context), STREAMING_CACHE_CONTENT_DIRECTORY);
 
+            activeStreamingCacheLimitMb = Preferences.getStreamingCacheSize();
             streamingCache = new SimpleCache(
                     streamingCacheDirectory,
-                    new LeastRecentlyUsedCacheEvictor(Preferences.getStreamingCacheSize() * 1024 * 1024),
+                    new LeastRecentlyUsedCacheEvictor(activeStreamingCacheLimitMb * 1024 * 1024),
                     getDatabaseProvider(context)
             );
         }

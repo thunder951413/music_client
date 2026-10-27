@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Sizes read the same in every language, so these lists live here only. -->
+    <string-array name="streaming_cache_limit_titles">
+        <item>@string/cache_disabled</item>
+        <item>128 MiB</item>
+        <item>256 MiB</item>
+        <item>512 MiB</item>
+        <item>1 GiB</item>
+        <item>2 GiB</item>
+        <item>4 GiB</item>
+        <item>8 GiB</item>
+        <item>16 GiB</item>
+    </string-array>
+    <string-array name="streaming_cache_limit_values" translatable="false">
+        <item>0</item>
+        <item>128</item>
+        <item>256</item>
+        <item>512</item>
+        <item>1024</item>
+        <item>2048</item>
+        <item>4096</item>
+        <item>8192</item>
+        <item>16384</item>
+    </string-array>
+    <string-array name="artwork_cache_limit_titles" translatable="false">
+        <item>125 MiB</item>
+        <item>250 MiB</item>
+        <item>500 MiB</item>
+        <item>1 GiB</item>
+        <item>2 GiB</item>
+    </string-array>
+    <string-array name="artwork_cache_limit_values" translatable="false">
+        <item>125</item>
+        <item>250</item>
+        <item>500</item>
+        <item>1024</item>
+        <item>2048</item>
+    </string-array>
+</resources>

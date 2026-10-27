@@ -384,8 +384,23 @@ public class MediaManager {
         }
     }
 
+    /** Plays an episode from where it was left, or from the start when it was (nearly) finished. */
     public static void startPodcast(ListenableFuture<MediaBrowser> mediaBrowserListenableFuture, PodcastEpisode podcastEpisode) {
-        startPodcast(mediaBrowserListenableFuture,podcastEpisode,0);
+        startPodcast(mediaBrowserListenableFuture,podcastEpisode,podcastResumePosition(podcastEpisode));
+    }
+
+    static long podcastResumePosition(PodcastEpisode episode) {
+        if (episode==null || episode.getId()==null) return 0;
+        long saved=Preferences.getResumePoint(episode.getId());
+        long durationMs=episode.getDuration()!=null ? episode.getDuration()*1000L : 0;
+        return resumeOrRestart(saved,durationMs);
+    }
+
+    /** A saved spot within the last 30 seconds counts as finished, so playback starts over. */
+    static long resumeOrRestart(long savedMs,long durationMs) {
+        if (savedMs<=0) return 0;
+        if (durationMs>0 && savedMs>=durationMs-30_000L) return 0;
+        return savedMs;
     }
 
     public static void startPodcast(ListenableFuture<MediaBrowser> mediaBrowserListenableFuture, PodcastEpisode podcastEpisode, long position) {

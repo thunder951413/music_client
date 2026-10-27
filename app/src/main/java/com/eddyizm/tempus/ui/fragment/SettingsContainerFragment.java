@@ -502,24 +502,89 @@ public class SettingsContainerFragment extends PreferenceFragmentCompat {
         }
     }
 
+    /** Shows each cache's limit and use, and wires the clear buttons; sizes are measured off the main thread. */
     private void setStreamingCacheSize() {
-        ListPreference streamingCachePreference = findPreference("streaming_cache_size");
-
-        if (streamingCachePreference != null) {
-            streamingCachePreference.setSummaryProvider(new Preference.SummaryProvider<ListPreference>() {
-                @Nullable
-                @Override
-                public CharSequence provideSummary(@NonNull ListPreference preference) {
-                    CharSequence entry = preference.getEntry();
-
-                    if (entry == null) return null;
-
-                    long currentSizeMb = DownloadUtil.getStreamingCacheSize(requireActivity()) / (1024 * 1024);
-
-                    return getString(R.string.settings_summary_streaming_cache_size, entry, String.valueOf(currentSizeMb));
-                }
+        android.content.Context context = requireContext().getApplicationContext();
+        Preference clearStreaming = findPreference("clear_streaming_cache");
+        Preference clearArtwork = findPreference("clear_artwork_cache");
+        if (clearStreaming != null) clearStreaming.setOnPreferenceClickListener(p -> {
+            confirmClear(() -> DownloadUtil.clearStreamingCache(context));
+            return true;
+        });
+        if (clearArtwork != null) clearArtwork.setOnPreferenceClickListener(p -> {
+            confirmClear(() -> {
+                com.bumptech.glide.Glide.get(context).clearDiskCache();
+                new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
+                    com.bumptech.glide.Glide.get(context).clearMemory();
+                    com.eddyizm.tempus.ui.player.CoverCache.clear();
+                });
+            });
+            return true;
+        });
+        for (String key : new String[]{"streaming_cache_size", "image_cache_size"}) {
+            Preference limit = findPreference(key);
+            // The new value is stored after the listener returns, so measure on the next frame.
+            if (limit != null) limit.setOnPreferenceChangeListener((p, value) -> {
+                getListView().post(this::refreshCacheSummaries);
+                return true;
             });
         }
+        refreshCacheSummaries();
+    }
+
+    private void confirmClear(Runnable clear) {
+        new com.google.android.material.dialog.MaterialAlertDialogBuilder(requireContext())
+                .setMessage(R.string.settings_clear_cache_confirm)
+                .setPositiveButton(android.R.string.ok, (d, w) -> new Thread(() -> {
+                    clear.run();
+                    new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
+                        if (!isAdded()) return;
+                        Toast.makeText(requireContext(), R.string.settings_cache_cleared, Toast.LENGTH_SHORT).show();
+                        refreshCacheSummaries();
+                    });
+                }).start())
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    private void refreshCacheSummaries() {
+        android.content.Context context = requireContext().getApplicationContext();
+        new Thread(() -> {
+            long streaming = DownloadUtil.getStreamingCacheSize(context);
+            long artwork = folderSize(new java.io.File(context.getCacheDir(), "cache"));
+            new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
+                if (!isAdded()) return;
+                ListPreference streamingLimit = findPreference("streaming_cache_size");
+                ListPreference artworkLimit = findPreference("image_cache_size");
+                String streamingUse = android.text.format.Formatter.formatShortFileSize(context, streaming);
+                String artworkUse = android.text.format.Formatter.formatShortFileSize(context, artwork);
+                if (streamingLimit != null && streamingLimit.getEntry() != null) {
+                    long active = DownloadUtil.getActiveStreamingCacheLimitMb();
+                    boolean pending = active >= 0 && active != Preferences.getStreamingCacheSize();
+                    streamingLimit.setSummary(getString(pending ? R.string.settings_cache_limit_restart : R.string.settings_cache_limit_summary,
+                            streamingLimit.getEntry(), streamingUse));
+                }
+                if (artworkLimit != null && artworkLimit.getEntry() != null) {
+                    int active = com.eddyizm.tempus.glide.CustomGlideModule.activeCacheSizeMb;
+                    boolean pending = active >= 0 && active != Preferences.getImageCacheSize();
+                    artworkLimit.setSummary(getString(pending ? R.string.settings_cache_limit_restart : R.string.settings_cache_limit_summary,
+                            artworkLimit.getEntry(), artworkUse));
+                }
+                Preference clearStreaming = findPreference("clear_streaming_cache");
+                Preference clearArtwork = findPreference("clear_artwork_cache");
+                if (clearStreaming != null) clearStreaming.setSummary(getString(R.string.settings_cache_in_use, streamingUse));
+                if (clearArtwork != null) clearArtwork.setSummary(getString(R.string.settings_cache_in_use, artworkUse));
+            });
+        }).start();
+    }
+
+    private static long folderSize(java.io.File file) {
+        if (file == null || !file.exists()) return 0;
+        if (file.isFile()) return file.length();
+        long total = 0;
+        java.io.File[] children = file.listFiles();
+        if (children != null) for (java.io.File child : children) total += folderSize(child);
+        return total;
     }
 
     private void setAppLanguage() {

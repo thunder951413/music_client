@@ -19,9 +19,13 @@ import java.io.InputStream;
 
 @GlideModule
 public class CustomGlideModule extends AppGlideModule {
+    /** The artwork cache limit Glide started with; a new setting applies after a restart. */
+    public static volatile int activeCacheSizeMb = -1;
+
     @Override
     public void applyOptions(@NonNull Context context, GlideBuilder builder) {
-        int diskCacheSize = Preferences.getImageCacheSize() * 1024 * 1024;
+        activeCacheSizeMb = Preferences.getImageCacheSize();
+        int diskCacheSize = activeCacheSizeMb * 1024 * 1024;
         builder.setDiskCache(new InternalCacheDiskCacheFactory(context, "cache", diskCacheSize));
         // Full colour depth: RGB_565 bands the smooth gradients of cover art on large screens.
         builder.setDefaultRequestOptions(new RequestOptions().format(DecodeFormat.PREFER_ARGB_8888));

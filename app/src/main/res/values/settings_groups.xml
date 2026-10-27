@@ -30,4 +30,12 @@
     <string name="update_progress_error_network">network error</string>
     <string name="update_progress_error_http">server returned %1$d</string>
     <string name="update_progress_error_other">error %1$d</string>
+    <string name="cache_disabled">Off</string>
+    <string name="settings_cache_limit_summary">Limit %1$s · in use %2$s</string>
+    <string name="settings_cache_limit_restart">Limit %1$s · in use %2$s\nThe new limit applies after restarting the app.</string>
+    <string name="settings_clear_streaming_cache">Clear streaming cache</string>
+    <string name="settings_clear_artwork_cache">Clear artwork cache</string>
+    <string name="settings_cache_in_use">In use: %1$s</string>
+    <string name="settings_clear_cache_confirm">Delete cached data? Downloads are kept.</string>
+    <string name="settings_cache_cleared">Cache cleared</string>
 </resources>

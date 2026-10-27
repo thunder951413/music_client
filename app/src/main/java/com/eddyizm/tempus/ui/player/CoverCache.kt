@@ -30,6 +30,9 @@ object CoverCache {
     @JvmStatic
     fun get(coverArtId: String?): Bitmap? = coverArtId?.let { cache.get(it) }
 
+    @JvmStatic
+    fun clear() = cache.evictAll()
+
     /**
      * Delivers the cover to [onReady] on the main thread: at once when cached, otherwise after one
      * shared load. Requests for a cover already loading join that load.

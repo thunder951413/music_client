@@ -368,19 +368,26 @@
         <ListPreference
             app:defaultValue="256"
             app:dialogTitle="@string/settings_streaming_cache_size"
-            app:entries="@array/streaming_cache_size_titles"
-            app:entryValues="@array/streaming_cache_size_values"
+            app:entries="@array/streaming_cache_limit_titles"
+            app:entryValues="@array/streaming_cache_limit_values"
             app:key="streaming_cache_size"
             app:title="@string/settings_streaming_cache_size" />
 
         <ListPreference
             app:defaultValue="500"
             app:dialogTitle="@string/settings_covers_cache"
-            app:entries="@array/pref_cache_size_titles"
-            app:entryValues="@array/pref_cache_size_values"
+            app:entries="@array/artwork_cache_limit_titles"
+            app:entryValues="@array/artwork_cache_limit_values"
             app:key="image_cache_size"
-            app:title="@string/settings_covers_cache"
-            app:useSimpleSummaryProvider="true" />
+            app:title="@string/settings_covers_cache" />
+
+        <Preference
+            android:key="clear_streaming_cache"
+            android:title="@string/settings_clear_streaming_cache" />
+
+        <Preference
+            android:key="clear_artwork_cache"
+            android:title="@string/settings_clear_artwork_cache" />
 
         <ListPreference
             app:defaultValue="-1"

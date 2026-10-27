@@ -423,7 +423,7 @@ Tempus takes the values from your server and, if the server sends none, from the
 
 ### Buffering and cache
 
-These are under **Settings → Downloads and storage**. **Settings → Updates and about → Update now** checks GitHub and installs a newer release straight away.
+These are under **Settings → Downloads and storage**. The streaming cache (songs and podcast episodes you have played, up to 16 GiB) and the artwork cache each show their limit and current use, and can be cleared; a new limit applies after restarting the app. Downloads have no limit and are kept when caches are cleared. **Settings → Updates and about → Update now** checks GitHub and installs a newer release straight away.
 
 **Song preload buffer** sets how much music ahead of where you are Tempus downloads while streaming, 1 minute by default. Restart Tempus after changing it.
 
