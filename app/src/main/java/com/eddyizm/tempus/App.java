@@ -57,6 +57,7 @@ public class App extends Application {
         preferences = PreferenceManager.getDefaultSharedPreferences(context);
 
         ClientCertManager.setupSslSocketFactory(context);
+        com.eddyizm.tempus.hub.HubRepository.start();
     }
 
     public static App getInstance() {

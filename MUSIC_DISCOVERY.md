@@ -1,5 +1,7 @@
 # Music discovery and collections
 
+The new external-playlist import workflow is described in [Usage](USAGE.md#import-netease-and-qq-playlists) and the [Mac companion guide](tools/playlist_import/README.md). It supports NetEase and QQ sharing links, stores imported playlists and pending audio requests on the music server, and updates only when the user asks. Missing audio is downloaded in the official desktop client, validated locally and passed to the existing upload pipeline. Physical-phone hub playback, event upload and reconnect retry are verified below. Actual new-audio download and upload still require the NetEase desktop client and login; synthetic and existing-library fixtures do not replace that validation.
+
 ## Confirmed scope
 
 Make a large personal server library easier to explore using both library-based discovery and genuine external charts. Provide named collections with selectable icons, saved as server playlists for other devices. Selecting a song keeps the list and mini player visible; a deliberate mini-player tap opens the full player. Existing heart favorites, playlists, radio stations and podcast subscriptions remain available.
@@ -86,3 +88,22 @@ Local recordings and validation notes are retained in the ignored `dist/miniplay
 | Reproduced mini-player jump | Mini player after the fix |
 | --- | --- |
 | ![Mini player at the top before the fix](docs/images/player-browse/mini-before.png) | ![Mini player at the bottom after the fix](docs/images/player-browse/mini-after.png) |
+
+## Hub integration — October 28, 2026
+
+The agreed first phase supports multiple Navidrome accounts and independent device profiles. The Android hub outbox records individual completed/skip events instead of deriving counts from the chronology table, whose primary key retains only the latest entry per song. Hub recommendations do not use account-level stars or play counts. The Rust source, migration, deployment, rollback and HTTP regression tests live in [services/tempus-hub](services/tempus-hub/README.md). The Mac helper supports account-scoped hub configuration and explicitly scoped legacy SSH reads. Existing external import and audio-validation work is reused.
+
+
+Both signed release flavors built; Degoogled has 294 unit tests and Tempus has 300, with zero failures/errors and one existing skipped test in each suite. Both debug lint tasks passed. The physical PMX110 retained its existing login and library after the signed Degoogled update. A device outbox instrumentation test passed. Live checks verified 30 server recommendations, five pending tracks visible to the Mac helper, playback, skip and end-of-track events, and offline queuing followed by upload after reconnect. Wi-Fi and mobile data were restored to their prior enabled states.
+
+The Linux release binary passed four HTTP integration tests against a local fake Navidrome; six Rust unit tests and 17 Mac helper tests passed locally. A controlled live Navidrome fixture verified ordered fill with duplicate positions, then removed its temporary playlist and hub records. The fixture used real library recordings with synthetic provider IDs, so it does not establish external-source or download correctness. The Mac has QQ Music but no NetEase desktop client/download directory; actual download → upload → new-file scan remains unverified. Multiple accounts/devices were tested with simulated accounts, not a second real user or physical device.
+
+| Existing home recommendation | Server-generated device recommendation |
+| --- | --- |
+| ![Before hub](docs/images/player-browse/hub-before.png) | ![After hub](docs/images/player-browse/hub-after.png) |
+
+The signed app on PMX110 read all 200 NetEase Hot Chart entries and completed library matching: six unique matches, 194 missing, zero ambiguous rows. The read-only preview was checked on the physical phone without saving. The import page's dark-theme text contrast was corrected and verified on the phone.
+
+| Import before contrast fix | Complete public-playlist preview after fix |
+| --- | --- |
+| ![Import before](docs/images/player-browse/import-before.png) | ![Import after](docs/images/player-browse/import-after.png) |

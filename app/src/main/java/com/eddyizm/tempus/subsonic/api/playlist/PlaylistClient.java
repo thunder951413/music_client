@@ -26,6 +26,14 @@ public class PlaylistClient {
         return playlistService.getPlaylists(subsonic.getParams());
     }
 
+    public Call<ApiResponse> saveImportedPlaylist(String id, String name, ArrayList<String> songs) {
+        return playlistService.saveImportedPlaylist(subsonic.getParams(), id, name, songs);
+    }
+
+    public Call<ApiResponse> setImportComment(String id, String comment, Boolean isPublic, String name) {
+        return playlistService.setImportComment(subsonic.getParams(), id, comment, isPublic, name);
+    }
+
     public Call<ApiResponse> getPlaylist(String id) {
         Log.d(TAG, "getPlaylist()");
         return playlistService.getPlaylist(subsonic.getParams(), id);

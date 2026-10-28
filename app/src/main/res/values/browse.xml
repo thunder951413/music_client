@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="home_daily_preparing">Preparing today’s mix…</string>
+    <string name="home_daily_cached">Last available mix · %1$d songs</string>
     <string name="menu_discover_label">Discover</string>
     <string name="menu_search_label">Search</string>
     <string name="menu_mine_label">Library</string>
@@ -52,7 +54,9 @@
     <string name="home_quick_playlists">Playlists</string>
     <string name="home_quick_downloads">Downloads</string>
     <string name="home_daily_title">Daily mix</string>
-    <string name="home_daily_subtitle">%1$d songs from your favourites</string>
+    <string name="home_daily_subtitle">%1$d songs from your listening</string>
+    <string name="home_daily_subtitle_wishes">%1$d songs · %2$d new to download</string>
+    <string name="home_daily_playlist">Daily mix · %1$s · %2$s</string>
     <string name="home_daily_loading">Putting today\'s mix together…</string>
     <string name="home_daily_empty">Like a few songs to get a daily mix</string>
     <string name="home_roam_title">Personal radio</string>

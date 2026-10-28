@@ -86,6 +86,7 @@ public class MappingUtil {
             }
 
             Bundle bundle = new Bundle();
+            bundle.putString("hubAccount", com.eddyizm.tempus.hub.HubRepository.currentAccount());
             bundle.putString("id", effective.getId());
             bundle.putString("parentId", effective.getParentId());
             bundle.putBoolean("isDir", effective.isDir());

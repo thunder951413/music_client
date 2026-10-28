@@ -33,6 +33,8 @@ import com.eddyizm.tempus.ui.activity.MainActivity
 import com.eddyizm.tempus.util.Constants
 import com.google.common.util.concurrent.ListenableFuture
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.CancellationException
 import java.time.LocalDate
 import java.time.LocalTime
 import java.util.function.Supplier
@@ -48,19 +50,25 @@ private enum class Quick(@StringRes val title: Int, @DrawableRes val icon: Int, 
 
 /**
  * The top of the Music home tab: a greeting, six shortcuts and two feature cards, a daily mix
- * built from favourites and a personal radio that starts from a liked song.
+ * built from listening ([DailyMixRepository]) and a personal radio that starts from a liked song.
  */
 @OptIn(UnstableApi::class)
 class HomeHeader private constructor(
     private val fragment: Fragment,
     private val browser: Supplier<ListenableFuture<MediaBrowser>?>,
 ) {
-    private var daily by mutableStateOf<List<Child>?>(null)
+    private var daily by mutableStateOf<DailyMixRepository.Today?>(null)
     private var organized by mutableStateOf(LibraryOrganizer.playlistCount())
 
     private fun loadDaily() {
         fragment.viewLifecycleOwner.lifecycleScope.launch {
-            daily = runCatching { BrowseRepository.dailyMix() }.getOrDefault(emptyList())
+            repeat(6) {
+                daily = try { DailyMixRepository.today() }
+                catch (e: CancellationException) { throw e }
+                catch (_: Exception) { DailyMixRepository.Today(emptyList(), emptyList()) }
+                if (daily?.pending != true) return@launch
+                delay(5_000)
+            }
         }
     }
 
@@ -119,12 +127,16 @@ class HomeHeader private constructor(
                 Modifier.padding(start = 16.dp, end = 16.dp, top = 18.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                val songs = daily
+                val songs = daily?.songs
+                val wishes = daily?.wishes.orEmpty().size
                 HeroCard(
                     title = stringResource(R.string.home_daily_title),
                     subtitle = when {
                         songs == null -> stringResource(R.string.home_daily_loading)
+                        daily?.pending == true -> stringResource(R.string.home_daily_preparing)
+                        daily?.stale == true && songs.isNotEmpty() -> stringResource(R.string.home_daily_cached, songs.size)
                         songs.isEmpty() -> stringResource(R.string.home_daily_empty)
+                        wishes > 0 -> stringResource(R.string.home_daily_subtitle_wishes, songs.size, wishes)
                         else -> stringResource(R.string.home_daily_subtitle, songs.size)
                     },
                     colors = listOf(Color(0xFFE13D56), Color(0xFFF08A3C)),

@@ -101,6 +101,10 @@ class DiscoverFragment : Fragment(), DiscoverActions {
         )
     }
 
+    override fun importExternalPlaylist() {
+        findNavController().navigate(R.id.externalPlaylistFragment)
+    }
+
     override fun openDecade(decade: Int) {
         findNavController().navigate(
             R.id.songListPageFragment,

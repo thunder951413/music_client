@@ -1,0 +1,31 @@
+name: Tempus hub regression
+
+on:
+  push:
+    branches: [main, custom, development]
+    paths: ['services/tempus-hub/**', '.github/workflows/tempus_hub.yml']
+  pull_request:
+    paths: ['services/tempus-hub/**', '.github/workflows/tempus_hub.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/tempus-hub
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust tools
+        run: rustup toolchain install stable --profile minimal --component rustfmt --component clippy
+      - name: Format and lint
+        run: |
+          cargo +stable fmt --check
+          cargo +stable clippy --locked --all-targets -- -D warnings
+      - name: Unit and HTTP regression
+        run: |
+          cargo +stable test --locked
+          cargo +stable build --locked
+          python3 -m unittest discover -s tests -v

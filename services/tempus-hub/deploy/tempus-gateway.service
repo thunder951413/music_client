@@ -1,0 +1,19 @@
+[Unit]
+Description=Tempus music and hub gateway
+After=network-online.target qq-music.service tempus-hub.service
+
+[Service]
+Type=simple
+ExecStart=/usr/sbin/nginx -p %h/services/tempus-hub/ -c %h/services/tempus-hub/gateway.conf
+ExecReload=/usr/sbin/nginx -p %h/services/tempus-hub/ -c %h/services/tempus-hub/gateway.conf -s reload
+KillSignal=SIGQUIT
+Restart=on-failure
+RestartSec=5
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=%h/services/tempus-hub
+
+[Install]
+WantedBy=default.target

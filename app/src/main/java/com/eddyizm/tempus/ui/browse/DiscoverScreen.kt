@@ -81,6 +81,7 @@ interface DiscoverActions {
     fun shuffleArtists(artists: List<ArtistID3>)
     fun exportAllMissing()
     fun organizeLibrary()
+    fun importExternalPlaylist()
 }
 
 enum class LibraryChart(val title: Int, val hint: Int, val color: Long, val mode: Mode?) {
@@ -203,6 +204,9 @@ private fun LazyListScope.chartsTab(actions: DiscoverActions, @Suppress("UNUSED_
     }
     item {
         Column(Modifier.padding(start = 20.dp, end = 20.dp, top = 22.dp, bottom = 6.dp)) {
+            androidx.compose.material3.TextButton(onClick = actions::importExternalPlaylist) {
+                Text("导入外部歌单 · 网易云／QQ")
+            }
             SectionHeader(
                 stringResource(R.string.discover_section_external_charts),
                 action = stringResource(R.string.discover_export_all),

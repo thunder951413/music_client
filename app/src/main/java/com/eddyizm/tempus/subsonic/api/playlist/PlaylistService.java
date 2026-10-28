@@ -9,8 +9,23 @@ import retrofit2.Call;
 import retrofit2.http.GET;
 import retrofit2.http.Query;
 import retrofit2.http.QueryMap;
+import retrofit2.http.FormUrlEncoded;
+import retrofit2.http.POST;
+import retrofit2.http.Field;
+import retrofit2.http.FieldMap;
 
 public interface PlaylistService {
+    // Imports can contain thousands of IDs; use a request body instead of a very long URL.
+    @FormUrlEncoded @POST("createPlaylist")
+    Call<ApiResponse> saveImportedPlaylist(@FieldMap Map<String, String> params,
+            @Field("playlistId") String id, @Field("name") String name,
+            @Field("songId") ArrayList<String> songs);
+
+    @FormUrlEncoded @POST("updatePlaylist")
+    Call<ApiResponse> setImportComment(@FieldMap Map<String, String> params,
+            @Field("playlistId") String id, @Field("comment") String comment,
+            @Field("public") Boolean isPublic, @Field("name") String name);
+
     @GET("getPlaylists")
     Call<ApiResponse> getPlaylists(@QueryMap Map<String, String> params);
 

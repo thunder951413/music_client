@@ -1,0 +1,24 @@
+[Unit]
+Description=Tempus recommendations and playlist hub
+After=network-online.target qq-music.service
+
+[Service]
+Type=simple
+WorkingDirectory=%h/services/tempus-hub
+Environment=HUB_STATE_DIR=%h/services/tempus-hub/state
+Environment=HUB_TIMEZONE=Asia/Singapore
+Environment=NAVIDROME_URL=http://127.0.0.1:4533
+Environment=NO_PROXY=127.0.0.1,localhost,::1,192.168.1.200
+EnvironmentFile=-%h/services/tempus-hub/hub.env
+ExecStart=%h/services/tempus-hub/current/target/release/tempus-hub
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=15
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=%h/services/tempus-hub
+
+[Install]
+WantedBy=default.target

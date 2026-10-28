@@ -580,6 +580,7 @@ open class BaseMediaService : MediaLibraryService(), MediaManager.QueueTarget {
                 ) {
                     MediaManager.scrobble(player.currentMediaItem, true)
                     MediaManager.saveChronology(player.currentMediaItem)
+                    com.eddyizm.tempus.hub.HubRepository.record(player.currentMediaItem, true, player.currentPosition)
                     // Last track played to completion - drop it from Continue listening.
                     MediaManager.deleteResumePoint(player.currentMediaItem)
                 } else if (!player.hasNextMediaItem() && playbackState == Player.STATE_ENDED &&
@@ -628,6 +629,7 @@ open class BaseMediaService : MediaLibraryService(), MediaManager.QueueTarget {
                     if (oldPosition.mediaItem?.mediaMetadata?.extras?.getString("type") == Constants.MEDIA_TYPE_MUSIC) {
                         MediaManager.scrobble(oldPosition.mediaItem, true)
                         MediaManager.saveChronology(oldPosition.mediaItem)
+                        com.eddyizm.tempus.hub.HubRepository.record(oldPosition.mediaItem, true, oldPosition.positionMs)
                     }
                     // The old track played to completion - drop it from Continue listening.
                     MediaManager.deleteResumePoint(oldPosition.mediaItem)
@@ -639,6 +641,7 @@ open class BaseMediaService : MediaLibraryService(), MediaManager.QueueTarget {
                     // SEEK only: scrobble a genuine user skip, not other index changes such as removing the currently playing track (REMOVE).
                     if (oldPosition.mediaItem?.mediaMetadata?.extras?.getString("type") == Constants.MEDIA_TYPE_MUSIC) {
                         val durationMs = ((oldPosition.mediaItem?.mediaMetadata?.extras?.getInt("duration") ?: 0).toLong()) * 1000L
+                        com.eddyizm.tempus.hub.HubRepository.record(oldPosition.mediaItem, false, oldPosition.positionMs)
                         if (MediaManager.meetsScrobbleThreshold(oldPosition.positionMs, durationMs)) {
                             MediaManager.scrobble(oldPosition.mediaItem, true)
                             MediaManager.saveChronology(oldPosition.mediaItem)

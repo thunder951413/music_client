@@ -1,0 +1,12 @@
+PRAGMA journal_mode=WAL;
+PRAGMA foreign_keys=ON;
+CREATE TABLE IF NOT EXISTS schema_version(version INTEGER PRIMARY KEY);
+INSERT OR IGNORE INTO schema_version VALUES(1);
+CREATE TABLE IF NOT EXISTS accounts(username TEXT PRIMARY KEY, credential BLOB NOT NULL);
+CREATE TABLE IF NOT EXISTS devices(username TEXT NOT NULL, id TEXT NOT NULL, name TEXT NOT NULL, last_seen INTEGER NOT NULL, PRIMARY KEY(username,id));
+CREATE TABLE IF NOT EXISTS plays(username TEXT NOT NULL, device TEXT NOT NULL, event_id TEXT NOT NULL, song_id TEXT NOT NULL, at INTEGER NOT NULL, completed INTEGER NOT NULL, position_ms INTEGER NOT NULL, duration_ms INTEGER NOT NULL, PRIMARY KEY(username,device,event_id));
+CREATE INDEX IF NOT EXISTS plays_device_time ON plays(username,device,at);
+CREATE TABLE IF NOT EXISTS daily_mixes(username TEXT NOT NULL, device TEXT NOT NULL, date TEXT NOT NULL, playlist_id TEXT, data TEXT NOT NULL, PRIMARY KEY(username,device,date));
+CREATE TABLE IF NOT EXISTS wishes(username TEXT NOT NULL, key TEXT NOT NULL, track TEXT NOT NULL, state TEXT NOT NULL CHECK(state IN ('pending','completed','ignored','ambiguous')), song_id TEXT, PRIMARY KEY(username,key));
+CREATE TABLE IF NOT EXISTS imports(username TEXT NOT NULL, playlist_id TEXT NOT NULL, data TEXT NOT NULL, PRIMARY KEY(username,playlist_id));
+CREATE TABLE IF NOT EXISTS chart_cache(id TEXT PRIMARY KEY, fetched_at INTEGER NOT NULL, data TEXT NOT NULL);

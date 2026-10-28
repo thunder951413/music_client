@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="home_daily_preparing">正在准备今日推荐…</string>
+    <string name="home_daily_cached">最近一次推荐 · %1$d 首</string>
     <string name="bottom_sheet_generating_instant_mix">正在准备推荐歌曲…</string>
     <string name="bottom_sheet_problem_generating_instant_mix">暂时无法获取歌曲，请稍后重试</string>
     <string name="menu_discover_label">发现</string>
@@ -54,7 +56,9 @@
     <string name="home_quick_playlists">歌单</string>
     <string name="home_quick_downloads">已下载</string>
     <string name="home_daily_title">每日推荐</string>
-    <string name="home_daily_subtitle">根据你的收藏 · %1$d 首</string>
+    <string name="home_daily_subtitle">根据你的收听 · %1$d 首</string>
+    <string name="home_daily_subtitle_wishes">%1$d 首 · %2$d 首新歌待下载</string>
+    <string name="home_daily_playlist">每日推荐 · %1$s · %2$s</string>
     <string name="home_daily_loading">正在准备今天的推荐…</string>
     <string name="home_daily_empty">收藏几首歌后就有每日推荐</string>
     <string name="home_roam_title">私人漫游</string>

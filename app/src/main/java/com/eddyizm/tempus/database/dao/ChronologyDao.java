@@ -21,6 +21,9 @@ public interface ChronologyDao {
     @Query("SELECT DISTINCT id FROM chronology WHERE server = :server")
     List<String> getHeardIds(String server);
 
+    @Query("SELECT * FROM chronology WHERE server = :server AND timestamp >= :since ORDER BY timestamp DESC LIMIT :count")
+    List<Chronology> getPlayedSince(String server, long since, int count);
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     void insert(Chronology chronologyObject);
 }

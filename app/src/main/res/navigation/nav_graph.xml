@@ -4,6 +4,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/nav_graph"
     app:startDestination="@id/landingFragment">
+    <fragment android:id="@+id/externalPlaylistFragment" android:name="com.eddyizm.tempus.ui.browse.ExternalPlaylistFragment" android:label="导入外部歌单" />
     <fragment android:id="@+id/discoverFragment" android:name="com.eddyizm.tempus.ui.browse.DiscoverFragment" android:label="@string/discover_title" />
     <fragment android:id="@+id/musicDiscoveryFragment" android:name="com.eddyizm.tempus.ui.fragment.MusicDiscoveryFragment" android:label="@string/discovery_title" tools:layout="@layout/fragment_music_discovery" />
     <fragment

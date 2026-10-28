@@ -3,6 +3,7 @@
 [<- back home](README.md)
 
 ## Table of Contents
+- [Tempus hub](#tempus-hub)
 - [Prerequisites](#prerequisites)
     - [Verified backends](#verified-backends)
 - [Getting Started](#getting-started)
@@ -265,7 +266,7 @@ The spot is also saved as a bookmark on your server, if the server supports book
 ## Navigation
 
 ### Bottom Navigation Bar
-- **Home**: Shortcuts, a daily mix built from your liked songs, personal radio, and the existing sections
+- **Home**: Shortcuts, a daily mix, personal radio, and the existing sections
 - **Discover**: Library charts plus NetEase and QQ Music charts, browsing by language, decade and genre, and an A–Z artist index (language is guessed from the script of artist names). A public chart matches itself against your library and shows only playable songs; **Export missing** copies or shares the rest as "title - artist" lines for QQ Music's text import; **Export all missing** above the public charts matches every chart and exports what all of them lack, each song once
 - **Search**: Genre tiles until you search
 - **Library**: Your collection, with **Downloads** at the top
@@ -599,6 +600,26 @@ Shortcuts are displayed only if the function is selected from root level:
 
 ## Music discovery and collections
 
+### Import NetEase and QQ playlists
+
+Open **Discover → 导入外部歌单** and paste a NetEase or QQ Music playlist sharing link. Public charts, curated playlists and shareable personal playlists are supported. Read the complete playlist, review library matches and explicitly choose between ambiguous versions, then save it to the music server. Songs already in the library become playable immediately; missing songs remain a download request, not a claim that audio has been imported. Imports preserve source order and duplicates, with a limit of 5,000 entries. A truncated or unavailable platform response cannot replace the server playlist.
+
+On the Mac, open [启动歌单导入助手.command](tools/playlist_import/启动歌单导入助手.command). Refresh phone requests, download the source playlist in the already signed-in official QQ/NetEase desktop client, then choose **校验并入库**. Downloading remains an explicit operation in the official client; the helper does not log in, purchase music or operate its download UI. QQ downloads reuse the existing local processing tool; NCM files are processed locally. Only complete audio matching the pending request is eligible for upload. Original downloads and existing server audio are preserved.
+
+After the server scans new audio, use **手动更新／入库后重新匹配** on the phone and save the refreshed result. Updates reuse the same imported server playlist, update its source order and membership, and do not delete audio files. Imports are private initially; updates preserve existing visibility. The source binding and pending list are stored with the server playlist so another installation on the same server/account can resume. No scheduled synchronization is enabled.
+
+The Mac helper requires the existing `unlock_music` checkout, FFmpeg, the `mini_server` SSH connection and the Navidrome database path. Default NetEase download folders are `~/Music/网易云音乐` and `~/Music/CloudMusic`; a custom path can be supplied with `--netease-dir`. It listens only at `127.0.0.1:8769`. Details and local tests are in [tools/playlist_import/README.md](tools/playlist_import/README.md).
+
+Playlists that require an additional platform login or are only partially exposed by the sharing API are reported as unavailable; they are not silently imported as empty or shortened playlists. Missing or invalid downloads remain pending.
+
+### Daily mix
+
+The **Daily mix** card on Home builds 30 songs from recent plays, most-played songs, favourites and favourites not heard lately, plus a few never-played songs. Related songs come from the server's similar-song data when Navidrome has Last.fm configured; otherwise from the same artist, genre and decade. Each device builds its own mix, saved as a private server playlist (**每日推荐 · MM-dd · device model**); the last 7 days are kept.
+
+Up to 5 chart songs by artists you listen to (or have in the library) that the library lacks are listed as "new to download". The Mac import helper shows them as **每日推荐新歌**; download them in the official client and choose **校验并入库**. Unhandled picks expire with their day's playlist.
+
+### Browse charts and manage collections
+
 **Home → Music** and **Library** both provide **Discover music** and **Collections & playlists** shortcuts.
 
 - **Unheard exploration** selects up to 40 songs without a known play count or a local listening-history entry. Use the refresh icon to get another batch. Tap the explanatory text for the record limits: servers with incomplete counts cannot identify everything heard on other devices.
@@ -611,6 +632,12 @@ Shortcuts are displayed only if the function is selected from root level:
 - Tapping a song keeps the current list visible and updates the mini player. Tap the mini player to open the full player; asynchronous queue initialization preserves an explicit expansion. Swipe the mini player down to dismiss it and clear the queue. Its first appearance and dismissal stay at the bottom of the screen.
 
 See [Discovery and collection implementation notes](MUSIC_DISCOVERY.md) for research references, source details and validation.
+
+## Tempus hub
+
+部署可选的 [tempus-hub](services/tempus-hub/README.md) 后，手机会自动发现同一音乐地址的服务，登记当前账号和设备并同步独立播放事件。各设备独立生成推荐，不混用其他设备的收听偏好；多个 Navidrome 账号的数据相互隔离。首次打开可能显示“正在准备今日推荐”，随后可直接播放服务器保存的私有歌单。
+
+新导入歌单保存时会将完整顺序和选择的歌曲版本登记到 hub。Mac 助手从账号专用配置读取待下载任务；官方客户端下载、校验并上传后，hub 等待 Navidrome 扫描确认并自动补回歌单。存在多个准确版本时需在手机重新匹配确认；其他客户端改动过歌单时停止自动覆盖。旧版导入歌单需手动更新并保存一次。hub 离线时显示最近缓存，待同步记录保留到恢复后上传。
 
 ## Known Issues
 
