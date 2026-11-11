@@ -2,6 +2,7 @@ package com.eddyizm.tempus.ui.browse
 
 import android.icu.text.Transliterator
 import com.eddyizm.tempus.App
+import com.eddyizm.tempus.discovery.MusicDiscoveryRules
 import com.eddyizm.tempus.subsonic.models.ArtistID3
 import com.eddyizm.tempus.subsonic.models.Child
 import com.eddyizm.tempus.subsonic.models.Genre
@@ -9,6 +10,7 @@ import com.eddyizm.tempus.subsonic.base.ApiResponse
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import retrofit2.Call
+import java.util.Collections
 
 /** Blocking Subsonic calls for the browse pages, run on the IO dispatcher. */
 object BrowseRepository {
@@ -49,7 +51,33 @@ object BrowseRepository {
 
     fun initialOf(name: String?): Char = BrowseClassifier.initialOf(name) { pinyin.transliterate(it) }
 
-    /** Up to [limit] random songs by [artistIds], sampled from a few random batches. */
+    /** Up to [limit] random songs by [artists], matching collaborations and falling back to search for small groups. */
+    suspend fun songsByArtists(artists: List<ArtistID3>, limit: Int): List<Child> = withContext(Dispatchers.IO) {
+        val artistIds = artists.mapNotNull { it.id }.toSet()
+        val artistNames = artists.flatMapTo(HashSet()) { MusicDiscoveryRules.artistNames(it.name) }
+        if (artistIds.isEmpty() && artistNames.isEmpty()) return@withContext emptyList()
+        fun matchesGroup(song: Child): Boolean =
+            !song.isDir && !song.isVideo && song.id != null &&
+                (song.artistId in artistIds || !Collections.disjoint(MusicDiscoveryRules.artistNames(song.artist), artistNames))
+        val found = LinkedHashMap<String, Child>()
+        repeat(3) {
+            if (found.size >= limit) return@repeat
+            randomSongs(500).filter(::matchesGroup).forEach { found.putIfAbsent(it.id, it) }
+        }
+        if (found.size < limit / 2) {
+            val searching = App.getSubsonicClientInstance(false).searchingClient
+            for (artist in artists.shuffled().take(8)) {
+                if (found.size >= limit) break
+                val name = artist.name?.trim()?.takeIf { it.isNotEmpty() } ?: continue
+                val rows = runCatching {
+                    execute(searching.search3(name, 25, 0, 0, 0, 0, 0))?.searchResult3?.songs.orEmpty()
+                }.getOrDefault(emptyList())
+                rows.filter(::matchesGroup).forEach { found.putIfAbsent(it.id, it) }
+            }
+        }
+        found.values.take(limit)
+    }
+
     suspend fun songsByArtists(artistIds: Set<String>, limit: Int): List<Child> {
         val found = LinkedHashMap<String, Child>()
         repeat(3) {

@@ -13,6 +13,8 @@ import com.google.android.material.progressindicator.LinearProgressIndicator
 import androidx.annotation.OptIn
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.core.os.bundleOf
@@ -43,6 +45,7 @@ import kotlinx.coroutines.launch
 class DiscoverFragment : Fragment(), DiscoverActions {
     private val model: DiscoverViewModel by viewModels()
     private var browser: ListenableFuture<MediaBrowser>? = null
+    private var organized by mutableIntStateOf(LibraryOrganizer.playlistCount())
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View =
         ComposeView(requireContext()).apply {
@@ -50,10 +53,21 @@ class DiscoverFragment : Fragment(), DiscoverActions {
             setContent {
                 BrowseTheme {
                     val state by model.state.collectAsState()
-                    DiscoverScreen(state, this@DiscoverFragment, requireActivity().onBackPressedDispatcher, onRetry = { model.load(force = true) })
+                    DiscoverScreen(
+                        state = state,
+                        actions = this@DiscoverFragment,
+                        backDispatcher = requireActivity().onBackPressedDispatcher,
+                        onRetry = { model.load(force = true) },
+                        organizedCount = organized,
+                    )
                 }
             }
         }
+
+    override fun onResume() {
+        super.onResume()
+        organized = LibraryOrganizer.playlistCount()
+    }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         AlbumRepository().decades.observe(viewLifecycleOwner) { model.setDecades(it) }
@@ -197,12 +211,13 @@ class DiscoverFragment : Fragment(), DiscoverActions {
         }
     }
 
-    override fun organizeLibrary() = LibraryOrganizer.confirmAndRun(this)
+    override fun organizeLibrary() = LibraryOrganizer.confirmAndRun(this) {
+        organized = LibraryOrganizer.playlistCount()
+    }
 
     override fun shuffleArtists(artists: List<ArtistID3>) {
-        val ids = artists.mapNotNull { it.id }.toSet()
         viewLifecycleOwner.lifecycleScope.launch {
-            val songs = runCatching { BrowseRepository.songsByArtists(ids, 60) }.getOrDefault(emptyList())
+            val songs = runCatching { BrowseRepository.songsByArtists(artists, 60) }.getOrDefault(emptyList())
             val future = browser
             if (songs.isEmpty() || future == null) {
                 Toast.makeText(requireContext(), R.string.browse_language_shuffle_empty, Toast.LENGTH_LONG).show()

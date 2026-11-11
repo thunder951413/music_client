@@ -36,4 +36,22 @@ public class MusicDiscoveryRulesTest {
         ChartTrack t=chart("Song","Artist",null);
         assertEquals(2,MusicDiscoveryRules.matches(t,Arrays.asList(song("a","Song","Artist",null),song("b","Song","Artist",null),song("a","Song","Artist",null))).size());
     }
+    @Test public void supportsNavidromeBulletCollaborationsAndArtistAliases() {
+        ChartTrack t=chart("Song","歌手 (Artist)",200);t.artists.add("歌手 (Artist)");
+        Child c1=song("a","Song","Artist • Guest",0L);c1.setDuration(200);
+        Child c2=song("b","Song","歌手 · 嘉宾",0L);c2.setDuration(200);
+        assertEquals(2,MusicDiscoveryRules.matches(t,Arrays.asList(c1,c2)).size());
+    }
+    @Test public void originalTitleMatchesTranslationSubtitlesWithoutLosingVersionWords() {
+        ChartTrack t=chart("Night Crusing(夜间巡航) (Inst.)","歌手 (Artist)",200);
+        t.originalTitle="Night Crusing (Inst.)";t.artists.add("歌手 (Artist)");
+        Child inst=song("a","Night Crusing (Inst.)","Artist",0L);inst.setDuration(200);
+        Child plain=song("b","Night Crusing","Artist",0L);plain.setDuration(200);
+        assertEquals(Collections.singletonList(inst),MusicDiscoveryRules.matches(t,Arrays.asList(inst,plain)));
+        for (String ver : Arrays.asList("Live","Remix","Explicit","伴奏","钢琴版")) {
+            ChartTrack stripped=chart("Song ("+ver+")","Artist",200);stripped.originalTitle="Song";
+            Child studio=song("c","Song","Artist",0L);studio.setDuration(200);
+            assertTrue(MusicDiscoveryRules.matches(stripped,Collections.singletonList(studio)).isEmpty());
+        }
+    }
 }

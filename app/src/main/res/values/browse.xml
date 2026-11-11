@@ -58,10 +58,12 @@
     <string name="home_daily_subtitle_wishes">%1$d songs · %2$d new to download</string>
     <string name="home_daily_playlist">Daily mix · %1$s · %2$s</string>
     <string name="home_daily_loading">Putting today\'s mix together…</string>
-    <string name="home_daily_empty">Like a few songs to get a daily mix</string>
+    <string name="home_daily_empty">Add songs to your server to get a daily mix</string>
+    <string name="home_daily_wishes_chip">New chart picks (%1$d) · View or export</string>
+    <string name="home_daily_wishes_title">Today\'s new song picks (%1$d)</string>
     <string name="home_roam_title">Personal radio</string>
-    <string name="home_roam_subtitle">Starts from a song you like</string>
-    <string name="home_roam_empty">Like a song first, then radio can start from it</string>
+    <string name="home_roam_subtitle">Roam from favourites &amp; library</string>
+    <string name="home_roam_empty">No playable songs found on this server yet</string>
 
     <string name="search_browse_title">Browse all</string>
     <string name="discover_provider_netease">NetEase Cloud Music</string>

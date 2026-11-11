@@ -90,6 +90,7 @@
                     android:id="@+id/server_user_field"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:inputType="textNoSuggestions"
                     android:hint="@string/la_server_field_server_user" />
 
             </com.google.android.material.textfield.TextInputLayout>
@@ -126,6 +127,7 @@
                     android:id="@+id/server_public_url_field"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:inputType="textUri"
                     android:hint="@string/la_server_field_server_public_url" />
 
             </com.google.android.material.textfield.TextInputLayout>
@@ -161,6 +163,7 @@
                     android:id="@+id/server_local_url_field"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:inputType="textUri"
                     android:hint="@string/la_server_field_server_local_url" />
 
             </com.google.android.material.textfield.TextInputLayout>

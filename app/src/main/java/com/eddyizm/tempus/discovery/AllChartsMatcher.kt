@@ -42,7 +42,12 @@ class AllChartsMatcher(private val repository: DiscoveryRepository = DiscoveryRe
             if (rows != null && rows.size == chart.tracks.size) {
                 known[source] = rows
             } else {
-                chart.tracks.forEach { queries.putIfAbsent(MusicDiscoveryRules.normalize(it.title), it.title) }
+                chart.tracks.forEach { track ->
+                    MusicDiscoveryRules.searchTitles(track).forEach { title ->
+                        val key = MusicDiscoveryRules.normalize(title)
+                        if (key.isNotEmpty()) queries.putIfAbsent(key, title)
+                    }
+                }
             }
         }
 
@@ -67,9 +72,9 @@ class AllChartsMatcher(private val repository: DiscoveryRepository = DiscoveryRe
         val seen = HashSet<String>()
         for ((source, chart) in charts) {
             val rows = known[source] ?: chart.tracks.map { track ->
-                val key = MusicDiscoveryRules.normalize(track.title)
-                val found = candidates[key].orEmpty()
-                track.matched(MusicDiscoveryRules.matches(track, found), found).also { it.matchFailed = key in failed }
+                val keys = MusicDiscoveryRules.searchTitles(track).map { MusicDiscoveryRules.normalize(it) }.filter { it.isNotEmpty() }
+                val found = keys.flatMap { candidates[it].orEmpty() }.distinctBy { it.id }
+                track.matched(MusicDiscoveryRules.matches(track, found), found).also { it.matchFailed = keys.any { k -> k in failed } }
             }.also { rows -> if (rows.none { it.matchFailed }) ChartMatches.put(source, chart.updated, rows) }
             // The same song on several charts is listed once, at its first appearance.
             for (row in ChartMatches.missing(rows)) {

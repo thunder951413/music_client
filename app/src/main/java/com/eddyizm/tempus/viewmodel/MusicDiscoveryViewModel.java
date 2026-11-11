@@ -138,7 +138,7 @@ public final class MusicDiscoveryViewModel extends AndroidViewModel {
             workers.execute(() -> {
                 if (!current(token)) return;
                 List<Child> candidates=Collections.emptyList();boolean failed=false;
-                try { candidates=repository.search(track.title); } catch (Exception e) { failed=true; }
+                try { candidates=repository.searchTrack(track); } catch (Exception e) { failed=true; }
                 List<Child> choices=candidates;boolean error=failed;
                 List<Child> matched=MusicDiscoveryRules.matches(track,candidates);
                 main.post(() -> {

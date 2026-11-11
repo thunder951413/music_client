@@ -21,7 +21,10 @@ use rand::seq::SliceRandom;
 use rusqlite::{OptionalExtension, params};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use std::{collections::HashSet, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
 use store::Store;
 use subsonic::Subsonic;
 
@@ -372,18 +375,34 @@ async fn imports(
     body.expected = selected;
     body.desired = None;
     body.conflict = false;
+    let selected_songs: HashMap<String, Song> = playlist["entry"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|v| serde_json::from_value::<Song>(v.clone()).ok())
+        .map(|song| (song.id.clone(), song))
+        .collect();
     let mut db = hub.store.db.lock().unwrap();
     let tx = db.transaction()?;
     for item in &body.tracks {
         if item.song_id.is_none() {
             tx.execute(
-                "INSERT OR IGNORE INTO wishes(username,key,track,state) VALUES(?1,?2,?3,'pending')",
+                "INSERT INTO wishes(username,key,track,state) VALUES(?1,?2,?3,'pending') ON CONFLICT(username,key) DO UPDATE SET track=excluded.track WHERE wishes.track!=excluded.track",
                 params![
                     a.u,
                     item.track.key(),
                     serde_json::to_string(&item.track).map_err(anyhow::Error::from)?
                 ],
             )?;
+        } else if item
+            .song_id
+            .as_ref()
+            .and_then(|id| selected_songs.get(id))
+            .is_some_and(|song| item.track.matches(song))
+        {
+            // A newly supplied provider original name may prove that an old
+            // pending request was already present. Keep explicit ignores intact.
+            tx.execute("UPDATE wishes SET track=?3,state='completed',song_id=?4 WHERE username=?1 AND key=?2 AND state!='ignored'", params![a.u,item.track.key(),serde_json::to_string(&item.track).map_err(anyhow::Error::from)?,item.song_id])?;
         }
     }
     tx.execute("INSERT INTO imports VALUES(?1,?2,?3) ON CONFLICT(username,playlist_id) DO UPDATE SET data=excluded.data",params![a.u,body.playlist_id,serde_json::to_string(&body).map_err(anyhow::Error::from)?])?;
@@ -519,8 +538,54 @@ impl Hub {
                 }
             }
             pool.shuffle(&mut rand::rng());
+            let mut genre_counts: HashMap<&str, usize> = HashMap::new();
+            let mut tagged_total = 0usize;
+            for s in &pool {
+                if let Some(g) = s.genre.as_deref().map(str::trim).filter(|g| !g.is_empty()) {
+                    *genre_counts.entry(g).or_default() += 1;
+                    tagged_total += 1;
+                }
+            }
+            let noise_genres: HashSet<String> = if tagged_total >= 10 {
+                genre_counts
+                    .into_iter()
+                    .filter(|(_, count)| *count * 5 > tagged_total * 3)
+                    .map(|(g, _)| g.to_owned())
+                    .collect()
+            } else {
+                HashSet::new()
+            };
+            let fulfilled_ids: Vec<String> = {
+                let db = self.store.db.lock().unwrap();
+                let mut stmt = db.prepare(
+                    "SELECT song_id FROM wishes WHERE username=?1 AND state='completed' AND song_id IS NOT NULL ORDER BY rowid DESC LIMIT 20",
+                )?;
+                stmt.query_map([&a.u], |r| r.get::<_, String>(0))?
+                    .collect::<rusqlite::Result<Vec<_>>>()?
+            };
+            let mut fulfilled = Vec::new();
+            for id in fulfilled_ids {
+                if fulfilled.len() >= 5
+                    || p.heard.contains(&id)
+                    || p.recent.contains(&id)
+                    || p.recent_mix.contains(&id)
+                {
+                    continue;
+                }
+                if let Some(existing) = pool.iter().find(|s| s.id == id) {
+                    fulfilled.push(existing.clone());
+                } else if let Ok(v) = self.api.call(a, "getSong", vec![("id", id)]).await
+                    && let Ok(song) = serde_json::from_value::<Song>(v["song"].clone())
+                {
+                    fulfilled.push(song);
+                }
+            }
             let seeds: Vec<Song> = model::seeds(&pool, &p).into_iter().cloned().collect();
             let mut related = Vec::new();
+            if !fulfilled.is_empty() {
+                fulfilled.shuffle(&mut rand::rng());
+                related.push(fulfilled);
+            }
             for seed in &seeds {
                 // Similarity providers can stall independently of the local library.
                 let mut rows = tokio::time::timeout(
@@ -536,34 +601,75 @@ impl Hub {
                 .ok()
                 .and_then(Result::ok)
                 .unwrap_or_default();
+                rows.retain(|s| s.id != seed.id);
                 if rows.len() < 5 {
-                    let artist = pool
-                        .iter()
+                    let seed_artists = model::artist_names(&seed.artist);
+                    let lead = seed
+                        .artist
+                        .split(['/', '•', '·', ',', '&', '、', '，', '('])
+                        .next()
+                        .map(str::trim)
+                        .unwrap_or("");
+                    let mut searched = if !lead.is_empty() {
+                        tokio::time::timeout(
+                            std::time::Duration::from_secs(3),
+                            self.api.songs(
+                                a,
+                                "search3",
+                                vec![
+                                    ("query", lead.to_owned()),
+                                    ("songCount", "30".into()),
+                                    ("artistCount", "0".into()),
+                                    ("albumCount", "0".into()),
+                                ],
+                                "/searchResult3/song",
+                            ),
+                        )
+                        .await
+                        .ok()
+                        .and_then(Result::ok)
+                        .unwrap_or_default()
+                    } else {
+                        Vec::new()
+                    };
+                    searched.shuffle(&mut rand::rng());
+                    let mut artist_seen = HashSet::new();
+                    let artist = searched
+                        .into_iter()
+                        .chain(pool.iter().cloned())
                         .filter(|s| {
-                            model::artist_names(&s.artist)
-                                .intersection(&model::artist_names(&seed.artist))
-                                .next()
-                                .is_some()
+                            s.id != seed.id
+                                && artist_seen.insert(s.id.clone())
+                                && !model::artist_names(&s.artist).is_disjoint(&seed_artists)
                         })
-                        .take(10)
-                        .cloned()
+                        .take(8)
                         .collect::<Vec<_>>();
+                    let allow_genre = seed
+                        .genre
+                        .as_deref()
+                        .map(str::trim)
+                        .filter(|g| !g.is_empty() && !noise_genres.contains(*g));
                     let genre = pool
                         .iter()
-                        .filter(|s| seed.genre.is_some() && s.genre == seed.genre)
-                        .take(10)
+                        .filter(|s| {
+                            s.id != seed.id
+                                && allow_genre.is_some()
+                                && s.genre.as_deref().map(str::trim) == allow_genre
+                        })
+                        .take(2)
                         .cloned()
                         .collect::<Vec<_>>();
                     let era = pool
                         .iter()
                         .filter(|s| {
-                            seed.year.is_some_and(|y| y >= 1900)
+                            s.id != seed.id
+                                && seed.year.is_some_and(|y| y >= 1900)
                                 && s.year.map(|y| y / 10) == seed.year.map(|y| y / 10)
                         })
-                        .take(10)
+                        .take(3)
                         .cloned()
                         .collect::<Vec<_>>();
-                    for i in 0..10 {
+                    for i in 0..8 {
                         for list in [&artist, &genre, &era] {
                             if let Some(s) = list.get(i) {
                                 rows.push(s.clone());
@@ -689,7 +795,7 @@ impl Hub {
                 continue;
             }
             checks += 1;
-            let Ok(songs) = self.api.search(a, &t.title).await else {
+            let Ok(songs) = self.api.search_track(a, &t).await else {
                 continue;
             };
             if songs.iter().any(|s| t.matches(s)) {
@@ -708,7 +814,7 @@ impl Hub {
         )?;
         for v in pending {
             let t: Track = serde_json::from_value(v)?;
-            let songs = self.api.search(a, &t.title).await?;
+            let songs = self.api.search_track(a, &t).await?;
             let mut seen = HashSet::new();
             let matches: Vec<_> = songs
                 .iter()
@@ -720,7 +826,7 @@ impl Hub {
                 _ => ("ambiguous", None),
             };
             self.store.db.lock().unwrap().execute(
-                "UPDATE wishes SET state=?3,song_id=?4 WHERE username=?1 AND key=?2",
+                "UPDATE wishes SET state=?3,song_id=?4 WHERE username=?1 AND key=?2 AND (state!=?3 OR song_id IS NOT ?4)",
                 params![a.u, t.key(), state, id],
             )?;
         }
@@ -748,9 +854,28 @@ impl Hub {
                 continue;
             }
             let mut ids = Vec::new();
+            let mut resolved = HashMap::<String, Song>::new();
             for item in &mut import.tracks {
                 if item.song_id.is_none() {
-                    item.song_id=self.store.db.lock().unwrap().query_row("SELECT song_id FROM wishes WHERE username=?1 AND key=?2 AND state='completed'",params![a.u,item.track.key()],|r|r.get::<_,Option<String>>(0)).optional()?.flatten();
+                    let candidate=self.store.db.lock().unwrap().query_row("SELECT song_id FROM wishes WHERE username=?1 AND key=?2 AND state='completed'",params![a.u,item.track.key()],|r|r.get::<_,Option<String>>(0)).optional()?.flatten();
+                    if let Some(id) = candidate {
+                        if !resolved.contains_key(&id) {
+                            let response = self
+                                .api
+                                .call(a, "getSong", vec![("id", id.clone())])
+                                .await?;
+                            let song: Song = serde_json::from_value(response["song"].clone())?;
+                            resolved.insert(id.clone(), song);
+                        }
+                        // Wishes share a title/artist key across releases. Each source
+                        // position must independently validate the selected recording.
+                        if resolved
+                            .get(&id)
+                            .is_some_and(|song| item.track.matches(song))
+                        {
+                            item.song_id = Some(id);
+                        }
+                    }
                 }
                 if let Some(id) = &item.song_id {
                     ids.push(id.clone());

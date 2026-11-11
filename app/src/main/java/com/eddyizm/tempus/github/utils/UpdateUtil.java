@@ -19,15 +19,37 @@ public class UpdateUtil {
         return tag != null && compareVersions(tag, BuildConfig.VERSION_NAME) > 0;
     }
 
-    /** The release's APK, or null when the release has none attached. */
+    /** The release's APK matching the installed flavor, or null when the release has none attached. */
     @Nullable
     public static Assets findApkAsset(LatestRelease release) {
+        return findApkAsset(release, BuildConfig.FLAVOR);
+    }
+
+    @Nullable
+    static Assets findApkAsset(LatestRelease release, String flavor) {
+        if (release == null || release.getAssets() == null) return null;
+        java.util.List<Assets> apks = new java.util.ArrayList<>();
         for (Assets asset : release.getAssets()) {
-            if (asset.getName() != null && asset.getName().endsWith(".apk") && asset.getBrowserDownloadUrl() != null) {
-                return asset;
+            if (asset != null && asset.getName() != null
+                    && asset.getName().toLowerCase(java.util.Locale.ROOT).endsWith(".apk")
+                    && asset.getBrowserDownloadUrl() != null) {
+                apks.add(asset);
             }
         }
-        return null;
+        if (apks.isEmpty()) return null;
+        if (apks.size() == 1) return apks.get(0);
+        boolean degoogled = "degoogled".equalsIgnoreCase(flavor);
+        for (Assets asset : apks) {
+            String lower = asset.getName().toLowerCase(java.util.Locale.ROOT);
+            if (degoogled && lower.contains("degoogled")) return asset;
+            if (!degoogled && lower.contains("tempus") && !lower.contains("degoogled")) return asset;
+        }
+        for (Assets asset : apks) {
+            String lower = asset.getName().toLowerCase(java.util.Locale.ROOT);
+            if (degoogled && !lower.contains("tempus")) return asset;
+            if (!degoogled && !lower.contains("degoogled")) return asset;
+        }
+        return apks.get(0);
     }
 
     /**

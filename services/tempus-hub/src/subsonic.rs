@@ -1,4 +1,4 @@
-use crate::model::{Auth, Song};
+use crate::model::{Auth, Song, Track};
 use anyhow::{Result, bail};
 use serde_json::Value;
 use std::time::Duration;
@@ -110,6 +110,13 @@ impl Subsonic {
     }
     pub async fn playlist(&self, a: &Auth, id: &str) -> Result<Value> {
         Ok(self.call(a, "getPlaylist", vec![("id", id.into())]).await?["playlist"].clone())
+    }
+    pub async fn search_track(&self, a: &Auth, track: &Track) -> Result<Vec<Song>> {
+        let mut songs = Vec::new();
+        for title in track.search_titles() {
+            songs.extend(self.search(a, title).await?);
+        }
+        Ok(songs)
     }
     pub async fn playlists(&self, a: &Auth) -> Result<Vec<Value>> {
         Ok(

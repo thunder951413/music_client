@@ -1152,7 +1152,7 @@ public class SettingsContainerFragment extends PreferenceFragmentCompat {
         if (mediaServiceBinder != null) {
             EqualizerManager eqManager = mediaServiceBinder.getEqualizerManager();
             short numBands = eqManager.getNumberOfBands();
-            Preference appEqualizer = findPreference("app_equalizer");
+            Preference appEqualizer = findPreference("builtin_equalizer");
             if (appEqualizer != null) {
                 appEqualizer.setVisible(numBands > 0);
             }
@@ -1160,7 +1160,7 @@ public class SettingsContainerFragment extends PreferenceFragmentCompat {
     }
 
     private void actionReplayGainPreamp() {
-        SeekBarPreference preampPref = findPreference("replay_gain_preamp");
+        SeekBarPreference preampPref = findPreference("loudness_preamp");
         if (preampPref == null) return;
 
         // Seed the widget with the currently persisted value so it shows the

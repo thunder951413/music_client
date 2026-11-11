@@ -22,6 +22,8 @@ public final class ChartParser {
         for (JsonElement element:tracks) {
             JsonObject row=element.getAsJsonObject(); ChartTrack item=new ChartTrack();
             item.id=value(row,"id"); item.title=value(row,"name"); item.rank=result.tracks.size()+1;
+            String mainTitle=value(row,"mainTitle");
+            if (mainTitle!=null && !mainTitle.trim().isEmpty() && !mainTitle.trim().equals(item.title)) item.originalTitle=mainTitle.trim();
             JsonArray artists=row.has("ar")?row.getAsJsonArray("ar"):row.getAsJsonArray("artists");
             List<String> names=new ArrayList<>(); if (artists!=null) for (JsonElement artist:artists) names.add(value(artist.getAsJsonObject(),"name"));
             item.artists=names;item.artist=String.join(" / ",names);
@@ -47,6 +49,8 @@ public final class ChartParser {
             if (data==null) continue;
             ChartTrack item=new ChartTrack();
             item.id=value(data,"songmid"); item.title=value(data,"songname"); item.rank=result.tracks.size()+1;
+            String songorig=value(data,"songorig");
+            if (songorig!=null && !songorig.trim().isEmpty() && !songorig.trim().equals(item.title)) item.originalTitle=songorig.trim();
             JsonArray singers=data.getAsJsonArray("singer");
             List<String> names=new ArrayList<>(); if (singers!=null) for (JsonElement singer:singers) names.add(value(singer.getAsJsonObject(),"name"));
             item.artists=names; item.artist=String.join(" / ",names);

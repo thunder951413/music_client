@@ -259,6 +259,10 @@ public class MappingUtil {
     public static MediaItem mapDownload(Child media) {
 
         Bundle bundle = new Bundle();
+        bundle.putString("hubAccount", com.eddyizm.tempus.hub.HubRepository.currentAccount());
+        bundle.putString("id", media.getId());
+        bundle.putInt("duration", media.getDuration() != null ? media.getDuration() : 0);
+        bundle.putString("type", com.eddyizm.tempus.podcast.LocalPodcastStore.isLocal(media.getId()) ? Constants.MEDIA_TYPE_PODCAST : Constants.MEDIA_TYPE_MUSIC);
         bundle.putInt("samplingRate", media.getSamplingRate() != null ? media.getSamplingRate() : 0);
         bundle.putInt("bitDepth", media.getBitDepth() != null ? media.getBitDepth() : 0);
 

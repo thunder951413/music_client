@@ -115,6 +115,20 @@ class RequestTests(unittest.TestCase):
         self.assertFalse(companion.matches(track, {'title': 'Song (Live)', 'artist': 'Artist'}, 240))
         self.assertFalse(companion.matches(track, {'title': 'Song', 'artist': 'Other'}, 240))
 
+    def test_original_title_and_collaboration_separators_align_with_hub_and_android(self):
+        track = {
+            'title': 'Night Crusing(夜间巡航) (Inst.)',
+            'original_title': 'Night Crusing (Inst.)',
+            'artists': ['歌手 (Artist)'],
+            'duration': 200,
+        }
+        self.assertTrue(companion.matches(track, {'title': 'Night Crusing (Inst.)', 'artist': 'Artist • Guest'}, 200))
+        self.assertTrue(companion.matches(track, {'title': 'Night Crusing (Inst.)', 'artist': '歌手 · 嘉宾'}, 200))
+        self.assertFalse(companion.matches(track, {'title': 'Night Crusing', 'artist': 'Artist'}, 200))
+        for version in ('Live', 'Remix', 'Explicit', '伴奏', '钢琴版'):
+            stripped = {'title': f'Song ({version})', 'original_title': 'Song', 'artists': ['Artist'], 'duration': 200}
+            self.assertFalse(companion.matches(stripped, {'title': 'Song', 'artist': 'Artist'}, 200))
+
 
 class CheckedWorkerTests(unittest.TestCase):
     def test_preview_duration_is_rejected_before_the_existing_tool_can_publish_it(self):

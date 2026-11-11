@@ -72,12 +72,21 @@ pub fn parse(provider: &str, root: &Value) -> Result<Vec<Track>> {
         } else {
             data["interval"].as_i64()
         };
+        let original_title = if provider == "NETEASE" {
+            data["mainTitle"].as_str()
+        } else {
+            data["songorig"].as_str()
+        }
+        .map(str::trim)
+        .filter(|s| !s.is_empty() && *s != title)
+        .map(str::to_owned);
         let t = Track {
             provider: provider.into(),
             id,
             title,
             artists,
             duration,
+            original_title,
         };
         if t.valid() {
             out.push(t);
@@ -152,12 +161,13 @@ mod tests {
     use super::*;
     #[test]
     fn platforms_have_same_track_contract() {
-        let a = serde_json::json!({"code":200,"result":{"tracks":[{"id":123,"name":"Song","artists":[{"name":"A"}],"duration":200000}]}});
-        let b = serde_json::json!({"code":0,"songlist":[{"data":{"songmid":"Mid","songname":"Song","singer":[{"name":"A"}],"interval":200}}]});
-        assert_eq!(
-            parse("NETEASE", &a).unwrap()[0].key(),
-            parse("QQ", &b).unwrap()[0].key()
-        );
+        let a = serde_json::json!({"code":200,"result":{"tracks":[{"id":123,"name":"Song (译名)","mainTitle":"Song","artists":[{"name":"A"}],"duration":200000}]}});
+        let b = serde_json::json!({"code":0,"songlist":[{"data":{"songmid":"Mid","songname":"Song (译名)","songorig":"Song","singer":[{"name":"A"}],"interval":200}}]});
+        let na = parse("NETEASE", &a).unwrap();
+        let qb = parse("QQ", &b).unwrap();
+        assert_eq!(na[0].key(), qb[0].key());
+        assert_eq!(na[0].original_title.as_deref(), Some("Song"));
+        assert_eq!(qb[0].original_title.as_deref(), Some("Song"));
         assert!(parse("QQ", &serde_json::json!({"code":0,"songlist":[]})).is_err());
     }
 }

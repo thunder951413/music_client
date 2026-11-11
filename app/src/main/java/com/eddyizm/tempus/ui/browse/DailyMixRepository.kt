@@ -36,7 +36,13 @@ import kotlin.random.Random
  */
 @OptIn(UnstableApi::class)
 object DailyMixRepository {
-    @Keep data class Today(val songs: List<Child>, val wishes: List<DailyWish>, val pending: Boolean = false, val stale: Boolean = false)
+    @Keep data class Today(
+        val songs: List<Child>,
+        val wishes: List<DailyWish>,
+        val pending: Boolean = false,
+        val stale: Boolean = false,
+        val offline: Boolean = false,
+    )
 
     private const val KEEP_DAYS = 7L
     private const val HISTORY_DAYS = 30L
@@ -72,7 +78,14 @@ object DailyMixRepository {
             }
         }
         // Every device's pending picks, so two phones do not both ask for the same new song.
-        val today = generate(key, existing.orEmpty().flatMap { it.second.missing } + others.orEmpty())
+        val recentPlaylists = existing.orEmpty()
+            .filter { it.second.date < date.toString() }
+            .sortedByDescending { it.second.date }
+            .take(3)
+        val recentMixIds = recentPlaylists.flatMapTo(HashSet()) { (playlist, _) ->
+            runCatching { entries(playlist.id).mapNotNull { it.id } }.getOrDefault(emptyList())
+        }
+        val today = generate(key, existing.orEmpty().flatMap { it.second.missing } + others.orEmpty(), recentMixIds)
         if (everything != null && today.songs.isNotEmpty()) runCatching { save(date, today, everything) }
         writeCache(key, today)
         today
@@ -107,7 +120,7 @@ object DailyMixRepository {
             .forEach { runCatching { execute(client.playlistClient.deletePlaylist(it.first.id)) } }
     }
 
-    private suspend fun generate(key: String, pending: List<DailyWish>): Today = coroutineScope {
+    private suspend fun generate(key: String, pending: List<DailyWish>, recentMixIds: Set<String> = emptySet()): Today = coroutineScope {
         val random = Random(key.hashCode())
         val now = System.currentTimeMillis()
         val starred = async { runCatching { BrowseRepository.starredSongs() }.getOrDefault(emptyList()) }
@@ -118,47 +131,103 @@ object DailyMixRepository {
         }.getOrDefault(emptyList())
         val justHeard = history.filter { it.timestamp >= now - TimeUnit.DAYS.toMillis(2) }.mapTo(HashSet()) { it.id }
         val songs = pool.await()
+        val genreCounts = HashMap<String, Int>()
+        var taggedSongs = 0
+        for (s in songs) {
+            val genres = LibraryMixes.genresOf(s)
+            if (genres.isNotEmpty()) {
+                taggedSongs++
+                genres.forEach { genreCounts[it] = (genreCounts[it] ?: 0) + 1 }
+            }
+        }
+        val noiseGenres = if (taggedSongs >= 10) {
+            genreCounts.filterValues { it * 5 > taggedSongs * 3 }.keys
+        } else {
+            emptySet()
+        }
         val frequent = songs.filter { (it.playCount ?: 0L) > 0L }.sortedByDescending { it.playCount }.take(30)
         val liked = starred.await()
         val listened = liked + history + frequent
         val wishList = async { withTimeoutOrNull(WISH_TIMEOUT_MS) { runCatching { wishes(listened, pending) }.getOrNull() }.orEmpty() }
 
-        val seeds = DailyMixPlanner.seeds(liked, history, frequent, random)
+        val seeds = DailyMixPlanner.seeds(liked, history, frequent, random).ifEmpty {
+            songs.shuffled(random).take(DailyMixPlanner.SEEDS)
+        }
         if (seeds.isEmpty()) return@coroutineScope Today(emptyList(), wishList.await())
-        val related = seeds.map { seed -> async { related(seed, songs, Random(key.hashCode() xor seed.id.hashCode())) } }.awaitAll()
+        val related = seeds.map { seed -> async { related(seed, songs, noiseGenres, Random(key.hashCode() xor seed.id.hashCode())) } }.awaitAll()
         val heard = runCatching { DiscoveryRepository().heardIds() }.getOrDefault(emptySet())
         val unheard = MusicDiscoveryRules.unheard(songs.shuffled(random), heard, emptySet(), DailyMixPlanner.UNHEARD * 2)
-        Today(DailyMixPlanner.assemble(seeds, related, unheard, liked + frequent, justHeard, random), wishList.await())
+        Today(DailyMixPlanner.assemble(seeds, related, unheard, liked + frequent + songs, justHeard, random, recentMixIds), wishList.await())
     }
 
     /** Similar songs from the server (needs Last.fm in Navidrome), else same artist, genre and decade. */
-    private suspend fun related(seed: Child, pool: List<Child>, random: Random): List<Child> {
-        val similar = BrowseRepository.similarSongs(seed.id, 15)
+    private suspend fun related(seed: Child, pool: List<Child>, noiseGenres: Set<String>, random: Random): List<Child> {
+        val similar = BrowseRepository.similarSongs(seed.id, 15).filter { it.id != seed.id }
         if (similar.size >= 5) return similar
-        val artist = seed.artist?.takeIf { it.isNotBlank() }?.let { name ->
-            runCatching { search(name) }.getOrDefault(emptyList())
-                .filter { it.id != seed.id && (it.artistId == seed.artistId || it.artist == seed.artist) }
-        }.orEmpty().shuffled(random).take(5)
-        val genre = LibraryMixes.genresOf(seed).firstOrNull()?.let { name ->
+        val seedArtists = MusicDiscoveryRules.artistNames(seed.artist)
+        val lead = seed.artist?.split('/', '•', '·', ',', '&', '、', '，', '(')?.firstOrNull()?.trim()
+        val artist = if (!lead.isNullOrEmpty() && seedArtists.isNotEmpty()) {
+            (runCatching { search(lead) }.getOrDefault(emptyList()) + pool)
+                .distinctBy { it.id }
+                .filter { it.id != seed.id && (it.artistId == seed.artistId || ! java.util.Collections.disjoint(MusicDiscoveryRules.artistNames(it.artist), seedArtists)) }
+                .shuffled(random).take(6)
+        } else emptyList()
+        val genre = LibraryMixes.genresOf(seed).firstOrNull { it !in noiseGenres }?.let { name ->
             runCatching {
-                execute(client.albumSongListClient.getRandomSongs(8, null, null, name)).randomSongs?.songs.orEmpty()
+                execute(client.albumSongListClient.getRandomSongs(4, null, null, name)).randomSongs?.songs.orEmpty()
             }.getOrDefault(emptyList())
-        }.orEmpty()
+        }.orEmpty().take(2)
         val decade = seed.year?.takeIf { it >= 1900 }?.let { it / 10 }
-        val era = if (decade == null) emptyList() else pool.filter { (it.year ?: 0) / 10 == decade }.take(5)
+        val era = if (decade == null) emptyList() else pool.filter { (it.year ?: 0) / 10 == decade }.shuffled(random).take(3)
         val fallback = listOf(artist, genre, era).flatMap { it.withIndex() }.sortedBy { it.index }.map { it.value }
-        return similar + fallback.filter { it.id != seed.id }
+        return (similar + fallback.filter { it.id != seed.id }).distinctBy { it.id }
     }
 
     private fun search(query: String): List<Child> =
-        execute(client.searchingClient.search3(query, 40, 0, 0, 0, 0, 0)).searchResult3?.songs.orEmpty()
+        execute(client.searchingClient.search3(query, 100, 0, 0, 0, 0, 0)).searchResult3?.songs.orEmpty()
+
+    /** Builds a ~35-track personal radio queue even when Last.fm similarity is unavailable. */
+    suspend fun roamQueue(): List<Child> = withContext(Dispatchers.IO) {
+        val random = Random(System.nanoTime())
+        val starred = runCatching { BrowseRepository.starredSongs() }.getOrDefault(emptyList())
+        val now = System.currentTimeMillis()
+        val history = runCatching {
+            AppDatabase.getInstance().chronologyDao()
+                .getPlayedSince(Preferences.getServerId(), now - TimeUnit.DAYS.toMillis(HISTORY_DAYS), 100)
+        }.getOrDefault(emptyList())
+        val pool = runCatching { BrowseRepository.randomSongs(200) }.getOrDefault(emptyList())
+        val seed: Child = (starred.shuffled(random).firstOrNull()
+            ?: history.shuffled(random).firstOrNull()
+            ?: pool.shuffled(random).firstOrNull())
+            ?: return@withContext emptyList()
+        val similar = BrowseRepository.similarSongs(seed.id, 40).filter { it.id != seed.id }
+        if (similar.size >= 20) return@withContext listOf(seed) + similar.take(34)
+        val queue = LinkedHashMap<String, Child>()
+        val perArtist = HashMap<String, Int>()
+        fun append(song: Child, artistCap: Int = 3) {
+            if (queue.size >= 35 || song.isDir || song.isVideo || song.id == null || song.id in queue) return
+            val names = MusicDiscoveryRules.artistNames(song.artist).ifEmpty { setOf("") }
+            if (names.any { (perArtist[it] ?: 0) >= artistCap }) return
+            names.forEach { perArtist[it] = (perArtist[it] ?: 0) + 1 }
+            queue[song.id] = song
+        }
+        append(seed)
+        similar.forEach(::append)
+        val seedRelated = related(seed, pool, emptySet(), random)
+        seedRelated.forEach(::append)
+        for (extraSeed in (starred + history).shuffled(random).filter { it.id != seed.id }.take(3)) {
+            append(extraSeed)
+            related(extraSeed, pool, emptySet(), random).take(4).forEach(::append)
+        }
+        starred.shuffled(random).forEach(::append)
+        pool.shuffled(random).forEach(::append)
+        queue.values.toList()
+    }
 
     private suspend fun wishes(listened: List<Child>, pending: List<DailyWish>): List<DailyWish> {
-        fun names(value: String?) = value.orEmpty().split('/', ',', '&', '、', ';', '，')
-            .map { MusicDiscoveryRules.normalize(it) }.filter { it.isNotEmpty() }
-        val favourite = listened.flatMapTo(HashSet()) { names(it.artist) }
+        val favourite = listened.flatMapTo(HashSet()) { MusicDiscoveryRules.artistNames(it.artist) }
         val library = runCatching { BrowseRepository.artists() }.getOrDefault(emptyList())
-            .flatMapTo(HashSet()) { names(it.name) }
+            .flatMapTo(HashSet()) { MusicDiscoveryRules.artistNames(it.name) }
         val discovery = DiscoveryRepository()
         val charts = ChartSource.entries.mapNotNull { source ->
             runCatching { source to discovery.chart(source, false).tracks }.getOrNull()
@@ -167,11 +236,11 @@ object DailyMixRepository {
         val found = ArrayList<DailyWish>()
         for ((provider, track) in DailyMixPlanner.wishCandidates(charts, favourite, library, pendingKeys, 25)) {
             if (found.size >= DailyMixPlanner.WISHES) break
-            val candidates = runCatching { search(track.title) }.getOrNull() ?: continue
+            val candidates = runCatching { discovery.searchTrack(track) }.getOrNull() ?: continue
             if (MusicDiscoveryRules.matches(track, candidates).isNotEmpty()) continue
             val artists = track.artists.filterNotNull().ifEmpty { listOfNotNull(track.artist) }
             if (artists.isEmpty()) continue
-            found += DailyWish(provider.name, track.id, track.title, artists, track.duration)
+            found += DailyWish(provider.name, track.id, track.title, artists, track.duration, track.originalTitle)
         }
         return found
     }

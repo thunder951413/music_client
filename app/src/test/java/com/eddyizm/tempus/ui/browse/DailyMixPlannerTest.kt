@@ -78,4 +78,22 @@ class DailyMixPlannerTest {
         assertNull(DailyBinding.read("Tempus external playlist v1\n{}"))
         assertNull(DailyBinding.read(DailyBinding.PREFIX + "{\"version\":1,\"date\":\"tomorrow\"}"))
     }
+
+    @Test
+    fun assembleExcludesRecentMixUnlessLibraryIsTinyAndCapsBulletCollaborations() {
+        val seeds = listOf(song("seed", "Main"))
+        val related = listOf((1..40).map { song("rel$it", "Artist $it") })
+        val recentMix = (1..10).map { "rel$it" }.toSet()
+        val mix = DailyMixPlanner.assemble(seeds, related, emptyList(), emptyList(), emptySet(), Random(2), recentMix)
+        assertEquals(DailyMixPlanner.SIZE, mix.size)
+        assertTrue(mix.none { it.id in recentMix })
+
+        val tiny = (1..5).map { song("tiny$it") }
+        val fallback = DailyMixPlanner.assemble(emptyList(), listOf(tiny), emptyList(), emptyList(), emptySet(), Random(2), tiny.map { it.id }.toSet())
+        assertEquals(5, fallback.size)
+
+        val collabs = (1..20).map { song("c$it", "Shared • Guest$it") }
+        val capped = DailyMixPlanner.assemble(emptyList(), listOf(collabs), emptyList(), emptyList(), emptySet(), Random(2))
+        assertEquals(DailyMixPlanner.PER_ARTIST, capped.size)
+    }
 }

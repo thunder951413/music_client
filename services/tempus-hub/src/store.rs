@@ -91,30 +91,47 @@ impl Store {
     }
     pub fn profile(&self, user: &str, device: &str, now: i64) -> Result<Profile> {
         let db = self.db.lock().unwrap();
-        let mut stmt=db.prepare("SELECT song_id,at,completed FROM plays WHERE username=?1 AND device=?2 ORDER BY at DESC")?;
+        let mut stmt = db.prepare(
+            "SELECT song_id,at,completed,position_ms,duration_ms FROM plays WHERE username=?1 AND device=?2 ORDER BY at DESC",
+        )?;
         let mut p = Profile::default();
         for row in stmt.query_map(params![user, device], |r| {
             Ok((
                 r.get::<_, String>(0)?,
                 r.get::<_, i64>(1)?,
                 r.get::<_, bool>(2)?,
+                r.get::<_, i64>(3)?,
+                r.get::<_, i64>(4)?,
             ))
         })? {
-            let (id, at, completed) = row?;
+            let (id, at, completed, position_ms, duration_ms) = row?;
+            let effective_completed = completed
+                || (duration_ms > 0 && position_ms >= 30_000 && position_ms * 2 >= duration_ms);
             p.heard.insert(id.clone());
             if at >= now - 2 * 86400000 {
                 p.recent.insert(id.clone());
             }
-            if completed {
+            if effective_completed {
                 p.last.entry(id.clone()).or_insert(at);
             }
             if at >= now - 30 * 86400000 {
-                *if completed {
-                    p.counts.entry(id)
-                } else {
-                    p.skipped.entry(id)
+                if effective_completed {
+                    *p.counts.entry(id).or_default() += 1;
+                } else if position_ms < 30_000 {
+                    *p.skipped.entry(id).or_default() += 1;
                 }
-                .or_default() += 1;
+            }
+        }
+        let mut mixes = db.prepare(
+            "SELECT data FROM daily_mixes WHERE username=?1 AND device=?2 AND playlist_id IS NOT NULL ORDER BY date DESC LIMIT 3",
+        )?;
+        for row in mixes.query_map(params![user, device], |r| r.get::<_, String>(0))? {
+            if let Ok(v) = serde_json::from_str::<Value>(&row?) {
+                for song in v["songs"].as_array().into_iter().flatten() {
+                    if let Some(id) = song["id"].as_str() {
+                        p.recent_mix.insert(id.to_owned());
+                    }
+                }
             }
         }
         Ok(p)
@@ -194,5 +211,48 @@ mod tests {
         assert_eq!(s.profile("a", "phone", 2000).unwrap().counts["song"], 2);
         assert_eq!(s.profile("a", "tablet", 2000).unwrap().counts["song"], 1);
         assert!(s.profile("b", "tablet", 2000).unwrap().heard.is_empty());
+    }
+    #[test]
+    fn profile_treats_half_play_as_completed_only_short_plays_as_skips_and_loads_recent_mix() {
+        let d = tempfile::tempdir().unwrap();
+        let s = Store::open(d.path()).unwrap();
+        let now = 10 * 86_400_000_i64;
+        {
+            let db = s.db.lock().unwrap();
+            // Half-played (>30s and >=50%) counts as completed even when flag was false.
+            db.execute(
+                "INSERT INTO plays VALUES('u','d','e1','half',?1,0,120000,200000)",
+                params![now - 1000],
+            )
+            .unwrap();
+            // Mid-song transition (e.g. 45s / 200s) is neither completed nor skipped.
+            db.execute(
+                "INSERT INTO plays VALUES('u','d','e2','mid',?1,0,45000,200000)",
+                params![now - 1000],
+            )
+            .unwrap();
+            // Quick skip (<30s) increments skipped.
+            db.execute(
+                "INSERT INTO plays VALUES('u','d','e3','quick',?1,0,8000,200000)",
+                params![now - 1000],
+            )
+            .unwrap();
+            db.execute(
+                "INSERT INTO daily_mixes VALUES('u','d','2026-11-10','pl1',?1)",
+                params![
+                    serde_json::json!({"songs":[{"id":"mix-old-1"},{"id":"mix-old-2"}]})
+                        .to_string()
+                ],
+            )
+            .unwrap();
+        }
+        let p = s.profile("u", "d", now).unwrap();
+        assert_eq!(p.counts.get("half"), Some(&1));
+        assert!(!p.skipped.contains_key("half"));
+        assert!(!p.counts.contains_key("mid"));
+        assert!(!p.skipped.contains_key("mid"));
+        assert_eq!(p.skipped.get("quick"), Some(&1));
+        assert!(p.recent_mix.contains("mix-old-1"));
+        assert!(p.recent_mix.contains("mix-old-2"));
     }
 }

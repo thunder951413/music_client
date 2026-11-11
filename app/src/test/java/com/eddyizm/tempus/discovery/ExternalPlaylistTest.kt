@@ -60,4 +60,45 @@ class ExternalPlaylistTest {
             missing = listOf(ImportDownload("Ab12", "歌".repeat(400000), listOf("Artist"), 180, "https://y.qq.com/n/ryqq_v2/songDetail/Ab12")))
         assertThrows(IllegalArgumentException::class.java) { binding.comment() }
     }
+
+    @Test fun neteaseTrackIdsReconstructExactOrderDuplicatesAndOriginalTitle() {
+        val detail = """
+            {"code":200,"playlist":{
+              "name":"完整歌单","trackCount":5,
+              "tracks":[
+                {"id":10,"name":"Song A (中文译名)","mainTitle":"Song A","ar":[{"name":"Artist A"}],"dt":180000},
+                {"id":20,"name":"Song B","ar":[{"name":"Artist B"}],"dt":190000}
+              ],
+              "trackIds":[{"id":10},{"id":30},{"id":20},{"id":40},{"id":10}]
+            }}
+        """.trimIndent()
+        val missing = ExternalPlaylistParser.missingNeteaseIds(detail)
+        assertEquals(listOf("30", "40"), missing)
+        val extra = """
+            {"code":200,"songs":[
+              {"id":40,"name":"Song D","ar":[{"name":"Artist D"}],"dt":210000},
+              {"id":30,"name":"Song C","ar":[{"name":"Artist C"}],"dt":200000}
+            ]}
+        """.trimIndent()
+        val parsed = ExternalPlaylistParser.parse(ExternalPlaylistRef(ChartSource.Provider.NETEASE, "999"), detail, listOf(extra))
+        assertEquals("完整歌单", parsed.name)
+        assertEquals(listOf("10", "30", "20", "40", "10"), parsed.tracks.map { it.id })
+        assertEquals("Song A", parsed.tracks.first().originalTitle)
+        assertNull(parsed.tracks[2].originalTitle)
+    }
+
+    @Test fun qqPrivateSubcodeAndOriginalTitleAreHandledExplicitly() {
+        val err = assertThrows(IllegalArgumentException::class.java) {
+            ExternalPlaylistParser.parse(ExternalPlaylistRef(ChartSource.Provider.QQ, "123"), """{"code":0,"subcode":4000}""")
+        }
+        assertTrue(err.message!!.contains("私密"))
+        assertThrows(IllegalArgumentException::class.java) {
+            ExternalPlaylistParser.parse(ExternalPlaylistRef(ChartSource.Provider.QQ, "123"), """{"code":0,"cdlist":[{"dissname":"Empty","songnum":0,"songlist":[]}]}""")
+        }
+        val ok = ExternalPlaylistParser.parse(
+            ExternalPlaylistRef(ChartSource.Provider.QQ, "123"),
+            """{"code":0,"cdlist":[{"dissname":"Test","songnum":1,"songlist":[{"songmid":"Ab12","songname":"Night (夜)","songorig":"Night","interval":181,"singer":[{"name":"Artist"}]}]}]}""",
+        )
+        assertEquals("Night", ok.tracks.single().originalTitle)
+    }
 }

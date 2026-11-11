@@ -23,12 +23,26 @@ object BrowseClassifier {
     @JvmStatic
     fun languageOf(name: String?): Language {
         if (name.isNullOrBlank()) return Language.OTHER
-        var han = false
-        var latin = false
         for (ch in name) {
             when (Character.UnicodeScript.of(ch.code)) {
                 Character.UnicodeScript.HIRAGANA, Character.UnicodeScript.KATAKANA -> return Language.JAPANESE
                 Character.UnicodeScript.HANGUL -> return Language.KOREAN
+                else -> Unit
+            }
+        }
+        val parenIndex = name.indexOfFirst { it == '(' || it == '（' }
+        if (parenIndex > 0) {
+            val primary = scriptLanguage(name.substring(0, parenIndex))
+            if (primary != Language.OTHER) return primary
+        }
+        return scriptLanguage(name)
+    }
+
+    private fun scriptLanguage(text: String): Language {
+        var han = false
+        var latin = false
+        for (ch in text) {
+            when (Character.UnicodeScript.of(ch.code)) {
                 Character.UnicodeScript.HAN -> han = true
                 Character.UnicodeScript.LATIN -> latin = true
                 else -> Unit

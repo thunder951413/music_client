@@ -25,6 +25,7 @@ import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import okhttp3.Call
 import okhttp3.Callback
+import okhttp3.FormBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
@@ -36,7 +37,14 @@ import java.util.concurrent.atomic.AtomicInteger
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
-@Keep data class ImportDownload(val id: String, val title: String, val artists: List<String>, val duration: Int?, val url: String)
+@Keep data class ImportDownload(
+    val id: String,
+    val title: String,
+    val artists: List<String>,
+    val duration: Int?,
+    val url: String,
+    val original_title: String? = null,
+)
 @Keep data class ImportBinding(
     val version: Int = 1, val provider: String, val sourceId: String, val chart: Boolean,
     val url: String, val updatedAt: Long, val requestId: String = UUID.randomUUID().toString(),
@@ -71,6 +79,7 @@ class ExternalPlaylistRepository(
     private val identity: () -> Pair<String?, String?> = { Preferences.getServerId() to Preferences.getUser() },
     private val notifySaved: () -> Unit = { PlaylistRepository().notifyPlaylistChanged() },
     private val notifyHub: ((String, ImportBinding, ExternalPlaylist, List<ChartTrack>, Map<Int, Child>) -> Unit)? = null,
+    private val transport: (suspend (url: String, referer: String, form: Map<String, String>?) -> Pair<String?, String>)? = null,
 ) {
     private val initialIdentity = identity()
     private val server = initialIdentity.first
@@ -94,27 +103,35 @@ class ExternalPlaylistRepository(
             .filter { it.owner == owner }.mapNotNull { p -> ImportBinding.read(p.comment)?.let { ImportedPlaylist(p, it) } }
     }
 
-    private suspend fun fetch(url: String, referer: String): Pair<String?, String> = withContext(Dispatchers.IO) {
-        suspendCancellableCoroutine { continuation ->
-            val call = http.newCall(Request.Builder().url(url).header("Referer", referer).header("User-Agent", "Mozilla/5.0 Tempus/1.0").build())
-            continuation.invokeOnCancellation { call.cancel() }
-            call.enqueue(object : Callback {
-                override fun onFailure(call: Call, e: IOException) { if (continuation.isActive) continuation.resumeWithException(e) }
-                override fun onResponse(call: Call, response: Response) {
-                    try {
-                        val result = response.use {
-                            if (it.code in 300..399) it.header("Location") to ""
-                            else {
-                                if (!it.isSuccessful) throw IOException("平台暂时无法读取歌单（${it.code}）")
-                                val bytes = it.body?.byteStream()?.readNBytes(8 * 1024 * 1024 + 1) ?: throw IOException("平台返回空内容")
-                                require(bytes.size <= 8 * 1024 * 1024) { "歌单数据过大" }
-                                null to bytes.toString(Charsets.UTF_8)
-                            }
-                        }
-                        if (continuation.isActive) continuation.resume(result)
-                    } catch (e: Exception) { if (continuation.isActive) continuation.resumeWithException(e) }
+    private suspend fun fetch(url: String, referer: String, form: Map<String, String>? = null): Pair<String?, String> {
+        transport?.let { return it(url, referer, form) }
+        return withContext(Dispatchers.IO) {
+            suspendCancellableCoroutine { continuation ->
+                val builder = Request.Builder().url(url).header("Referer", referer).header("User-Agent", "Mozilla/5.0 Tempus/1.0")
+                if (form != null) {
+                    val body = FormBody.Builder(Charsets.UTF_8).apply { form.forEach { (k, v) -> add(k, v) } }.build()
+                    builder.post(body)
                 }
-            })
+                val call = http.newCall(builder.build())
+                continuation.invokeOnCancellation { call.cancel() }
+                call.enqueue(object : Callback {
+                    override fun onFailure(call: Call, e: IOException) { if (continuation.isActive) continuation.resumeWithException(e) }
+                    override fun onResponse(call: Call, response: Response) {
+                        try {
+                            val result = response.use {
+                                if (it.code in 300..399) it.header("Location") to ""
+                                else {
+                                    if (!it.isSuccessful) throw IOException("平台暂时无法读取歌单（${it.code}）")
+                                    val bytes = it.body?.byteStream()?.readNBytes(12 * 1024 * 1024 + 1) ?: throw IOException("平台返回空内容")
+                                    require(bytes.size <= 12 * 1024 * 1024) { "歌单数据过大" }
+                                    null to bytes.toString(Charsets.UTF_8)
+                                }
+                            }
+                            if (continuation.isActive) continuation.resume(result)
+                        } catch (e: Exception) { if (continuation.isActive) continuation.resumeWithException(e) }
+                    }
+                })
+            }
         }
     }
 
@@ -127,27 +144,65 @@ class ExternalPlaylistRepository(
             uri = ExternalPlaylistRef.extract(uri.resolve(redirect).toString())
         }
         val source = ExternalPlaylistRef.parse(uri.toString())
-        val endpoint = when {
-            source.provider == ChartSource.Provider.NETEASE -> "https://music.163.com/api/playlist/detail?id=${source.id}"
-            source.chart -> "https://c.y.qq.com/v8/fcg-bin/fcg_v8_toplist_cp.fcg?tpl=3&page=detail&type=top&topid=${source.id}&song_begin=0&song_num=5000&format=json&inCharset=utf8&outCharset=utf-8"
-            else -> "https://c.y.qq.com/qzone/fcg-bin/fcg_ucc_getcdinfo_byids_cp.fcg?type=1&json=1&utf8=1&onlysong=0&disstid=${source.id}&format=json"
+        if (source.provider == ChartSource.Provider.NETEASE) {
+            val (redirect, body) = fetch(
+                "https://music.163.com/api/v6/playlist/detail",
+                "https://music.163.com/",
+                mapOf("id" to source.id, "n" to "100000", "s" to "0"),
+            )
+            require(redirect == null) { "平台要求登录或跳转，请在客户端确认歌单可以分享" }
+            val missingIds = withContext(Dispatchers.Default) { ExternalPlaylistParser.missingNeteaseIds(body) }
+            val extraPages = coroutineScope {
+                val permits = Semaphore(3)
+                missingIds.chunked(ExternalPlaylistParser.NETEASE_BATCH).map { chunk ->
+                    async {
+                        permits.withPermit {
+                            val payload = "[" + chunk.joinToString(",") { id ->
+                                require(id.matches(Regex("[0-9]{1,20}"))) { "平台返回的歌曲编号无效" }
+                                """{"id":$id}"""
+                            } + "]"
+                            val (pageRedirect, pageBody) = fetch(
+                                "https://music.163.com/api/v3/song/detail",
+                                "https://music.163.com/",
+                                mapOf("c" to payload),
+                            )
+                            require(pageRedirect == null) { "平台要求登录或跳转，请在客户端确认歌单可以分享" }
+                            pageBody
+                        }
+                    }
+                }.awaitAll()
+            }
+            return withContext(Dispatchers.Default) { ExternalPlaylistParser.parse(source, body, extraPages) }
         }
-        val (redirect, body) = fetch(endpoint, if (source.provider == ChartSource.Provider.NETEASE) "https://music.163.com/" else "https://y.qq.com/")
+        val endpoint = if (source.chart) {
+            "https://c.y.qq.com/v8/fcg-bin/fcg_v8_toplist_cp.fcg?tpl=3&page=detail&type=top&topid=${source.id}&song_begin=0&song_num=5000&format=json&inCharset=utf8&outCharset=utf-8"
+        } else {
+            "https://c.y.qq.com/qzone/fcg-bin/fcg_ucc_getcdinfo_byids_cp.fcg?type=1&json=1&utf8=1&onlysong=0&disstid=${source.id}&format=json"
+        }
+        val (redirect, body) = fetch(endpoint, "https://y.qq.com/")
         require(redirect == null) { "平台要求登录或跳转，请在客户端确认歌单可以分享" }
         return withContext(Dispatchers.Default) { ExternalPlaylistParser.parse(source, body) }
     }
 
     suspend fun match(playlist: ExternalPlaylist, progress: (Int, Int) -> Unit): List<ChartTrack> = withContext(Dispatchers.Default) { coroutineScope {
         val counter = AtomicInteger()
-        val queries = playlist.tracks.distinctBy { MusicDiscoveryRules.normalize(it.title) }
+        val queries = LinkedHashMap<String, String>()
+        playlist.tracks.forEach { row ->
+            MusicDiscoveryRules.searchTitles(row).forEach { title ->
+                val key = MusicDiscoveryRules.normalize(title)
+                if (key.isNotEmpty()) queries.putIfAbsent(key, title)
+            }
+        }
         val permits = Semaphore(3)
-        val candidates = queries.map { row -> async { permits.withPermit {
-            val songs = execute(searching.search3(row.title, 40, 0, 0, 0, 0, 0)).searchResult3?.songs.orEmpty()
+        val candidates = queries.map { (key, title) -> async { permits.withPermit {
+            val songs = execute(searching.search3(title, 100, 0, 0, 0, 0, 0)).searchResult3?.songs.orEmpty()
             progress(counter.incrementAndGet(), queries.size)
-            MusicDiscoveryRules.normalize(row.title) to songs
+            key to songs
         } } }.awaitAll().toMap()
         playlist.tracks.map { row ->
-            val songs = candidates[MusicDiscoveryRules.normalize(row.title)].orEmpty()
+            val songs = MusicDiscoveryRules.searchTitles(row)
+                .flatMap { candidates[MusicDiscoveryRules.normalize(it)].orEmpty() }
+                .distinctBy { it.id }
             row.matched(MusicDiscoveryRules.matches(row, songs), songs)
         }
     } }
@@ -160,7 +215,7 @@ class ExternalPlaylistRepository(
         require(existing.size <= 1) { "服务器上有多个同源导入歌单，请先保留一个再更新" }
         val selected = rows.mapIndexed { index, row -> choices[index] ?: row.matches.singleOrNull() }
         require(selected.all { it == null || !it.id.isNullOrBlank() }) { "候选歌曲缺少服务器编号，请重新匹配" }
-        val missing = rows.mapIndexedNotNull { i, row -> if (selected[i] != null) null else ImportDownload(row.id, row.title, row.artists, row.duration, row.url) }
+        val missing = rows.mapIndexedNotNull { i, row -> if (selected[i] != null) null else ImportDownload(row.id, row.title, row.artists, row.duration, row.url, row.originalTitle) }
         val metadata = ImportBinding(provider = source.source.provider.name, sourceId = source.source.id,
             chart = source.source.chart, url = source.source.url, updatedAt = System.currentTimeMillis(), total = rows.size, missing = missing)
         val pendingComment = metadata.copy(complete = false).comment()

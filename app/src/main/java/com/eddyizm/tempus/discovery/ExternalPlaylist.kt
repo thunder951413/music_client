@@ -56,9 +56,27 @@ data class ExternalPlaylist(val source: ExternalPlaylistRef, val name: String, v
 /** Unlike chart previews, imports must contain every advertised entry, including duplicates. */
 object ExternalPlaylistParser {
     const val MAX_TRACKS = 5000
-    fun parse(source: ExternalPlaylistRef, json: String): ExternalPlaylist {
+    const val NETEASE_BATCH = 500
+
+    fun missingNeteaseIds(json: String): List<String> {
+        val root = JsonParser.parseString(json).asJsonObject
+        require(root.number("code") == 200) { "平台未返回歌单，请确认歌单可分享且无需额外登录" }
+        val list = root.getAsJsonObject("playlist") ?: root.getAsJsonObject("result") ?: error("平台未返回歌单")
+        val trackIds = list.getAsJsonArray("trackIds")?.mapNotNull { it.asJsonObject.text("id") } ?: return emptyList()
+        val count = list.number("trackCount") ?: trackIds.size
+        require(count > 0 && trackIds.isNotEmpty()) { "歌单为空或曲目不可见" }
+        require(count <= MAX_TRACKS && trackIds.size <= MAX_TRACKS) { "当前一次最多导入 $MAX_TRACKS 首歌曲" }
+        trackIds.forEach { id -> require(id.matches(Regex("[0-9]{1,20}"))) { "平台返回的歌曲编号无效" } }
+        val present = list.getAsJsonArray("tracks")?.mapNotNull { it.asJsonObject.text("id") }?.toSet().orEmpty()
+        return trackIds.distinct().filter { it !in present }
+    }
+
+    fun parse(source: ExternalPlaylistRef, json: String, extraPages: List<String> = emptyList()): ExternalPlaylist {
         val root = JsonParser.parseString(json).asJsonObject
         val netease = source.provider == ChartSource.Provider.NETEASE
+        if (!netease && (root.number("subcode") == 4000 || root.number("code") == 4000)) {
+            throw IllegalArgumentException("该 QQ 歌单可能已设为私密或暂不可分享，请在客户端设为公开后重试")
+        }
         require(root.number("code") == if (netease) 200 else 0) { "平台未返回歌单，请确认歌单可分享且无需额外登录" }
         val list: JsonObject
         val rows: JsonArray
@@ -66,8 +84,25 @@ object ExternalPlaylistParser {
         val name: String
         if (netease) {
             list = root.getAsJsonObject("playlist") ?: root.getAsJsonObject("result") ?: error("平台未返回歌单")
-            rows = list.getAsJsonArray("tracks") ?: JsonArray()
-            count = list.number("trackCount") ?: rows.size()
+            val initial = list.getAsJsonArray("tracks") ?: JsonArray()
+            val trackIds = list.getAsJsonArray("trackIds")?.mapNotNull { it.asJsonObject.text("id") }
+            if (!trackIds.isNullOrEmpty()) {
+                val byId = HashMap<String, JsonObject>(trackIds.size)
+                initial.forEach { el -> el.asJsonObject.let { obj -> obj.text("id")?.let { byId[it] = obj } } }
+                extraPages.forEach { pageJson ->
+                    val page = JsonParser.parseString(pageJson).asJsonObject
+                    require(page.number("code") == 200) { "平台未返回完整曲目详情，请稍后重试" }
+                    (page.getAsJsonArray("songs") ?: JsonArray()).forEach { el ->
+                        el.asJsonObject.let { obj -> obj.text("id")?.let { byId[it] = obj } }
+                    }
+                }
+                rows = JsonArray()
+                trackIds.forEach { id -> byId[id]?.let { rows.add(it) } }
+                count = list.number("trackCount") ?: trackIds.size
+            } else {
+                rows = initial
+                count = list.number("trackCount") ?: rows.size()
+            }
             name = list.text("name") ?: "网易云歌单 ${source.id}"
         } else if (source.chart) {
             list = root
@@ -80,13 +115,16 @@ object ExternalPlaylistParser {
             count = list.number("total_song_num") ?: list.number("songnum") ?: rows.size()
             name = list.text("dissname") ?: "QQ 歌单 ${source.id}"
         }
+        require(count > 0 && rows.size() > 0) { "歌单为空或曲目不可见" }
         require(count <= MAX_TRACKS && rows.size() <= MAX_TRACKS) { "当前一次最多导入 $MAX_TRACKS 首歌曲" }
-        require(count == rows.size()) { "平台只返回 ${rows.size()} / $count 首，请在客户端下载或导出完整歌单后重试；此次不会覆盖服务器歌单" }
+        require(count == rows.size()) { "平台只返回 ${rows.size()} / $count 首，请在客户端确认歌单公开可分享后重试；此次不会覆盖服务器歌单" }
         val tracks = rows.mapIndexed { index, element ->
             val row = element.asJsonObject.let { if (source.chart && !netease) it.getAsJsonObject("data") ?: it else it }
             ChartTrack().apply {
                 id = row.text(if (netease) "id" else "songmid") ?: row.text("mid")
                 title = row.text(if (netease) "name" else "songname") ?: row.text("name")
+                originalTitle = (if (netease) row.text("mainTitle") else row.text("songorig"))
+                    ?.trim()?.takeIf { it.isNotEmpty() && it != title }
                 val people = row.getAsJsonArray(if (netease) "artists" else "singer") ?: row.getAsJsonArray("ar") ?: JsonArray()
                 artists = people.mapNotNull { it.asJsonObject.text("name") }
                 artist = artists.joinToString(" / ")

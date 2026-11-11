@@ -34,6 +34,7 @@ class ExternalPlaylistViewModel : ViewModel() {
     init { refresh() }
     fun setLink(value: String) { mutable.update { it.copy(link = value, source = null, rows = emptyList(), choices = emptyMap()) } }
     fun choose(index: Int, song: Child) { mutable.update { it.copy(choices = it.choices + (index to song)) } }
+    fun clearChoice(index: Int) { mutable.update { it.copy(choices = it.choices - index) } }
     fun cancel() { operation?.cancel(); mutable.update { it.copy(busy = false, phase = "") } }
     fun refresh() = viewModelScope.launch {
         try { val saved = repository.imports(); mutable.update { it.copy(imports = saved) } }

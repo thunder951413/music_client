@@ -295,7 +295,7 @@ class LoginServerFragment : Fragment() {
 
         val s: Server = serverList[selectedServerPosition]
 
-        val server: String = s.serverName
+        val server: String = s.address
         val user: String = s.username
         val password: String = s.password
         val address: String = s.address

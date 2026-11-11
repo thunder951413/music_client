@@ -1035,9 +1035,9 @@ object Preferences {
 
     @JvmStatic
     fun setAllowPlaylistDuplicates(allowDuplicates: Boolean) {
-        return App.getInstance().preferences.edit().putString(
+        App.getInstance().preferences.edit().putBoolean(
             ALLOW_PLAYLIST_DUPLICATES,
-            allowDuplicates.toString()
+            allowDuplicates
         ).apply()
     }
 

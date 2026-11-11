@@ -114,6 +114,7 @@ fun DiscoverScreen(
     actions: DiscoverActions,
     backDispatcher: OnBackPressedDispatcher,
     onRetry: () -> Unit,
+    organizedCount: Int = 0,
 ) {
     var tab by rememberSaveable { mutableStateOf(DiscoverTab.CHARTS) }
     var language by rememberSaveable { mutableStateOf<Language?>(null) }
@@ -133,6 +134,16 @@ fun DiscoverScreen(
         PullToRefreshBox(isRefreshing = state.loading && state.genres.isNotEmpty(), onRefresh = onRetry) {
             val listState = rememberLazyListState()
             val scope = rememberCoroutineScope()
+            val sectionOffsets = remember(state.sections) {
+                val offsets = IntArray(state.sections.size)
+                // Title (0), TabRow (1), A-Z strip (2), then each section has 1 header + artists.size rows.
+                var cursor = 3
+                state.sections.forEachIndexed { index, (_, artists) ->
+                    offsets[index] = cursor
+                    cursor += 1 + artists.size
+                }
+                offsets
+            }
             LazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.statusBars),
@@ -144,10 +155,10 @@ fun DiscoverScreen(
                 }
                 when (tab) {
                     DiscoverTab.CHARTS -> chartsTab(actions, state.chartsVersion)
-                    DiscoverTab.CATEGORIES -> categoriesTab(state, actions, onRetry) { language = it }
+                    DiscoverTab.CATEGORIES -> categoriesTab(state, actions, onRetry, organizedCount) { language = it }
                     DiscoverTab.ARTISTS -> artistsTab(state, actions, onRetry) { letterIndex ->
-                        // Title and tab row come first, then the letter strip.
-                        scope.launch { listState.animateScrollToItem(3 + letterIndex) }
+                        val target = sectionOffsets.getOrElse(letterIndex) { 3 }
+                        scope.launch { listState.animateScrollToItem(target) }
                     }
                 }
             }
@@ -247,6 +258,7 @@ private fun LazyListScope.categoriesTab(
     state: DiscoverViewModel.State,
     actions: DiscoverActions,
     onRetry: () -> Unit,
+    organizedCount: Int,
     onLanguage: (Language) -> Unit,
 ) {
     if (state.failed) {
@@ -256,7 +268,11 @@ private fun LazyListScope.categoriesTab(
     item {
         OrganizeRow(
             title = stringResource(R.string.library_mix_title),
-            subtitle = stringResource(R.string.library_mix_subtitle),
+            subtitle = if (organizedCount > 0) {
+                stringResource(R.string.library_mix_subtitle_done, organizedCount)
+            } else {
+                stringResource(R.string.library_mix_subtitle)
+            },
             modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 12.dp),
             onClick = actions::organizeLibrary,
         )
@@ -335,17 +351,17 @@ private fun LazyListScope.artistsTab(
         }
     }
     state.sections.forEach { (letter, artists) ->
-        item(key = "section$letter") {
-            Column {
-                Text(
-                    text = letter.toString(),
-                    modifier = Modifier.padding(start = 20.dp, top = 18.dp, bottom = 4.dp),
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-                artists.forEach { ArtistRow(it) { actions.openArtist(it) } }
-            }
+        item(key = "section_header_$letter") {
+            Text(
+                text = letter.toString(),
+                modifier = Modifier.padding(start = 20.dp, top = 18.dp, bottom = 4.dp),
+                fontSize = 20.sp,
+                fontWeight = FontWeight.ExtraBold,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+        }
+        items(artists, key = { artist -> "artist_${letter}_${artist.id ?: artist.name}" }) { artist ->
+            ArtistRow(artist) { actions.openArtist(artist) }
         }
     }
 }

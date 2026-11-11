@@ -183,7 +183,7 @@ object HubRepository {
             checkCurrent(s)
             if (!known(s)) throw e
             val cached = outbox.cached(s.account)?.let { gson.fromJson(it, Daily::class.java) }
-            DailyMixRepository.Today(cached?.songs.orEmpty(), cached?.wishes.orEmpty(), pending = cached == null, stale = true)
+            DailyMixRepository.Today(cached?.songs.orEmpty(), cached?.wishes.orEmpty(), pending = cached == null, stale = true, offline = true)
         }
     }
 
@@ -191,8 +191,18 @@ object HubRepository {
     fun registerImport(playlistId: String, binding: ImportBinding, source: ExternalPlaylist, rows: List<ChartTrack>, choices: Map<Int, Child>, identity: Pair<String?, String?>) {
         val s = session() ?: return
         check(s.identity == identity) { "音乐服务器或账号已切换，请重新更新歌单" }
-        val items = rows.mapIndexed { index, row -> mapOf("provider" to source.source.provider.name, "id" to row.id,
-            "title" to row.title, "artists" to row.artists, "duration" to row.duration, "song_id" to (choices[index] ?: row.matches.singleOrNull())?.id) }
+        val items = rows.mapIndexed { index, row ->
+            mutableMapOf<String, Any?>(
+                "provider" to source.source.provider.name,
+                "id" to row.id,
+                "title" to row.title,
+                "artists" to row.artists,
+                "duration" to row.duration,
+                "song_id" to (choices[index] ?: row.matches.singleOrNull())?.id,
+            ).apply {
+                if (!row.originalTitle.isNullOrBlank()) put("original_title", row.originalTitle)
+            }
+        }
         val body = gson.toJson(mapOf("playlist_id" to playlistId, "request_id" to binding.requestId, "tracks" to items))
         outbox.put(s.account, "import", playlistId, body)
         scope.launch { try { synchronize(s) } catch (e: CancellationException) { throw e } catch (_: Exception) {} }

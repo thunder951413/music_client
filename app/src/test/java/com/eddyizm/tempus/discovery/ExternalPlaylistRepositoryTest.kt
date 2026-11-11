@@ -65,7 +65,10 @@ class ExternalPlaylistRepositoryTest {
             }
         }
 
-        fun repository(searching: SearchingClient = mock(SearchingClient::class.java)) = ExternalPlaylistRepository(client, searching, preferences, { identity }, {}, { _, _, _, _, _ -> })
+        fun repository(
+            searching: SearchingClient = mock(SearchingClient::class.java),
+            transport: (suspend (String, String, Map<String, String>?) -> Pair<String?, String>)? = null,
+        ) = ExternalPlaylistRepository(client, searching, preferences, { identity }, {}, { _, _, _, _, _ -> }, transport)
 
         private fun success(playlist: Playlist? = null, list: List<Playlist>? = null): Call<ApiResponse> {
             val data = JsonObject().apply {
@@ -166,5 +169,54 @@ class ExternalPlaylistRepositoryTest {
             assertEquals(12, result.size)
             assertTrue("Observed ${maximum.get()} concurrent requests", maximum.get() in 1..3)
         } finally { scheduler.shutdownNow() }
+    }
+
+    @Test fun loadFetchesCompleteNeteasePlaylistAcrossChunkedSongDetailsAndMatchesOriginalTitle() = runBlocking {
+        val backend = Backend()
+        val calls = java.util.Collections.synchronizedList(mutableListOf<Pair<String, Map<String, String>?>>())
+        val orderedIds = (1..620).map { it.toString() } + listOf("1")
+        val initialTracks = (1..10).joinToString(",") { i ->
+            if (i == 1) """{"id":1,"name":"Native 1 (译名)","mainTitle":"Native 1","ar":[{"name":"Artist 1"}],"dt":180000}"""
+            else """{"id":$i,"name":"Song $i","ar":[{"name":"Artist $i"}],"dt":180000}"""
+        }
+        val trackIdsJson = orderedIds.joinToString(",") { """{"id":$it}""" }
+        val playlistJson = """{"code":200,"playlist":{"name":"621 Tracks","trackCount":621,"tracks":[$initialTracks],"trackIds":[$trackIdsJson]}}"""
+        val transport: suspend (String, String, Map<String, String>?) -> Pair<String?, String> = { url, _, form ->
+            calls += url to form
+            when (url) {
+                "https://music.163.com/api/v6/playlist/detail" -> null to playlistJson
+                "https://music.163.com/api/v3/song/detail" -> {
+                    val requested = Regex(""""id":(\d+)""").findAll(form?.get("c").orEmpty()).map { it.groupValues[1].toInt() }.toList()
+                    assertTrue(requested.size <= ExternalPlaylistParser.NETEASE_BATCH)
+                    val songs = requested.joinToString(",") { i ->
+                        """{"id":$i,"name":"Song $i","ar":[{"name":"Artist $i"}],"dt":180000}"""
+                    }
+                    null to """{"code":200,"songs":[$songs]}"""
+                }
+                else -> error("Unexpected url $url")
+            }
+        }
+        val loaded = backend.repository(transport = transport).load("https://music.163.com/playlist?id=888")
+        assertEquals(621, loaded.tracks.size)
+        assertEquals("1", loaded.tracks.first().id)
+        assertEquals("1", loaded.tracks.last().id)
+        assertEquals("Native 1", loaded.tracks.first().originalTitle)
+        assertEquals(3, calls.size) // 1 v6 detail + 2 chunked v3 song/detail (500 + 110)
+
+        val searching = mock(SearchingClient::class.java)
+        `when`(searching.search3(anyString(), anyInt(), anyInt(), anyInt(), anyInt(), anyInt(), anyInt())).thenAnswer { inv ->
+            val query = inv.getArgument<String>(0)
+            val data = if (query == "Native 1") {
+                """{"subsonic-response":{"status":"ok","searchResult3":{"song":[{"id":"lib-1","title":"Native 1","artist":"Artist 1","duration":180}]}}}"""
+            } else {
+                """{"subsonic-response":{"status":"ok"}}"""
+            }
+            val body = Gson().fromJson(data, ApiResponse::class.java)
+            val call = mock(Call::class.java) as Call<ApiResponse>
+            doAnswer { it.getArgument<Callback<ApiResponse>>(0).onResponse(call, Response.success(body)); null }.`when`(call).enqueue(any())
+            call
+        }
+        val matched = backend.repository(searching, transport).match(loaded.copy(tracks = listOf(loaded.tracks.first()))) { _, _ -> }
+        assertEquals(listOf("lib-1"), matched.single().matches.map { it.id })
     }
 }

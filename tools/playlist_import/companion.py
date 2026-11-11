@@ -37,9 +37,52 @@ NETEASE_DIRS = [Path.home() / 'Music/网易云音乐', Path.home() / 'Music/Clou
 MAX_TRACKS = 5000
 
 
+ARTIST_SPLIT = re.compile(r'(?i)\s+(?:feat\.?|ft\.?)\s+|\s+[•·]\s+|[/,;&、，]')
+ARTIST_ALIAS = re.compile(r'^\s*(.+?)\s*\(([^()]+)\)\s*$')
+TITLE_PAREN = re.compile(r'\([^()]+\)')
+VERSION_WORDS = re.compile(
+    r'(?i)live|remix|mix|version|explicit|clean|acoustic|instrumental|\binst\b|remaster|edit|\bdj\b|版|伴奏|现场|翻唱|合唱|剪辑|加速|钢琴'
+)
+
+
 def normalize(value):
     return ''.join(c for c in unicodedata.normalize('NFKC', str(value or '')).lower()
                    if not c.isspace() and unicodedata.category(c)[0] not in 'PZ')
+
+
+def artist_aliases(value):
+    full = unicodedata.normalize('NFKC', str(value or ''))
+    names = {normalize(full)}
+    match = ARTIST_ALIAS.match(full)
+    if match:
+        names.add(normalize(match.group(1)))
+        names.add(normalize(match.group(2)))
+    names.discard('')
+    return names
+
+
+def artist_names(value):
+    text = str(value or '')
+    names = set(artist_aliases(text))
+    for part in ARTIST_SPLIT.split(text):
+        names.update(artist_aliases(part))
+    return names
+
+
+def title_names(title, original=None):
+    full = unicodedata.normalize('NFKC', str(title or ''))
+    names = {normalize(full)}
+    names.discard('')
+    if original is not None:
+        variants = [full]
+        groups = list(TITLE_PAREN.finditer(full))[:4]
+        for group in reversed(groups):
+            if not VERSION_WORDS.search(group.group(0)):
+                variants.extend(v[:group.start()] + v[group.end():] for v in list(variants))
+        orig_norm = normalize(original)
+        if orig_norm and any(normalize(v) == orig_norm for v in variants):
+            names.add(orig_norm)
+    return names
 
 
 def check_track(provider, track):
@@ -50,6 +93,10 @@ def check_track(provider, track):
         raise ValueError('下载曲目信息无效')
     if track.get('duration') is not None and (not isinstance(track['duration'], int) or not 0 <= track['duration'] <= 86400):
         raise ValueError('歌曲时长无效')
+    if track.get('original_title') is not None:
+        orig = track['original_title']
+        if not isinstance(orig, str) or len(orig) > 2000 or not normalize(orig):
+            raise ValueError('原始歌名无效')
     # Derive links ourselves; untrusted comments cannot inject a browser target or path.
     track['url'] = (f"https://music.163.com/song?id={track['id']}" if provider == 'NETEASE'
                     else f"https://y.qq.com/n/ryqq_v2/songDetail/{track['id']}")
@@ -78,7 +125,10 @@ def daily_jobs(rows):
     tracks = {'QQ': {}, 'NETEASE': {}}
     for _, missing in sorted(rows, key=lambda row: row[0], reverse=True):
         for track in missing:
-            tracks[track['provider']].setdefault(track['id'], {k: track[k] for k in ('id', 'title', 'artists', 'duration', 'url') if k in track})
+            tracks[track['provider']].setdefault(
+                track['id'],
+                {k: track[k] for k in ('id', 'title', 'artists', 'duration', 'url', 'original_title') if k in track and track[k] is not None},
+            )
     return [{'id': 'daily-' + provider, 'name': '每日推荐新歌', 'provider': provider, 'url': '',
              'missing': list(found.values()), 'request_id': 'daily'} for provider, found in tracks.items() if found]
 
@@ -165,10 +215,13 @@ def audio_info(path):
 
 
 def matches(track, tags, duration):
-    if not normalize(track['title']) or normalize(track['title']) != normalize(tags.get('title')):
+    titles = title_names(track['title'], track.get('original_title'))
+    if not titles or normalize(tags.get('title')) not in titles:
         return False
-    names = {normalize(a) for a in track['artists']}
-    local = {normalize(tags.get('artist'))} | {normalize(a) for a in re.split(r'[/,;&、，]', tags.get('artist', ''))}
+    names = set()
+    for a in track['artists']:
+        names.update(artist_aliases(a))
+    local = artist_names(tags.get('artist', ''))
     if not names.intersection(local) or duration <= 0:
         return False
     return not track.get('duration') or abs(duration - track['duration']) <= 12

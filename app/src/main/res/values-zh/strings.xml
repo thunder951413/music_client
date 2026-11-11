@@ -252,8 +252,34 @@
     <string name="player_playback_speed">%1$.2fx</string>
     <string name="player_queue_clean_all_button">清空队列</string>
     <string name="player_queue_load_queue">加载队列</string>
-    <string name="player_queue_save_queue_success">保存队列</string>
+    <string name="player_queue_save_queue_success">已保存队列</string>
     <string name="player_queue_save_to_playlist">保存队列到播放列表</string>
+    <string name="player_queue_playing_next">接下来播放</string>
+    <string name="player_queue_clear">清空待播</string>
+    <string name="player_queue_shuffle_upcoming">随机打乱待播</string>
+    <string name="player_queue_download_all">全部下载</string>
+    <string name="player_queue_empty">队列为空</string>
+    <string name="player_queue_reorder">调整顺序</string>
+    <string name="player_queue_remove">从队列移除</string>
+    <plurals name="player_queue_song_count">
+        <item quantity="other">%d 首歌曲</item>
+    </plurals>
+    <plurals name="player_queue_duration_seconds">
+        <item quantity="other">%d 秒</item>
+    </plurals>
+    <plurals name="player_queue_duration_minutes">
+        <item quantity="other">%d 分钟</item>
+    </plurals>
+    <plurals name="player_queue_duration_hours">
+        <item quantity="other">%d 小时</item>
+    </plurals>
+    <string name="player_queue_starred">已收藏</string>
+    <string name="player_queue_downloaded">已下载</string>
+    <string name="player_queue_play">播放</string>
+    <string name="player_queue_pause">暂停</string>
+    <string name="player_queue_all_downloaded">所有歌曲均已下载</string>
+    <string name="player_queue_loaded">队列已加载</string>
+    <string name="player_queue_no_saved_queue">未找到已保存的队列</string>
     <string name="player_server_priority">服务器优先级</string>
     <string name="player_transcoding">正在转码</string>
     <string name="player_transcoding_requested">已请求转码</string>

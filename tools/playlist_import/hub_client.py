@@ -62,7 +62,7 @@ class HubClient:
             provider = row.get('provider')
             if provider not in tracks:
                 raise ValueError('hub 下载平台无效')
-            track = {k: row[k] for k in ('id', 'title', 'artists', 'duration') if k in row}
+            track = {k: row[k] for k in ('id', 'title', 'artists', 'duration', 'original_title') if k in row and row[k] is not None}
             validate_track(provider, track)
             tracks[provider][track['id']] = track
         return [{'id': 'hub-' + p, 'name': '待下载音乐', 'provider': p, 'url': '',

@@ -37,8 +37,8 @@ object LibraryOrganizer {
     private const val SCAN_LIMIT = 50_000
     private const val CHUNK = 100
 
-    private fun idsKey() = "library_mix_ids|${Preferences.getServerId()}"
-    private fun countKey() = "library_mix_songs|${Preferences.getServerId()}"
+    private fun idsKey() = "library_mix_ids|${Preferences.getServerId()}|${Preferences.getUser().orEmpty()}"
+    private fun countKey() = "library_mix_songs|${Preferences.getServerId()}|${Preferences.getUser().orEmpty()}"
 
     /** How many playlists the last run made on this server, 0 when it never ran. */
     fun playlistCount(): Int = App.getInstance().preferences.getStringSet(idsKey(), null)?.size ?: 0
@@ -53,8 +53,14 @@ object LibraryOrganizer {
 
     /** Every song, paged through search3 with an empty query; some servers want `""` instead. */
     private fun scanAll(onProgress: (Int) -> Unit): List<Child> {
-        val query = if (scanPage("", 0).isNotEmpty()) "" else "\"\""
+        val initial = scanPage("", 0)
+        val query = if (initial.isNotEmpty()) "" else "\"\""
         val songs = ArrayList<Child>()
+        if (initial.isNotEmpty()) {
+            songs += initial
+            onProgress(songs.size)
+            if (initial.size < PAGE) return songs
+        }
         while (songs.size < SCAN_LIMIT) {
             val page = scanPage(query, songs.size)
             songs += page
@@ -81,8 +87,10 @@ object LibraryOrganizer {
         val songs = scanAll { onProgress(0, it, 0) }
         val mixes = LibraryMixes.plan(songs)
         val client = App.getSubsonicClientInstance(false).playlistClient
+        val owner = Preferences.getUser()
         val managed = App.getInstance().preferences.getStringSet(idsKey(), null).orEmpty()
         val existing = execute(client.playlists).playlists?.playlists.orEmpty()
+            .filter { owner == null || it.owner == owner }
         val names = mixes.map { name(context, it.kind) }
         // Reuse a playlist this app made, or one with the same name left by an earlier install.
         val byName = existing.filter { it.id in managed || it.name in names }.associateBy { it.name }
@@ -97,7 +105,8 @@ object LibraryOrganizer {
             val created = execute(client.createPlaylist(id, name, first))
             if (id == null) {
                 id = created.playlist?.id
-                    ?: execute(client.playlists).playlists?.playlists?.lastOrNull { it.name == name }?.id
+                    ?: execute(client.playlists).playlists?.playlists
+                        ?.lastOrNull { it.name == name && (owner == null || it.owner == owner) }?.id
                     ?: return@forEachIndexed
             }
             mix.songIds.drop(CHUNK).chunked(CHUNK).forEach { execute(client.updatePlaylist(id, null, null, ArrayList(it), null)) }

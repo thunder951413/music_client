@@ -549,10 +549,12 @@ open class BaseMediaService : MediaLibraryService(), MediaManager.QueueTarget {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 Log.d(TAG, "onIsPlayingChanged " + player.currentMediaItemIndex)
                 if (!isPlaying) {
-                    MediaManager.setResumePoint(
-                        player.currentMediaItem,
-                        player.currentPosition
-                    )
+                    if (player.playbackState != Player.STATE_ENDED && player.playbackState != Player.STATE_IDLE) {
+                        MediaManager.setResumePoint(
+                            player.currentMediaItem,
+                            player.currentPosition
+                        )
+                    }
                     // Auto-push the queue + position to the server so resume works
                     // without a manual button press.
                     player.currentMediaItem?.mediaId?.let { id ->
@@ -583,8 +585,7 @@ open class BaseMediaService : MediaLibraryService(), MediaManager.QueueTarget {
                     com.eddyizm.tempus.hub.HubRepository.record(player.currentMediaItem, true, player.currentPosition)
                     // Last track played to completion - drop it from Continue listening.
                     MediaManager.deleteResumePoint(player.currentMediaItem)
-                } else if (!player.hasNextMediaItem() && playbackState == Player.STATE_ENDED &&
-                    player.currentMediaItem?.mediaId?.startsWith("rss_") == true) {
+                } else if (!player.hasNextMediaItem() && playbackState == Player.STATE_ENDED) {
                     MediaManager.deleteResumePoint(player.currentMediaItem)
                 }
                 updateWidget(player)
@@ -597,6 +598,11 @@ open class BaseMediaService : MediaLibraryService(), MediaManager.QueueTarget {
             ) {
                 Log.d(TAG, "onPositionDiscontinuity reason=$reason old=${oldPosition.mediaItemIndex} new=${newPosition.mediaItemIndex}")
                 super.onPositionDiscontinuity(oldPosition, newPosition, reason)
+                val oldItem = oldPosition.mediaItem
+                val trackChanged = oldItem != null && (
+                    oldPosition.mediaItemIndex != newPosition.mediaItemIndex ||
+                        oldItem.mediaId != newPosition.mediaItem?.mediaId
+                )
 
                 // Save the resume point of the track we're leaving whenever we move to a
                 // different track, so coming back to it later resumes where it was. (Pause
@@ -604,17 +610,13 @@ open class BaseMediaService : MediaLibraryService(), MediaManager.QueueTarget {
                 // while still playing, where no pause fires.) Skip natural auto-transition,
                 // where the track already ended, so a finished track doesn't grab a near-end
                 // resume point.
-                if (oldPosition.mediaItemIndex != newPosition.mediaItemIndex &&
-                    reason != Player.DISCONTINUITY_REASON_AUTO_TRANSITION) {
-                    oldPosition.mediaItem?.let {
-                        MediaManager.setResumePoint(it, oldPosition.positionMs)
-                    }
+                if (trackChanged && reason != Player.DISCONTINUITY_REASON_AUTO_TRANSITION) {
+                    MediaManager.setResumePoint(oldItem, oldPosition.positionMs)
                 }
 
                 // Re-apply gain whenever we stay on the same track for any reason
                 // except an automatic transition to the next track.
-                if (reason != Player.DISCONTINUITY_REASON_AUTO_TRANSITION &&
-                    oldPosition.mediaItemIndex == newPosition.mediaItemIndex) {
+                if (reason != Player.DISCONTINUITY_REASON_AUTO_TRANSITION && !trackChanged) {
                     // Clear pending gain immediately (main thread) before reapplying.
                     // This pre-empts the same-format gapless promotion in onFlush: if
                     // the decoder ran ahead (endOfStreamPending=true) before the seek,
@@ -626,26 +628,27 @@ open class BaseMediaService : MediaLibraryService(), MediaManager.QueueTarget {
                 }
 
                 if (reason == Player.DISCONTINUITY_REASON_AUTO_TRANSITION) {
-                    if (oldPosition.mediaItem?.mediaMetadata?.extras?.getString("type") == Constants.MEDIA_TYPE_MUSIC) {
-                        MediaManager.scrobble(oldPosition.mediaItem, true)
-                        MediaManager.saveChronology(oldPosition.mediaItem)
-                        com.eddyizm.tempus.hub.HubRepository.record(oldPosition.mediaItem, true, oldPosition.positionMs)
+                    if (oldItem?.mediaMetadata?.extras?.getString("type") == Constants.MEDIA_TYPE_MUSIC) {
+                        MediaManager.scrobble(oldItem, true)
+                        MediaManager.saveChronology(oldItem)
+                        com.eddyizm.tempus.hub.HubRepository.record(oldItem, true, oldPosition.positionMs)
                     }
                     // The old track played to completion - drop it from Continue listening.
-                    MediaManager.deleteResumePoint(oldPosition.mediaItem)
+                    MediaManager.deleteResumePoint(oldItem)
 
                     if (newPosition.mediaItem?.mediaMetadata?.extras?.getString("type") == Constants.MEDIA_TYPE_MUSIC) {
                         MediaManager.setLastPlayedTimestamp(newPosition.mediaItem)
                     }
-                } else if (reason == Player.DISCONTINUITY_REASON_SEEK && oldPosition.mediaItemIndex != newPosition.mediaItemIndex) {
-                    // SEEK only: scrobble a genuine user skip, not other index changes such as removing the currently playing track (REMOVE).
-                    if (oldPosition.mediaItem?.mediaMetadata?.extras?.getString("type") == Constants.MEDIA_TYPE_MUSIC) {
-                        val durationMs = ((oldPosition.mediaItem?.mediaMetadata?.extras?.getInt("duration") ?: 0).toLong()) * 1000L
-                        com.eddyizm.tempus.hub.HubRepository.record(oldPosition.mediaItem, false, oldPosition.positionMs)
-                        if (MediaManager.meetsScrobbleThreshold(oldPosition.positionMs, durationMs)) {
-                            MediaManager.scrobble(oldPosition.mediaItem, true)
-                            MediaManager.saveChronology(oldPosition.mediaItem)
-                        }
+                } else if (trackChanged && oldItem?.mediaMetadata?.extras?.getString("type") == Constants.MEDIA_TYPE_MUSIC) {
+                    val durationMs = ((oldItem.mediaMetadata.extras?.getInt("duration") ?: 0).toLong()) * 1000L
+                    val completed = MediaManager.meetsScrobbleThreshold(oldPosition.positionMs, durationMs)
+                    val recordableSkip = reason == Player.DISCONTINUITY_REASON_SEEK && oldPosition.positionMs >= 3_000L
+                    if (completed || recordableSkip || oldPosition.positionMs >= 5_000L) {
+                        com.eddyizm.tempus.hub.HubRepository.record(oldItem, completed, oldPosition.positionMs)
+                    }
+                    if (completed) {
+                        MediaManager.scrobble(oldItem, true)
+                        MediaManager.saveChronology(oldItem)
                     }
                 }
             }

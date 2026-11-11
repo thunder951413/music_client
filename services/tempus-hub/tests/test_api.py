@@ -139,6 +139,57 @@ class ApiTests(unittest.TestCase):
         self.until(lambda: self.call('wishes')['wishes'][0]['state']=='ambiguous')
         self.assertEqual([s['id'] for s in Navidrome.playlists[('alice','import')]['entry']],['4'])
 
+    def test_navidrome_collaboration_separator_fills_the_original_position(self):
+        self.register()
+        Navidrome.songs[1]['artist'] = 'Artist 1 • Guest'
+        Navidrome.playlists[('alice','collaboration')] = {'id':'collaboration','owner':'alice','name':'Collaboration','entry':[],'comment':''}
+        track = self.track(1)
+        track['artists'] = ['Artist 1','Guest']
+        self.call('imports',{'playlist_id':'collaboration','request_id':'collaboration','tracks':[track]})
+        self.call('refresh',{})
+        self.until(lambda: [s['id'] for s in Navidrome.playlists[('alice','collaboration')]['entry']] == ['1'])
+        self.assertEqual(self.call('wishes')['wishes'][0]['state'],'completed')
+
+    def test_provider_alias_refresh_completes_old_wish_without_overriding_ignore(self):
+        self.register()
+        Navidrome.songs[1]['title'] = 'Native Title'
+        Navidrome.playlists[('alice','alias')] = {'id':'alias','owner':'alice','name':'Alias','entry':[],'comment':''}
+        track = dict(self.track(1), title='Native Title (中文译名)')
+        self.call('imports',{'playlist_id':'alias','request_id':'before-alias','tracks':[track]})
+        wish = self.call('wishes')['wishes'][0]
+        self.assertEqual(wish['state'],'pending')
+        # A new full import supplies the provider's original title and a verified
+        # existing song, just as the server downloader rebinds its original list.
+        Navidrome.playlists[('alice','alias')]['entry'] = [Navidrome.songs[1]]
+        selected = dict(track, original_title='Native Title',song_id='1')
+        self.call('imports',{'playlist_id':'alias','request_id':'after-alias','tracks':[selected]})
+        self.assertEqual(self.call('wishes')['wishes'][0]['state'],'completed')
+        self.call('wishes/'+wish['wish_id'],{'state':'ignored'})
+        self.call('imports',{'playlist_id':'alias','request_id':'ignored-is-kept','tracks':[selected]})
+        self.assertEqual(self.call('wishes')['wishes'][0]['state'],'ignored')
+
+    def test_pending_provider_alias_fills_without_manual_song_selection(self):
+        self.register()
+        Navidrome.songs[1]['title'] = 'Native Title'
+        Navidrome.playlists[('alice','alias')] = {'id':'alias','owner':'alice','name':'Alias','entry':[],'comment':''}
+        track = dict(self.track(1),title='Native Title (中文译名)',original_title='Native Title')
+        self.call('imports',{'playlist_id':'alias','request_id':'alias','tracks':[track]})
+        self.call('refresh',{})
+        self.until(lambda:[s['id'] for s in Navidrome.playlists[('alice','alias')]['entry']]==['1'])
+
+    def test_shared_wish_cannot_fill_a_different_duration_recording(self):
+        self.register()
+        Navidrome.playlists[('alice','versions')] = {'id':'versions','owner':'alice','name':'Versions','entry':[Navidrome.songs[1]],'comment':''}
+        selected = self.track(1, '1')
+        missing = dict(self.track(1), id='OtherRelease', duration=230)
+        tracks = [selected,missing,self.track(2)]
+        self.call('imports',{'playlist_id':'versions','request_id':'versions','tracks':tracks})
+        # A completed global wish for the selected release must not bypass
+        # the other position's own duration check.
+        self.call('imports',{'playlist_id':'versions','request_id':'complete-selected','tracks':tracks})
+        self.call('refresh',{})
+        self.until(lambda: [s['id'] for s in Navidrome.playlists[('alice','versions')]['entry']]==['1','2'])
+
     def test_deleted_import_does_not_block_other_imports(self):
         self.register()
         for id in ('deleted','remaining'):
@@ -149,5 +200,23 @@ class ApiTests(unittest.TestCase):
         self.until(lambda: [s['id'] for s in Navidrome.playlists[('alice','remaining')]['entry']] == ['1'])
         with sqlite3.connect(Path(self.tmp.name)/'hub.sqlite') as db:
             self.assertEqual(db.execute("SELECT COUNT(*) FROM imports WHERE playlist_id='deleted'").fetchone()[0],0)
+
+    def test_daily_mix_includes_fulfilled_unheard_wishes_and_avoids_dominant_noise_genre(self):
+        self.register()
+        for s in Navidrome.songs:
+            s['genre'] = 'Blues'
+        Navidrome.songs.append({'id': 'wish-song', 'title': 'Fresh Wish', 'artist': 'Wish Artist', 'duration': 200, 'genre': 'Blues'})
+        Navidrome.playlists[('alice', 'imp')] = {'id': 'imp', 'owner': 'alice', 'name': 'Imp', 'entry': [], 'comment': ''}
+        self.call('imports', {
+            'playlist_id': 'imp',
+            'request_id': 'wish-flow',
+            'tracks': [{'provider': 'QQ', 'id': 'WishMid', 'title': 'Fresh Wish', 'artists': ['Wish Artist'], 'duration': 200}],
+        })
+        self.call('refresh', {})
+        self.until(lambda: self.call('wishes')['wishes'][0]['state'] == 'completed')
+        self.call('daily?device=phone')
+        daily = self.until(lambda: (d := self.call('daily?device=phone')) and d.get('playlist_id') and d)
+        song_ids = [s['id'] for s in daily['songs']]
+        self.assertIn('wish-song', song_ids)
 
 if __name__ == '__main__': unittest.main()

@@ -1,5 +1,6 @@
 package com.eddyizm.tempus.ui.browse
 
+import android.content.ClipboardManager
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -15,6 +16,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
@@ -37,6 +39,7 @@ import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.fragment.app.Fragment
@@ -66,8 +69,31 @@ class ExternalPlaylistFragment : Fragment() {
                                 Text("导入外部歌单", fontSize = 25.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 9.dp))
                             } }
                             item { Text("网易云音乐 · QQ 音乐\n支持榜单、精选歌单和可分享的个人歌单。歌单保存在服务器，之后由你手动更新。", color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                            item { OutlinedTextField(value = state.link, onValueChange = model::setLink, enabled = !state.busy,
-                                label = { Text("粘贴歌单分享链接") }, modifier = Modifier.fillMaxWidth(), maxLines = 4) }
+                            item {
+                                OutlinedTextField(
+                                    value = state.link,
+                                    onValueChange = model::setLink,
+                                    enabled = !state.busy,
+                                    label = { Text("粘贴歌单分享链接") },
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                                    trailingIcon = {
+                                        if (state.link.isNotEmpty()) {
+                                            TextButton(onClick = { model.setLink("") }, enabled = !state.busy) { Text("清空") }
+                                        } else {
+                                            TextButton(
+                                                onClick = {
+                                                    val clip = requireContext().getSystemService(ClipboardManager::class.java)
+                                                        ?.primaryClip?.getItemAt(0)?.coerceToText(requireContext())?.toString()
+                                                    if (!clip.isNullOrBlank()) model.setLink(clip)
+                                                },
+                                                enabled = !state.busy,
+                                            ) { Text("粘贴") }
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    maxLines = 4,
+                                )
+                            }
                             item { Button(onClick = { model.load() }, enabled = !state.busy && state.link.isNotBlank(), modifier = Modifier.fillMaxWidth()) { Text("读取歌单并匹配曲库") } }
                             if (state.busy) item {
                                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -89,11 +115,12 @@ class ExternalPlaylistFragment : Fragment() {
                                 }
                                 itemsIndexed(state.rows, key = { index, row -> "$index:${row.id}" }) { index, row ->
                                     val chosen = state.choices[index] ?: row.matches.singleOrNull()
-                                    Column(Modifier.fillMaxWidth().clickable(enabled = row.alternatives.isNotEmpty()) { choosing = index }.padding(vertical = 8.dp)) {
+                                    val selectable = row.matches.size > 1 || row.alternatives.isNotEmpty() || index in state.choices
+                                    Column(Modifier.fillMaxWidth().clickable(enabled = selectable) { choosing = index }.padding(vertical = 8.dp)) {
                                         Text("${index + 1}. ${row.title}", fontWeight = FontWeight.Medium)
                                         Text(row.artist, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                         Text(when {
-                                            chosen != null -> "已匹配 · ${chosen.title}"
+                                            chosen != null -> "已匹配 · ${chosen.title}" + if (selectable) "（点击切换）" else ""
                                             row.matches.size > 1 -> "有多个版本，点击确认"
                                             row.alternatives.isNotEmpty() -> "未找到准确版本 · 点击核对候选或在客户端下载"
                                             else -> "待客户端下载并入库"
@@ -114,13 +141,28 @@ class ExternalPlaylistFragment : Fragment() {
                     }
                     choosing?.let { index ->
                         val row = state.rows.getOrNull(index)
-                        if (row != null) AlertDialog(onDismissRequest = { choosing = null }, title = { Text("确认歌曲版本") },
-                            text = { LazyColumn(Modifier.heightIn(max = 380.dp)) {
-                                itemsIndexed(row.alternatives) { _, song -> Text(
-                                    "${song.title.orEmpty()}\n${song.artist.orEmpty()} · ${song.album.orEmpty()}",
-                                    modifier = Modifier.fillMaxWidth().clickable { model.choose(index, song); choosing = null }.padding(vertical = 12.dp),
-                                ) }
-                            } }, confirmButton = { TextButton(onClick = { choosing = null }) { Text("返回") } })
+                        if (row != null) {
+                            val candidates = if (row.matches.size > 1) row.matches else row.alternatives
+                            AlertDialog(
+                                onDismissRequest = { choosing = null },
+                                title = { Text("确认歌曲版本") },
+                                text = {
+                                    LazyColumn(Modifier.heightIn(max = 380.dp)) {
+                                        itemsIndexed(candidates) { _, song ->
+                                            val dur = song.duration?.takeIf { it > 0 }?.let { " · %d:%02d".format(it / 60, it % 60) }.orEmpty()
+                                            Text(
+                                                "${song.title.orEmpty()}\n${song.artist.orEmpty()} · ${song.album.orEmpty()}$dur",
+                                                modifier = Modifier.fillMaxWidth().clickable { model.choose(index, song); choosing = null }.padding(vertical = 12.dp),
+                                            )
+                                        }
+                                    }
+                                },
+                                dismissButton = if (index in state.choices) ({
+                                    TextButton(onClick = { model.clearChoice(index); choosing = null }) { Text("清除选择（记为缺失）") }
+                                }) else null,
+                                confirmButton = { TextButton(onClick = { choosing = null }) { Text("返回") } },
+                            )
+                        }
                     }
                 }
             }

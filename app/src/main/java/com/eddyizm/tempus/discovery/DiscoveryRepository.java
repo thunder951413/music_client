@@ -56,9 +56,18 @@ public final class DiscoveryRepository {
                 ?body.getSubsonicResponse().getSongsByGenre().getSongs():Collections.emptyList();
     }
     public List<Child> search(String title) throws IOException {
-        var body=execute(App.getSubsonicClientInstance(false).getSearchingClient().search3(title,40,0,0,0,0,0));
+        var body=execute(App.getSubsonicClientInstance(false).getSearchingClient().search3(title,100,0,0,0,0,0));
         return body.getSubsonicResponse().getSearchResult3()!=null && body.getSubsonicResponse().getSearchResult3().getSongs()!=null
                 ?body.getSubsonicResponse().getSearchResult3().getSongs():Collections.emptyList();
+    }
+    public List<Child> searchTrack(ChartTrack track) throws IOException {
+        Map<String, Child> merged = new LinkedHashMap<>();
+        for (String query : MusicDiscoveryRules.searchTitles(track)) {
+            for (Child song : search(query)) {
+                if (song != null && song.getId() != null) merged.putIfAbsent(song.getId(), song);
+            }
+        }
+        return new ArrayList<>(merged.values());
     }
     public ChartParser.Result chart(ChartSource source,boolean refresh) throws Exception {
         File dir=new File(App.getContext().getFilesDir(),"music_charts");

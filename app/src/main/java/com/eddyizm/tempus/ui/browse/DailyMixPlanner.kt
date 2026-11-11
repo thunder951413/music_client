@@ -11,7 +11,14 @@ import java.util.UUID
 import kotlin.random.Random
 
 /** A chart song the library lacks, by an artist the listener already has; downloaded by hand. */
-@Keep data class DailyWish(val provider: String, val id: String, val title: String, val artists: List<String>, val duration: Int?)
+@Keep data class DailyWish(
+    val provider: String,
+    val id: String,
+    val title: String,
+    val artists: List<String>,
+    val duration: Int?,
+    val original_title: String? = null,
+)
 
 /** Stored in the comment of the day's server playlist, so the Mac helper sees it; [device] owns it. */
 @Keep data class DailyBinding(
@@ -59,26 +66,37 @@ object DailyMixPlanner {
      */
     fun assemble(
         seeds: List<Child>, related: List<List<Child>>, unheard: List<Child>, filler: List<Child>,
-        justHeard: Set<String>, random: Random,
+        justHeard: Set<String>, random: Random, recentMix: Set<String> = emptySet(),
     ): List<Child> {
         val mix = LinkedHashMap<String, Child>()
         val perArtist = HashMap<String, Int>()
-        fun add(song: Child, limit: Int = SIZE): Boolean {
-            if (mix.size >= limit || song.isDir || song.id in mix || song.id in justHeard) return false
-            val artist = MusicDiscoveryRules.normalize(song.artist)
-            if ((perArtist[artist] ?: 0) >= PER_ARTIST) return false
-            perArtist[artist] = (perArtist[artist] ?: 0) + 1
+        fun add(song: Child, limit: Int = SIZE, allowRecentMix: Boolean = false): Boolean {
+            if (mix.size >= limit || song.isDir || song.isVideo || song.id in mix || song.id in justHeard) return false
+            if (!allowRecentMix && song.id in recentMix) return false
+            val artists = MusicDiscoveryRules.artistNames(song.artist).ifEmpty { setOf("") }
+            if (artists.any { (perArtist[it] ?: 0) >= PER_ARTIST }) return false
+            artists.forEach { perArtist[it] = (perArtist[it] ?: 0) + 1 }
             mix[song.id] = song
             return true
         }
-        seeds.forEach { add(it) }
+        seeds.firstOrNull { it.id !in justHeard && it.id !in recentMix }?.let { add(it) }
         val queues = related.map { ArrayDeque(it) }
         val target = SIZE - UNHEARD
         while (mix.size < target && queues.any { it.isNotEmpty() }) {
             queues.forEach { queue -> while (queue.isNotEmpty()) if (add(queue.removeFirst(), target)) break }
         }
+        seeds.forEach { add(it, target) }
         unheard.forEach { add(it) }
+        while (mix.size < SIZE && queues.any { it.isNotEmpty() }) {
+            queues.forEach { queue -> while (queue.isNotEmpty()) if (add(queue.removeFirst(), SIZE)) break }
+        }
         filler.shuffled(random).forEach { add(it) }
+        if (mix.size < SIZE) {
+            related.flatten().forEach { add(it, SIZE, allowRecentMix = true) }
+            seeds.forEach { add(it, SIZE, allowRecentMix = true) }
+            unheard.forEach { add(it, SIZE, allowRecentMix = true) }
+            filler.shuffled(random).forEach { add(it, SIZE, allowRecentMix = true) }
+        }
         return mix.values.shuffled(random)
     }
 
@@ -93,7 +111,8 @@ object DailyMixPlanner {
         val seen = HashSet(pending)
         val rows = charts.flatMap { (source, tracks) -> tracks.map { source.provider to it } }
             .filter { (_, track) -> !track.id.isNullOrBlank() && !track.title.isNullOrBlank() && seen.add(AllChartsMatcher.songKey(track)) }
-        fun artists(track: ChartTrack) = (track.artists.ifEmpty { listOf(track.artist) }).map { MusicDiscoveryRules.normalize(it) }
+        fun artists(track: ChartTrack) = (track.artists.ifEmpty { listOf(track.artist) })
+            .flatMap { MusicDiscoveryRules.artistAliases(it) }
         val liked = rows.filter { (_, t) -> artists(t).any { it in favourite } }
         val known = rows.filter { (_, t) -> artists(t).any { it in library } }
         return (liked + known).distinctBy { AllChartsMatcher.songKey(it.second) }.take(limit)

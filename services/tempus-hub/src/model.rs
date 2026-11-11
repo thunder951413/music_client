@@ -39,6 +39,8 @@ pub struct Track {
     pub title: String,
     pub artists: Vec<String>,
     pub duration: Option<i64>,
+    #[serde(default)]
+    pub original_title: Option<String>,
 }
 
 // Keep version words and symbols significant; punctuation/width/case follow the Android rules.
@@ -52,17 +54,72 @@ pub fn normalize(text: &str) -> String {
 
 pub fn artist_names(text: &str) -> HashSet<String> {
     static SPLIT: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
-        regex::Regex::new(r"(?i)\s+(?:feat\.?|ft\.?)\s+|[/,;&、，]").unwrap()
+        regex::Regex::new(r"(?i)\s+(?:feat\.?|ft\.?)\s+|\s+[•·]\s+|[/,;&、，]").unwrap()
     });
     SPLIT
         .split(text)
         .chain(std::iter::once(text))
-        .map(normalize)
+        .flat_map(artist_aliases)
         .filter(|n| !n.is_empty())
         .collect()
 }
 
+fn artist_aliases(text: &str) -> HashSet<String> {
+    static ALIAS: std::sync::LazyLock<regex::Regex> =
+        std::sync::LazyLock::new(|| regex::Regex::new(r"^\s*(.+?)\s*\(([^()]+)\)\s*$").unwrap());
+    let full = text.nfkc().collect::<String>();
+    let mut names = HashSet::from([normalize(&full)]);
+    if let Some(captures) = ALIAS.captures(&full) {
+        names.insert(normalize(&captures[1]));
+        names.insert(normalize(&captures[2]));
+    }
+    names
+}
+
+fn title_names(title: &str, original: Option<&str>) -> HashSet<String> {
+    static PAREN: std::sync::LazyLock<regex::Regex> =
+        std::sync::LazyLock::new(|| regex::Regex::new(r"\([^()]+\)").unwrap());
+    static VERSION: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+        regex::Regex::new(r"(?i)live|remix|mix|version|explicit|clean|acoustic|instrumental|\binst\b|remaster|edit|\bdj\b|版|伴奏|现场|翻唱|合唱|剪辑|加速|钢琴").unwrap()
+    });
+    let full = title.nfkc().collect::<String>();
+    let mut names = HashSet::from([normalize(&full)]);
+    if let Some(original) = original {
+        let mut variants = vec![full.clone()];
+        for group in PAREN
+            .find_iter(&full)
+            .take(4)
+            .collect::<Vec<_>>()
+            .into_iter()
+            .rev()
+        {
+            if !VERSION.is_match(group.as_str()) {
+                let additions = variants
+                    .iter()
+                    .map(|v| format!("{}{}", &v[..group.start()], &v[group.end()..]))
+                    .collect::<Vec<_>>();
+                variants.extend(additions);
+            }
+        }
+        let original = normalize(original);
+        if variants.iter().any(|v| normalize(v) == original) {
+            names.insert(original);
+        }
+    }
+    names
+}
+
 impl Track {
+    pub fn search_titles(&self) -> Vec<&str> {
+        let mut titles = vec![self.title.as_str()];
+        if let Some(original) = self.original_title.as_deref()
+            && normalize(original) != normalize(&self.title)
+            && title_names(&self.title, Some(original)).contains(&normalize(original))
+        {
+            titles.push(original);
+        }
+        titles
+    }
     pub fn key(&self) -> String {
         // JSON avoids delimiter collisions. Cross-provider identity retains version and lead artist.
         serde_json::to_string(&(
@@ -92,15 +149,20 @@ impl Track {
                 .iter()
                 .all(|a| !normalize(a).is_empty() && a.len() <= 1000)
             && self.duration.is_none_or(|d| (0..=86400).contains(&d))
+            && self
+                .original_title
+                .as_ref()
+                .is_none_or(|s| !normalize(s).is_empty() && s.len() <= 2000)
     }
     pub fn matches(&self, song: &Song) -> bool {
         !song.is_dir
             && !song.is_video
-            && normalize(&self.title) == normalize(&song.title)
+            && title_names(&self.title, self.original_title.as_deref())
+                .contains(&normalize(&song.title))
             && self
                 .artists
                 .iter()
-                .any(|a| artist_names(&song.artist).contains(&normalize(a)))
+                .any(|a| !artist_aliases(a).is_disjoint(&artist_names(&song.artist)))
             && self
                 .duration
                 .zip(song.duration)
@@ -115,25 +177,56 @@ pub struct Profile {
     pub last: HashMap<String, i64>,
     pub heard: HashSet<String>,
     pub recent: HashSet<String>,
+    pub recent_mix: HashSet<String>,
 }
 
 pub fn seeds<'a>(pool: &'a [Song], p: &Profile) -> Vec<&'a Song> {
     let eligible: Vec<_> = pool
         .iter()
-        .filter(|s| p.skipped.get(&s.id).copied().unwrap_or(0) < 3)
+        .filter(|s| !s.is_dir && !s.is_video && p.skipped.get(&s.id).copied().unwrap_or(0) < 3)
         .collect();
-    let mut recent = eligible.clone();
-    recent.sort_by_key(|s| std::cmp::Reverse(p.last.get(&s.id).copied().unwrap_or(0)));
-    let mut frequent = eligible.clone();
-    frequent.sort_by_key(|s| std::cmp::Reverse(p.counts.get(&s.id).copied().unwrap_or(0)));
-    let mut forgotten = frequent.clone();
-    forgotten.retain(|s| p.counts.contains_key(&s.id) && !p.recent.contains(&s.id));
+    let mut recent: Vec<_> = eligible
+        .iter()
+        .copied()
+        .filter(|s| p.last.contains_key(&s.id))
+        .collect();
+    // Coarse 3-day and play-count tiers let daily pool shuffles rotate seeds naturally.
+    recent.sort_by_key(|s| {
+        std::cmp::Reverse(p.last.get(&s.id).copied().unwrap_or(0) / (3 * 86_400_000))
+    });
+    let mut frequent: Vec<_> = eligible
+        .iter()
+        .copied()
+        .filter(|s| p.counts.contains_key(&s.id))
+        .collect();
+    frequent.sort_by_key(|s| {
+        let c = p.counts.get(&s.id).copied().unwrap_or(0);
+        std::cmp::Reverse(match c {
+            0 => 0,
+            1..=2 => 1,
+            3..=5 => 2,
+            _ => 3,
+        })
+    });
+    let forgotten: Vec<_> = frequent
+        .iter()
+        .copied()
+        .filter(|s| !p.recent.contains(&s.id) && !p.recent_mix.contains(&s.id))
+        .collect();
     let mut picked = Vec::new();
     for list in [&recent, &frequent, &forgotten, &eligible] {
         if let Some(s) = list
             .iter()
             .find(|s| !picked.iter().any(|old: &&Song| old.id == s.id))
         {
+            picked.push(*s);
+        }
+    }
+    for s in frequent.iter().chain(eligible.iter()) {
+        if picked.len() >= 4 {
+            break;
+        }
+        if !picked.iter().any(|old: &&Song| old.id == s.id) {
             picked.push(*s);
         }
     }
@@ -144,11 +237,12 @@ pub fn assemble(seeds: &[Song], related: &[Vec<Song>], pool: &[Song], p: &Profil
     let mut out = Vec::new();
     let mut seen = HashSet::new();
     let mut artists: HashMap<String, usize> = HashMap::new();
-    let mut add = |song: &Song, cap: usize, out: &mut Vec<Song>| {
+    let mut add = |song: &Song, cap: usize, allow_recent_mix: bool, out: &mut Vec<Song>| {
         if out.len() >= cap
             || song.is_dir
             || song.is_video
             || p.recent.contains(&song.id)
+            || (!allow_recent_mix && p.recent_mix.contains(&song.id))
             || p.skipped.get(&song.id).copied().unwrap_or(0) >= 3
             || seen.contains(&song.id)
         {
@@ -172,21 +266,47 @@ pub fn assemble(seeds: &[Song], related: &[Vec<Song>], pool: &[Song], p: &Profil
         seen.insert(song.id.clone());
         out.push(song.clone());
     };
-    for s in seeds {
-        add(s, 25, &mut out);
+    for i in 0..related.iter().map(Vec::len).max().unwrap_or(0) {
+        for list in related {
+            if let Some(s) = list.get(i) {
+                add(s, 24, false, &mut out);
+            }
+        }
+    }
+    if let Some(anchor) = seeds
+        .iter()
+        .find(|s| !p.recent.contains(&s.id) && !p.recent_mix.contains(&s.id))
+    {
+        add(anchor, 25, false, &mut out);
+    }
+    for s in pool.iter().filter(|s| !p.heard.contains(&s.id)) {
+        add(s, 30, false, &mut out);
     }
     for i in 0..related.iter().map(Vec::len).max().unwrap_or(0) {
         for list in related {
             if let Some(s) = list.get(i) {
-                add(s, 25, &mut out);
+                add(s, 30, false, &mut out);
             }
         }
     }
-    for s in pool.iter().filter(|s| !p.heard.contains(&s.id)) {
-        add(s, 30, &mut out);
-    }
     for s in pool {
-        add(s, 30, &mut out);
+        add(s, 30, false, &mut out);
+    }
+    if out.len() < 30 {
+        for list in related {
+            for s in list {
+                add(s, 25, true, &mut out);
+            }
+        }
+        for s in seeds {
+            add(s, 25, true, &mut out);
+        }
+        for s in pool.iter().filter(|s| !p.heard.contains(&s.id)) {
+            add(s, 30, true, &mut out);
+        }
+        for s in pool {
+            add(s, 30, true, &mut out);
+        }
     }
     out
 }
@@ -232,8 +352,11 @@ mod tests {
             title: "歌（Live）".into(),
             artists: vec!["歌手".into()],
             duration: Some(200),
+            original_title: None,
         };
         assert!(t.matches(&song(1, "歌手")));
+        assert!(t.matches(&song(1, "歌手 • 嘉宾")));
+        assert!(t.matches(&song(1, "歌手 · 嘉宾")));
         let mut s = song(1, "歌手");
         s.title = "歌".into();
         assert!(!t.matches(&s));
@@ -243,5 +366,28 @@ mod tests {
         s.duration = Some(200);
         s.artist = "翻唱者".into();
         assert!(!t.matches(&s));
+    }
+
+    #[test]
+    fn provider_original_names_keep_version_words() {
+        let mut t = Track {
+            provider: "QQ".into(),
+            id: "Mid".into(),
+            title: "Night Crusing(夜间巡航) (Inst.)".into(),
+            artists: vec!["歌手 (Artist)".into()],
+            duration: Some(200),
+            original_title: Some("Night Crusing (Inst.)".into()),
+        };
+        let mut s = song(1, "Artist • Guest");
+        s.title = "Night Crusing (Inst.)".into();
+        assert!(t.matches(&s));
+        s.title = "Night Crusing".into();
+        assert!(!t.matches(&s));
+        for version in ["Live", "Remix", "Explicit", "伴奏", "钢琴版"] {
+            t.title = format!("Song ({version})");
+            t.original_title = Some("Song".into());
+            s.title = "Song".into();
+            assert!(!t.matches(&s));
+        }
     }
 }
