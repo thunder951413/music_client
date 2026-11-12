@@ -34,6 +34,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.media3.common.Player
 import com.eddyizm.tempus.R
+import com.eddyizm.tempus.ui.theme.EditorialTokens
 
 @Composable
 fun PlayerQueueHeader(
@@ -104,14 +105,14 @@ fun PlayerQueueHeader(
             ) {
                 Text(
                     text = stringResource(R.string.player_queue_playing_next),
-                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold),
                     color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
                     text = subtitle,
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -126,7 +127,7 @@ fun PlayerQueueHeader(
                 FilledTonalButton(
                     onClick = onClearUpcoming,
                     enabled = upcomingSongsCount > 0,
-                    shape = RoundedCornerShape(18.dp),
+                    shape = EditorialTokens.ShapePill,
                     contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
                     modifier = Modifier.height(36.dp)
                 ) {
@@ -227,7 +228,7 @@ fun PlayerQueueHeader(
                 leadingIcon = {
                     Icon(painterResource(R.drawable.ic_shuffle), contentDescription = null, modifier = Modifier.size(18.dp))
                 },
-                shape = RoundedCornerShape(18.dp)
+                shape = EditorialTokens.ShapePill
             )
             FilterChip(
                 selected = repeatMode != Player.REPEAT_MODE_OFF,
@@ -242,7 +243,7 @@ fun PlayerQueueHeader(
                         modifier = Modifier.size(18.dp)
                     )
                 },
-                shape = RoundedCornerShape(18.dp)
+                shape = EditorialTokens.ShapePill
             )
         }
     }

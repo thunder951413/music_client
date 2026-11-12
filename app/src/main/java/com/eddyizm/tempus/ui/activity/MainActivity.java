@@ -12,7 +12,6 @@ import android.graphics.drawable.Icon;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.net.Uri;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.Parcel;
 import android.text.TextUtils;
@@ -274,6 +273,7 @@ public class MainActivity extends BaseActivity {
                 new NavigationHelper(
                         findViewById(R.id.bottom_navigation),
                         findViewById(R.id.bottom_navigation_frame),
+                        findViewById(R.id.navigation_rail),
                         findViewById(R.id.drawer_layout),
                         findViewById(R.id.nav_view),
                         navHostFragment,
@@ -290,18 +290,6 @@ public class MainActivity extends BaseActivity {
         boolean isListenVisible = Preferences.isPodcastSectionVisible() || Preferences.isRadioSectionVisible();
         if (navigationController != null) {
             navigationController.setListenTabVisible(isListenVisible);
-        }
-        if (bind != null) {
-            android.view.MenuItem bottomItem = bind.bottomNavigation.getMenu().findItem(R.id.listenFragment);
-            if (bottomItem != null && bottomItem.isVisible() != isListenVisible) {
-                bottomItem.setVisible(isListenVisible);
-            }
-            if (bind.navView != null) {
-                android.view.MenuItem drawerItem = bind.navView.getMenu().findItem(R.id.listenFragment);
-                if (drawerItem != null && drawerItem.isVisible() != isListenVisible) {
-                    drawerItem.setVisible(isListenVisible);
-                }
-            }
         }
         if (!isListenVisible
                 && navController != null
@@ -461,30 +449,39 @@ public class MainActivity extends BaseActivity {
     }
 
     public void setBottomNavigationBarVisibility(boolean visibility) {
-        navigationController.setNavbarVisibility(visibility);
+        boolean effectiveVisibility = visibility && (isLandscape || !Preferences.getHideBottomNavbarOnPortrait());
+        navigationController.setNavbarVisibility(effectiveVisibility);
+        View rootView = findViewById(android.R.id.content);
+        if (rootView != null) {
+            ViewCompat.requestApplyInsets(rootView);
+        }
     }
 
     public void toggleBottomNavigationBarVisibilityOnOrientationChange() {
         float displayDensity = getResources().getDisplayMetrics().density;
-        // Ignore orientation change, bottom navbar always hidden
-        if (Preferences.getHideBottomNavbarOnPortrait()) {
-            navigationController.setNavbarVisibility(false);
+        if (isLandscape) {
+            // Landscape always exposes the 4-tab NavigationRailView so users never hit an AppBar-less dead-end.
             bottomSheetController.setPeekHeight(72, displayDensity);
-            navigationController.setSystemBarsVisibility(this, !isLandscape);
+            navigationController.setNavbarVisibility(true);
+            navigationController.setSystemBarsVisibility(this, false);
+            View rootView = findViewById(android.R.id.content);
+            if (rootView != null) {
+                ViewCompat.requestApplyInsets(rootView);
+            }
             return;
         }
 
-        if (!isLandscape) {
-            // Show app navbar + show system bars
-            bottomSheetController.setPeekHeight(152, displayDensity);
-            navigationController.setNavbarVisibility(true);
-            navigationController.setSystemBarsVisibility(this, true);
-        } else {
-            // Hide app navbar + hide system bars
-            bottomSheetController.setPeekHeight(72, displayDensity);
+        if (Preferences.getHideBottomNavbarOnPortrait()) {
             navigationController.setNavbarVisibility(false);
-            navigationController.setSystemBarsVisibility(this, false);
+            bottomSheetController.setPeekHeight(72, displayDensity);
+            navigationController.setSystemBarsVisibility(this, true);
+            return;
         }
+
+        // Portrait: show app bottom navbar + show system bars
+        bottomSheetController.setPeekHeight(152, displayDensity);
+        navigationController.setNavbarVisibility(true);
+        navigationController.setSystemBarsVisibility(this, true);
     }
 
     public void setNavigationDrawerLock(boolean locked) {
@@ -940,11 +937,18 @@ public class MainActivity extends BaseActivity {
             Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
             Insets displayCutout = insets.getInsets(WindowInsetsCompat.Type.displayCutout());
             int topPadding = Math.max(systemBars.top, displayCutout.top);
+            int leftInset = Math.max(systemBars.left, displayCutout.left);
+            int rightInset = Math.max(systemBars.right, displayCutout.right);
+            boolean railVisible = bind.navigationRail != null
+                    && bind.bottomNavigationFrame.getVisibility() == View.VISIBLE;
+            if (bind.navigationRail != null) {
+                bind.bottomNavigationFrame.setPadding(leftInset, topPadding, 0, systemBars.bottom);
+            }
             // Inset browsing content, not the activity: the player background fills the window.
             bind.navHostFragment.setPadding(
-                    Math.max(systemBars.left, displayCutout.left),
+                    railVisible ? 0 : leftInset,
                     topPadding,
-                    Math.max(systemBars.right, displayCutout.right),
+                    rightInset,
                     0
             );
             bind.offlineModeTextView.setTranslationY(topPadding);
@@ -973,22 +977,20 @@ public class MainActivity extends BaseActivity {
         }
 
         new Thread(() -> {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N_MR1) {
-                ShortcutManager shortcutManager = getSystemService(ShortcutManager.class);
+            ShortcutManager shortcutManager = getSystemService(ShortcutManager.class);
 
-                Intent intent = new Intent(this, LoginActivity.class);
-                intent.setAction(Intent.ACTION_VIEW);
+            Intent intent = new Intent(this, LoginActivity.class);
+            intent.setAction(Intent.ACTION_VIEW);
 
-                ShortcutInfo shortcut = new ShortcutInfo.Builder(this, "login_activity_shortcut")
-                        .setShortLabel(getString(R.string.la_shortcut_label))
-                        .setLongLabel(getString(R.string.la_shortcut_label))
-                        .setIcon(Icon.createWithResource(this, R.mipmap.ic_launcher))
-                        .setIntents(new Intent[]{intent})
-                        .build();
+            ShortcutInfo shortcut = new ShortcutInfo.Builder(this, "login_activity_shortcut")
+                    .setShortLabel(getString(R.string.la_shortcut_label))
+                    .setLongLabel(getString(R.string.la_shortcut_label))
+                    .setIcon(Icon.createWithResource(this, R.mipmap.ic_launcher))
+                    .setIntents(new Intent[]{intent})
+                    .build();
 
-                if (shortcutManager != null) {
-                    shortcutManager.setDynamicShortcuts(Collections.singletonList(shortcut));
-                }
+            if (shortcutManager != null) {
+                shortcutManager.setDynamicShortcuts(Collections.singletonList(shortcut));
             }
         }).start();
     }

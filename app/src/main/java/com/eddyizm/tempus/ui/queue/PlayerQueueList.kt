@@ -35,6 +35,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.eddyizm.tempus.R
 import com.eddyizm.tempus.subsonic.models.Child
+import com.eddyizm.tempus.ui.theme.EditorialTokens
 import com.eddyizm.tempus.util.Preferences
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.ReorderableLazyListState
@@ -74,9 +75,9 @@ fun PlayerQueueList(
 
     val cornerRadius = remember {
         if (Preferences.isCornerRoundingEnabled()) {
-            Preferences.getRoundedCornerSize().dp
+            EditorialTokens.snapCoverRadius(Preferences.getRoundedCornerSize())
         } else {
-            8.dp
+            EditorialTokens.RadiusListCover
         }
     }
     val showRating = remember { Preferences.showItemRating() }

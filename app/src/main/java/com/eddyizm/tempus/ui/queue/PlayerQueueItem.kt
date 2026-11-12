@@ -54,6 +54,7 @@ import com.bumptech.glide.signature.ObjectKey
 import com.eddyizm.tempus.R
 import com.eddyizm.tempus.glide.CustomGlideRequest
 import com.eddyizm.tempus.subsonic.models.Child
+import com.eddyizm.tempus.ui.theme.EditorialTokens
 import com.eddyizm.tempus.util.DownloadUtil
 import com.eddyizm.tempus.util.ExternalAudioReader
 import com.eddyizm.tempus.util.FavoriteRegistry
@@ -162,7 +163,7 @@ fun PlayerQueueItem(
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .clip(RoundedCornerShape(12.dp))
+                        .clip(EditorialTokens.ShapeCard)
                         .background(MaterialTheme.colorScheme.errorContainer)
                         .padding(horizontal = 20.dp),
                     contentAlignment = Alignment.CenterEnd
@@ -185,10 +186,10 @@ fun PlayerQueueItem(
             Surface(
                 modifier = modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
+                    .clip(EditorialTokens.ShapeCard)
                     .clickable { onClick(index, item.song) },
                 color = itemBackground,
-                shape = RoundedCornerShape(12.dp),
+                shape = EditorialTokens.ShapeCard,
                 tonalElevation = if (isDragging) 8.dp else 0.dp
             ) {
                 Row(
@@ -318,7 +319,7 @@ private fun QueueArtwork(
     modifier: Modifier = Modifier,
     artworkUri: Uri? = null,
     size: Int = 160,
-    cornerRadius: Dp = 8.dp,
+    cornerRadius: Dp = EditorialTokens.RadiusListCover,
     contentDescription: String? = null,
     @DrawableRes placeholderRes: Int = R.drawable.ic_placeholder_song,
     overlayContent: (@Composable () -> Unit)? = null

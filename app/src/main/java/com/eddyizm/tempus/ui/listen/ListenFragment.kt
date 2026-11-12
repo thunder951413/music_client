@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -36,19 +35,25 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentContainerView
+import androidx.lifecycle.Lifecycle
 import androidx.media3.common.util.UnstableApi
 import com.eddyizm.tempus.App
 import com.eddyizm.tempus.R
+import com.eddyizm.tempus.interfaces.PodcastCallback
+import com.eddyizm.tempus.interfaces.RadioCallback
 import com.eddyizm.tempus.ui.activity.MainActivity
 import com.eddyizm.tempus.ui.dialog.PodcastChannelEditorDialog
 import com.eddyizm.tempus.ui.dialog.RadioEditorDialog
 import com.eddyizm.tempus.ui.fragment.HomeTabPodcastFragment
 import com.eddyizm.tempus.ui.fragment.HomeTabRadioFragment
-import com.eddyizm.tempus.ui.queue.rememberAppColorScheme
+import com.eddyizm.tempus.ui.theme.EditorialPageTitle
+import com.eddyizm.tempus.ui.theme.EditorialTheme
+import com.eddyizm.tempus.ui.theme.EditorialTokens
+import com.eddyizm.tempus.ui.theme.LocalEditorialPalette
 import com.eddyizm.tempus.util.Preferences
+import com.google.android.material.color.MaterialColors
 
 @OptIn(UnstableApi::class)
 class ListenFragment : Fragment() {
@@ -100,7 +105,7 @@ class ListenFragment : Fragment() {
                 ViewGroup.LayoutParams.MATCH_PARENT
             )
             setBackgroundColor(
-                com.google.android.material.color.MaterialColors.getColor(
+                MaterialColors.getColor(
                     this,
                     com.google.android.material.R.attr.colorSurface,
                     0xFF0E0D0C.toInt()
@@ -115,15 +120,14 @@ class ListenFragment : Fragment() {
             )
             setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
             setContent {
-                val colorScheme = rememberAppColorScheme()
-                MaterialTheme(colorScheme = colorScheme) {
+                EditorialTheme {
                     val effectiveTab = resolveEffectiveTab(selectedTab, showPodcast, showRadio)
                     ListenHeader(
                         selectedTab = effectiveTab,
                         showSegmentedControl = showPodcast && showRadio,
                         onSelectTab = { newTab ->
                             selectedTab = newTab
-                            applyActiveContainer()
+                            syncActiveChildLifecycle()
                         },
                         onQuickAdd = { openQuickAddDialog(effectiveTab) }
                     )
@@ -208,8 +212,7 @@ class ListenFragment : Fragment() {
         }
 
         selectedTab = resolveEffectiveTab(selectedTab, podcastVisible, radioVisible)
-        ensureChildFragments(podcastVisible, radioVisible)
-        applyActiveContainer()
+        syncActiveChildLifecycle()
     }
 
     private fun resolveEffectiveTab(preferred: Int, podcastVisible: Boolean, radioVisible: Boolean): Int {
@@ -220,42 +223,87 @@ class ListenFragment : Fragment() {
         }
     }
 
-    private fun ensureChildFragments(podcastVisible: Boolean, radioVisible: Boolean) {
+    private fun syncActiveChildLifecycle() {
+        val effectiveTab = resolveEffectiveTab(selectedTab, showPodcast, showRadio)
+        val podcastActive = showPodcast && effectiveTab == 0
+        val radioActive = showRadio && effectiveTab == 1
+
+        podcastContainer?.visibility = if (podcastActive) View.VISIBLE else View.GONE
+        radioContainer?.visibility = if (radioActive) View.VISIBLE else View.GONE
+
         if (childFragmentManager.isStateSaved) return
+
         val tx = childFragmentManager.beginTransaction().setReorderingAllowed(true)
         var changed = false
 
-        if (podcastVisible && childFragmentManager.findFragmentByTag(TAG_PODCAST) == null) {
-            tx.replace(R.id.listen_podcast_container, HomeTabPodcastFragment(), TAG_PODCAST)
+        var podcastFrag = childFragmentManager.findFragmentByTag(TAG_PODCAST)
+        if (podcastActive && podcastFrag == null) {
+            podcastFrag = HomeTabPodcastFragment()
+            tx.add(R.id.listen_podcast_container, podcastFrag, TAG_PODCAST)
             changed = true
         }
-        if (radioVisible && childFragmentManager.findFragmentByTag(TAG_RADIO) == null) {
-            tx.replace(R.id.listen_radio_container, HomeTabRadioFragment(), TAG_RADIO)
+        if (podcastFrag != null) {
+            if (podcastActive) {
+                if (podcastFrag.isHidden) {
+                    tx.show(podcastFrag)
+                    changed = true
+                }
+                if (podcastFrag.lifecycle.currentState != Lifecycle.State.RESUMED || changed) {
+                    tx.setMaxLifecycle(podcastFrag, Lifecycle.State.RESUMED)
+                    changed = true
+                }
+            } else {
+                if (!podcastFrag.isHidden) {
+                    tx.hide(podcastFrag)
+                    changed = true
+                }
+                tx.setMaxLifecycle(podcastFrag, Lifecycle.State.STARTED)
+                changed = true
+            }
+        }
+
+        var radioFrag = childFragmentManager.findFragmentByTag(TAG_RADIO)
+        if (radioActive && radioFrag == null) {
+            radioFrag = HomeTabRadioFragment()
+            tx.add(R.id.listen_radio_container, radioFrag, TAG_RADIO)
             changed = true
+        }
+        if (radioFrag != null) {
+            if (radioActive) {
+                if (radioFrag.isHidden) {
+                    tx.show(radioFrag)
+                    changed = true
+                }
+                if (radioFrag.lifecycle.currentState != Lifecycle.State.RESUMED || changed) {
+                    tx.setMaxLifecycle(radioFrag, Lifecycle.State.RESUMED)
+                    changed = true
+                }
+            } else {
+                if (!radioFrag.isHidden) {
+                    tx.hide(radioFrag)
+                    changed = true
+                }
+                tx.setMaxLifecycle(radioFrag, Lifecycle.State.STARTED)
+                changed = true
+            }
         }
 
         if (changed) {
-            tx.commitNowAllowingStateLoss()
+            tx.commitNow()
         }
-    }
-
-    private fun applyActiveContainer() {
-        val effectiveTab = resolveEffectiveTab(selectedTab, showPodcast, showRadio)
-        podcastContainer?.visibility = if (showPodcast && effectiveTab == 0) View.VISIBLE else View.GONE
-        radioContainer?.visibility = if (showRadio && effectiveTab == 1) View.VISIBLE else View.GONE
     }
 
     private fun openQuickAddDialog(effectiveTab: Int) {
         val hostActivity = activity ?: return
         if (effectiveTab == 0) {
             val podcastChild = childFragmentManager.findFragmentByTag(TAG_PODCAST) as? HomeTabPodcastFragment
-            PodcastChannelEditorDialog(podcastChild ?: object : com.eddyizm.tempus.interfaces.PodcastCallback {}).show(
+            PodcastChannelEditorDialog(podcastChild ?: object : PodcastCallback {}).show(
                 hostActivity.supportFragmentManager,
                 null
             )
         } else {
             val radioChild = childFragmentManager.findFragmentByTag(TAG_RADIO) as? HomeTabRadioFragment
-            RadioEditorDialog(radioChild ?: object : com.eddyizm.tempus.interfaces.RadioCallback {}).show(
+            RadioEditorDialog(radioChild ?: object : RadioCallback {}).show(
                 hostActivity.supportFragmentManager,
                 null
             )
@@ -271,7 +319,8 @@ private fun ListenHeader(
     onQuickAdd: () -> Unit,
 ) {
     val scheme = MaterialTheme.colorScheme
-    val hairline = scheme.outlineVariant.copy(alpha = 0.65f)
+    val palette = LocalEditorialPalette.current
+    val hairline = palette.hairline
 
     Column(
         modifier = Modifier
@@ -285,22 +334,17 @@ private fun ListenHeader(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
+            EditorialPageTitle(
                 text = stringResource(R.string.editorial_listen_title),
-                fontSize = 24.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = scheme.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
             )
 
             Box(
                 modifier = Modifier
-                    .clip(CircleShape)
+                    .clip(EditorialTokens.ShapePill)
                     .background(scheme.surfaceContainerHighest)
-                    .border(1.dp, hairline, CircleShape)
+                    .border(1.dp, hairline, EditorialTokens.ShapePill)
                     .clickable(onClick = onQuickAdd)
-                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                    .padding(horizontal = 14.dp, vertical = 7.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
@@ -308,8 +352,7 @@ private fun ListenHeader(
                         if (selectedTab == 0) R.string.editorial_listen_add_podcast
                         else R.string.editorial_listen_add_radio
                     ),
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium,
+                    style = MaterialTheme.typography.labelMedium,
                     color = scheme.primary,
                     maxLines = 1
                 )
@@ -320,9 +363,9 @@ private fun ListenHeader(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(CircleShape)
+                    .clip(EditorialTokens.ShapePill)
                     .background(scheme.surfaceContainerHigh)
-                    .border(1.dp, hairline, CircleShape)
+                    .border(1.dp, hairline, EditorialTokens.ShapePill)
                     .padding(4.dp),
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -354,7 +397,7 @@ private fun ListenSegmentOption(
     val scheme = MaterialTheme.colorScheme
     val backgroundColor = if (selected) scheme.surfaceContainerHighest else Color.Transparent
     val borderModifier = if (selected) {
-        Modifier.border(1.dp, scheme.primary.copy(alpha = 0.42f), CircleShape)
+        Modifier.border(1.dp, scheme.primary.copy(alpha = 0.42f), EditorialTokens.ShapePill)
     } else {
         Modifier
     }
@@ -362,7 +405,7 @@ private fun ListenSegmentOption(
     Box(
         modifier = modifier
             .height(36.dp)
-            .clip(CircleShape)
+            .clip(EditorialTokens.ShapePill)
             .background(backgroundColor)
             .then(borderModifier)
             .clickable(onClick = onClick),
@@ -370,8 +413,9 @@ private fun ListenSegmentOption(
     ) {
         Text(
             text = label,
-            fontSize = 13.sp,
-            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+            style = MaterialTheme.typography.labelLarge.copy(
+                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium
+            ),
             color = if (selected) scheme.primary else scheme.onSurfaceVariant,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
