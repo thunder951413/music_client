@@ -66,11 +66,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.content.edit
 import com.bumptech.glide.integration.compose.ExperimentalGlideComposeApi
 import com.bumptech.glide.integration.compose.GlideImage
 import com.bumptech.glide.integration.compose.placeholder
-import com.eddyizm.tempus.App
 import com.eddyizm.tempus.R
 import com.eddyizm.tempus.discovery.ChartMatches
 import com.eddyizm.tempus.discovery.ChartSource
@@ -86,6 +84,7 @@ data class OrganizeProgressState(
     val phase: Int = 0,
     val done: Int = 0,
     val total: Int = 0,
+    val organizedCount: Int = 0,
 )
 
 /** Navigation & action callbacks owned by [DiscoverFragment]. */
@@ -105,8 +104,8 @@ interface DiscoverActions {
 
 /** 5 record-store language shelves (`华语 / 粤语 / 日语 / 韩语 / 欧美`). */
 enum class LanguageShelf(
-    @StringRes val labelRes: Int,
-    @StringRes val codeRes: Int,
+    @param:StringRes val labelRes: Int,
+    @param:StringRes val codeRes: Int,
     val spineIndex: Int,
 ) {
     MANDARIN(R.string.editorial_lang_mandarin, R.string.editorial_lang_code_mandarin, 0),
@@ -116,15 +115,13 @@ enum class LanguageShelf(
     WESTERN(R.string.editorial_lang_western, R.string.editorial_lang_code_western, 3),
 }
 
-private const val PREF_DISCOVER_PLAYABLE_ONLY = "discover_playable_only"
-
 private enum class SubScreenType {
     NONE,
     LANGUAGE,
     ARTIST_AZ,
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@kotlin.OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DiscoverScreen(
     state: DiscoverViewModel.State,
@@ -133,6 +130,8 @@ fun DiscoverScreen(
     onRetry: () -> Unit,
     organizedCount: Int = 0,
     organizeProgress: OrganizeProgressState = OrganizeProgressState(),
+    playableOnly: Boolean = true,
+    onTogglePlayableOnly: (Boolean) -> Unit = {},
     initialShelf: LanguageShelf? = null,
 ) {
     val colors = EditorialTheme.colors
@@ -140,10 +139,6 @@ fun DiscoverScreen(
         mutableStateOf(if (initialShelf != null) SubScreenType.LANGUAGE else SubScreenType.NONE)
     }
     var activeShelf by rememberSaveable { mutableStateOf(initialShelf ?: LanguageShelf.MANDARIN) }
-
-    var playableOnly by remember {
-        mutableStateOf(App.getInstance().preferences.getBoolean(PREF_DISCOVER_PLAYABLE_ONLY, true))
-    }
 
     // Hoist main scroll state so returning from Artist A–Z or Language Shelf preserves scroll position.
     val mainListState = rememberLazyListState()
@@ -210,6 +205,7 @@ fun DiscoverScreen(
                                     modifier = Modifier.fillMaxWidth(),
                                     verticalAlignment = Alignment.CenterVertically,
                                 ) {
+                                    EditorialDrawerButton(modifier = Modifier.padding(end = 6.dp))
                                     Column(Modifier.weight(1f)) {
                                         EditorialEyebrow(
                                             text = stringResource(R.string.editorial_discover_subtitle),
@@ -257,13 +253,7 @@ fun DiscoverScreen(
                         item(key = "external_charts_header") {
                             ExternalChartsHeader(
                                 playableOnly = playableOnly,
-                                onTogglePlayable = {
-                                    val next = !playableOnly
-                                    playableOnly = next
-                                    App.getInstance().preferences.edit {
-                                        putBoolean(PREF_DISCOVER_PLAYABLE_ONLY, next)
-                                    }
-                                },
+                                onTogglePlayable = { onTogglePlayableOnly(!playableOnly) },
                                 onExportAll = actions::exportAllMissing,
                                 modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 24.dp, bottom = 8.dp),
                             )
@@ -337,7 +327,7 @@ fun DiscoverScreen(
                                                 .clip(EditorialRadii.Pill)
                                                 .clickable(onClick = actions::openAllGenres)
                                                 .padding(horizontal = 8.dp, vertical = 4.dp),
-                                            fontSize = 12.5.sp,
+                                            fontSize = 13.sp,
                                             fontWeight = FontWeight.Medium,
                                             color = colors.primary,
                                         )
@@ -411,20 +401,21 @@ private fun SyncCenterBanner(
 ) {
     val colors = EditorialTheme.colors
     val importsCount = state.imports.size
-    val pendingListsCount = state.imports.count { !it.binding.complete || it.binding.missing.isNotEmpty() }
+    val incompleteListsCount = state.imports.count { !it.binding.complete }
 
     val nonNullSummaries = chartSummaries.values.filterNotNull()
     val checkedCharts = nonNullSummaries.size
     val chartsAvailable = nonNullSummaries.sumOf { it.available }
     val chartsTotal = nonNullSummaries.sumOf { it.total }
+    val chartsMissing = (chartsTotal - chartsAvailable).coerceAtLeast(0)
 
     val importsMatched = state.imports.sumOf { (it.binding.total - it.binding.missing.size).coerceAtLeast(0) }
     val importsMissing = state.imports.sumOf { it.binding.missing.size }
-    val importsAmbiguous = state.imports.count { !it.binding.complete } * 5
 
-    val barMatched = (state.dailySongsCount + importsMatched + chartsAvailable).coerceAtLeast(if (checkedCharts == 0 && importsCount == 0 && state.dailySongsCount == 0) 1 else 0)
-    val barPending = state.dailyWishesCount + importsAmbiguous
-    val barMissing = importsMissing + (chartsTotal - chartsAvailable).coerceAtLeast(0)
+    val barMatched = (state.dailySongsCount + importsMatched + chartsAvailable)
+        .coerceAtLeast(if (checkedCharts == 0 && importsCount == 0 && !state.dailyLoaded) 1 else 0)
+    val barPending = state.dailyWishesCount
+    val barMissing = importsMissing + chartsMissing
 
     Column(
         modifier = modifier
@@ -440,7 +431,13 @@ private fun SyncCenterBanner(
                 Modifier
                     .size(7.dp)
                     .clip(EditorialRadii.Pill)
-                    .background(if (barPending > 0 || barMissing > 0) colors.brass else colors.moss),
+                    .background(
+                        when {
+                            incompleteListsCount > 0 -> colors.terracotta
+                            barPending > 0 || barMissing > 0 -> colors.brass
+                            else -> colors.moss
+                        },
+                    ),
             )
             Text(
                 text = stringResource(R.string.editorial_sync_center_title),
@@ -448,7 +445,7 @@ private fun SyncCenterBanner(
                     .padding(start = 8.dp)
                     .weight(1f),
                 fontSize = 15.sp,
-                fontWeight = FontWeight.Bold,
+                fontWeight = FontWeight.SemiBold,
                 color = colors.textPrimary,
             )
             Text(
@@ -457,7 +454,7 @@ private fun SyncCenterBanner(
                     .clip(EditorialRadii.Pill)
                     .clickable(onClick = onOpenImport)
                     .padding(horizontal = 6.dp, vertical = 2.dp),
-                fontSize = 12.sp,
+                fontSize = 13.sp,
                 fontWeight = FontWeight.Medium,
                 color = colors.brass,
             )
@@ -473,7 +470,11 @@ private fun SyncCenterBanner(
                 label = stringResource(R.string.editorial_sync_col_wishes),
                 value = state.dailyWishesCount.toString(),
                 valueColor = if (state.dailyWishesCount > 0) colors.brass else colors.textPrimary,
-                subLabel = stringResource(R.string.editorial_sync_sub_ready, state.dailySongsCount),
+                subLabel = if (state.dailyLoaded || state.dailySongsCount > 0) {
+                    stringResource(R.string.editorial_sync_sub_ready, state.dailySongsCount)
+                } else {
+                    stringResource(R.string.editorial_sync_sub_wishes_idle)
+                },
                 modifier = Modifier.weight(1f),
             )
             Box(
@@ -484,16 +485,18 @@ private fun SyncCenterBanner(
             )
             SyncMetricColumn(
                 label = stringResource(R.string.editorial_sync_col_playlists),
-                value = importsCount.toString(),
+                value = importsMissing.toString(),
                 valueColor = when {
-                    pendingListsCount > 0 -> colors.brass
+                    incompleteListsCount > 0 -> colors.terracotta
+                    importsMissing > 0 -> colors.brass
                     importsCount > 0 -> colors.moss
                     else -> colors.textPrimary
                 },
                 subLabel = when {
                     importsCount == 0 -> stringResource(R.string.editorial_sync_sub_no_lists)
-                    pendingListsCount > 0 -> stringResource(R.string.editorial_sync_sub_pending_lists, pendingListsCount)
-                    else -> stringResource(R.string.editorial_sync_sub_synced_lists)
+                    incompleteListsCount > 0 -> stringResource(R.string.editorial_sync_sub_pending_lists, importsCount, incompleteListsCount)
+                    importsMissing > 0 -> stringResource(R.string.editorial_sync_sub_backfill_lists, importsCount)
+                    else -> stringResource(R.string.editorial_sync_sub_synced_lists, importsCount)
                 },
                 modifier = Modifier.weight(1f),
             )
@@ -503,15 +506,14 @@ private fun SyncCenterBanner(
                     .height(34.dp)
                     .background(colors.hairline),
             )
-            val chartValue = if (chartsTotal > 0) {
-                "${(chartsAvailable * 100 / chartsTotal)}%"
-            } else {
-                "8"
-            }
             SyncMetricColumn(
                 label = stringResource(R.string.editorial_sync_col_charts),
-                value = chartValue,
-                valueColor = if (chartsTotal > 0 && chartsAvailable * 100 / chartsTotal >= 65) colors.moss else colors.textPrimary,
+                value = if (checkedCharts > 0) chartsMissing.toString() else "—",
+                valueColor = when {
+                    checkedCharts == 0 -> colors.textSecondary
+                    chartsMissing == 0 -> colors.moss
+                    else -> colors.terracotta
+                },
                 subLabel = if (checkedCharts > 0) {
                     stringResource(R.string.editorial_sync_sub_charts_matched, checkedCharts)
                 } else {
@@ -545,24 +547,24 @@ private fun SyncMetricColumn(
     ) {
         Text(
             text = value,
-            fontSize = 21.sp,
-            fontWeight = FontWeight.Bold,
+            fontSize = 20.sp,
+            fontWeight = FontWeight.SemiBold,
             color = valueColor,
             style = LocalTextStyle.current.tnum(),
         )
         Text(
             text = label,
             modifier = Modifier.padding(top = 2.dp),
-            fontSize = 12.sp,
-            fontWeight = FontWeight.SemiBold,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Medium,
             color = colors.textPrimary,
             maxLines = 1,
         )
         Text(
             text = subLabel,
             modifier = Modifier.padding(top = 1.dp),
-            fontSize = 10.5.sp,
-            color = colors.textTertiary,
+            fontSize = 11.sp,
+            color = colors.textSecondary,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             style = LocalTextStyle.current.tnum(),
@@ -604,14 +606,14 @@ private fun ExternalPlaylistImportCard(
                 Text(
                     text = stringResource(R.string.editorial_import_card_title),
                     fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
+                    fontWeight = FontWeight.SemiBold,
                     color = colors.textPrimary,
                 )
                 Text(
                     text = stringResource(R.string.editorial_import_card_subtitle),
                     modifier = Modifier.padding(top = 2.dp),
-                    fontSize = 12.sp,
-                    lineHeight = 16.sp,
+                    fontSize = 13.sp,
+                    lineHeight = 17.sp,
                     color = colors.textSecondary,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
@@ -627,7 +629,7 @@ private fun ExternalPlaylistImportCard(
                 .height(40.dp)
                 .pressable(onClick = onPasteNew)
                 .clip(EditorialRadii.Pill)
-                .background(colors.brass),
+                .background(colors.primary),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center,
         ) {
@@ -640,8 +642,8 @@ private fun ExternalPlaylistImportCard(
             Text(
                 text = stringResource(R.string.editorial_import_paste_cta),
                 modifier = Modifier.padding(start = 8.dp),
-                fontSize = 13.5.sp,
-                fontWeight = FontWeight.Bold,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
                 color = colors.onPrimary,
             )
         }
@@ -663,7 +665,8 @@ private fun ExternalPlaylistImportCard(
                     else -> stringResource(R.string.editorial_import_badge_ready)
                 }
                 val badgeAccent = when {
-                    incomplete || missingCount > 0 -> colors.brass
+                    incomplete -> colors.terracotta
+                    missingCount > 0 -> colors.brass
                     else -> colors.moss
                 }
 
@@ -687,14 +690,14 @@ private fun ExternalPlaylistImportCard(
                                     .clip(EditorialRadii.Badge)
                                     .background(colors.surface3)
                                     .padding(horizontal = 5.dp, vertical = 1.dp),
-                                fontSize = 10.sp,
+                                fontSize = 11.sp,
                                 fontWeight = FontWeight.Medium,
                                 color = colors.textSecondary,
                             )
                             Text(
                                 text = entry.playlist.name.orEmpty(),
                                 modifier = Modifier.padding(start = 6.dp),
-                                fontSize = 14.sp,
+                                fontSize = 15.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 color = colors.textPrimary,
                                 maxLines = 1,
@@ -704,14 +707,14 @@ private fun ExternalPlaylistImportCard(
                         Text(
                             text = stringResource(R.string.editorial_import_item_progress, matchedCount, total),
                             modifier = Modifier.padding(top = 3.dp, bottom = 5.dp),
-                            fontSize = 11.5.sp,
+                            fontSize = 11.sp,
                             color = colors.textSecondary,
                             style = LocalTextStyle.current.tnum(),
                         )
                         ThreeSegmentBar(
                             matched = matchedCount,
-                            pending = if (incomplete) (missingCount.coerceAtLeast(1)) else 0,
-                            missing = if (incomplete) 0 else missingCount,
+                            pending = 0,
+                            missing = missingCount,
                             height = 4.dp,
                         )
                     }
@@ -742,8 +745,9 @@ private fun ExternalChartsHeader(
         Text(
             text = stringResource(R.string.discover_section_external_charts),
             modifier = Modifier.weight(1f),
-            fontSize = 18.sp,
-            fontWeight = FontWeight.Bold,
+            fontSize = 20.sp,
+            fontWeight = FontWeight.SemiBold,
+            letterSpacing = (-0.3).sp,
             color = colors.textPrimary,
         )
         // `仅看可播` toggle chip
@@ -771,7 +775,7 @@ private fun ExternalChartsHeader(
             )
             Text(
                 text = stringResource(R.string.editorial_charts_playable_only),
-                fontSize = 11.5.sp,
+                fontSize = 11.sp,
                 fontWeight = FontWeight.Medium,
                 color = if (playableOnly) colors.moss else colors.textSecondary,
             )
@@ -813,7 +817,7 @@ private fun ExternalChartNeutralCard(
 
     Column(
         modifier = modifier
-            .height(114.dp)
+            .height(118.dp)
             .pressable(onClick = onClick)
             .editorialCard(shape = EditorialRadii.Card, backgroundColor = colors.surface1)
             .padding(13.dp),
@@ -821,34 +825,19 @@ private fun ExternalChartNeutralCard(
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.Top,
+            verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            Text(
-                text = badgeLabel,
-                modifier = Modifier
-                    .clip(EditorialRadii.Badge)
-                    .background(colors.surface2)
-                    .border(1.dp, colors.hairline, EditorialRadii.Badge)
-                    .padding(horizontal = 6.dp, vertical = 2.dp),
-                fontSize = 10.5.sp,
-                fontWeight = FontWeight.Medium,
-                color = colors.textSecondary,
-            )
-
-            if (summary != null) {
-                MatchRateRing(
-                    matched = summary.available,
-                    total = summary.total,
-                    size = 34.dp,
-                )
-            } else {
-                // Subtle stacked mini record sleeve glyph (6dp radius)
-                Box(Modifier.size(32.dp), contentAlignment = Alignment.Center) {
+            // Stacked mini record sleeve + monochrome platform badge
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(7.dp),
+            ) {
+                Box(Modifier.size(26.dp), contentAlignment = Alignment.Center) {
                     Box(
                         Modifier
-                            .offset(x = (-3).dp, y = 2.dp)
-                            .size(22.dp)
+                            .offset(x = (-2).dp, y = 2.dp)
+                            .size(18.dp)
                             .clip(EditorialRadii.Badge)
                             .background(colors.surface3)
                             .border(1.dp, colors.hairline, EditorialRadii.Badge),
@@ -856,7 +845,7 @@ private fun ExternalChartNeutralCard(
                     Box(
                         Modifier
                             .offset(x = 2.dp, y = (-2).dp)
-                            .size(22.dp)
+                            .size(18.dp)
                             .clip(EditorialRadii.Badge)
                             .background(colors.surface2)
                             .border(1.dp, colors.hairline, EditorialRadii.Badge),
@@ -865,11 +854,30 @@ private fun ExternalChartNeutralCard(
                         Icon(
                             painter = painterResource(R.drawable.ic_play),
                             contentDescription = null,
-                            tint = colors.brass.copy(alpha = 0.78f),
-                            modifier = Modifier.size(12.dp),
+                            tint = colors.brass.copy(alpha = 0.82f),
+                            modifier = Modifier.size(10.dp),
                         )
                     }
                 }
+                Text(
+                    text = badgeLabel,
+                    modifier = Modifier
+                        .clip(EditorialRadii.Badge)
+                        .background(colors.surface2)
+                        .border(1.dp, colors.hairline, EditorialRadii.Badge)
+                        .padding(horizontal = 6.dp, vertical = 2.dp),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = colors.textSecondary,
+                )
+            }
+
+            if (summary != null) {
+                MatchRateRing(
+                    matched = summary.available,
+                    total = summary.total,
+                    size = 40.dp,
+                )
             }
         }
 
@@ -877,7 +885,7 @@ private fun ExternalChartNeutralCard(
             Text(
                 text = chartTitle,
                 fontSize = 16.sp,
-                fontWeight = FontWeight.Bold,
+                fontWeight = FontWeight.SemiBold,
                 color = colors.textPrimary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -885,8 +893,8 @@ private fun ExternalChartNeutralCard(
             Text(
                 text = subtitle,
                 modifier = Modifier.padding(top = 2.dp),
-                fontSize = 11.5.sp,
-                color = if (summary != null && summary.available > 0) colors.moss else colors.textTertiary,
+                fontSize = 11.sp,
+                color = if (summary != null && summary.available > 0) colors.moss else colors.textSecondary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 style = LocalTextStyle.current.tnum(),
@@ -933,8 +941,9 @@ private fun LibraryGalleryHeader(
         Text(
             text = stringResource(R.string.editorial_gallery_title),
             modifier = Modifier.weight(1f),
-            fontSize = 18.sp,
-            fontWeight = FontWeight.Bold,
+            fontSize = 20.sp,
+            fontWeight = FontWeight.SemiBold,
+            letterSpacing = (-0.3).sp,
             color = colors.textPrimary,
         )
         EditorialOutlinePill(
@@ -973,7 +982,7 @@ private fun LanguageShelvesSection(
                 Column(
                     modifier = Modifier
                         .width(104.dp)
-                        .height(92.dp)
+                        .height(94.dp)
                         .pressable { onSelectShelf(shelf) }
                         .editorialCard(shape = EditorialRadii.Card, backgroundColor = colors.surface1),
                     verticalArrangement = Arrangement.SpaceBetween,
@@ -994,7 +1003,7 @@ private fun LanguageShelvesSection(
                         Text(
                             text = stringResource(shelf.codeRes),
                             fontFamily = FontFamily.Serif,
-                            fontSize = 9.5.sp,
+                            fontSize = 11.sp,
                             letterSpacing = 0.8.sp,
                             color = colors.textTertiary,
                         )
@@ -1002,7 +1011,7 @@ private fun LanguageShelvesSection(
                             Text(
                                 text = stringResource(shelf.labelRes),
                                 fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold,
+                                fontWeight = FontWeight.SemiBold,
                                 color = colors.textPrimary,
                                 maxLines = 1,
                             )
@@ -1054,7 +1063,7 @@ private fun DecadePillsSection(
                 ) {
                     Text(
                         text = decadeText,
-                        fontSize = 13.5.sp,
+                        fontSize = 13.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = colors.textPrimary,
                         style = LocalTextStyle.current.tnum(),
@@ -1109,14 +1118,14 @@ private fun ArtistAzEntryCard(
         ) {
             Text(
                 text = stringResource(R.string.editorial_artist_az_title),
-                fontSize = 15.5.sp,
-                fontWeight = FontWeight.Bold,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.SemiBold,
                 color = colors.textPrimary,
             )
             Text(
                 text = stringResource(R.string.editorial_artist_az_subtitle, totalArtists),
                 modifier = Modifier.padding(top = 2.dp),
-                fontSize = 12.sp,
+                fontSize = 13.sp,
                 color = colors.textSecondary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -1126,7 +1135,7 @@ private fun ArtistAzEntryCard(
         Text(
             text = stringResource(R.string.editorial_artist_az_preview),
             modifier = Modifier.padding(end = 16.dp),
-            fontSize = 12.sp,
+            fontSize = 13.sp,
             fontWeight = FontWeight.SemiBold,
             color = colors.brass,
             style = LocalTextStyle.current.tnum(),
@@ -1193,7 +1202,7 @@ private fun ArtistAzIndexScreen(
                 text = stringResource(R.string.editorial_artist_az_title),
                 modifier = Modifier.weight(1f),
                 fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
+                fontWeight = FontWeight.SemiBold,
                 color = colors.textPrimary,
             )
             Text(
@@ -1203,7 +1212,7 @@ private fun ArtistAzIndexScreen(
                     .background(colors.surface2)
                     .border(1.dp, colors.hairline, EditorialRadii.Pill)
                     .padding(horizontal = 10.dp, vertical = 4.dp),
-                fontSize = 12.sp,
+                fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = colors.brass,
                 style = LocalTextStyle.current.tnum(),
@@ -1233,7 +1242,7 @@ private fun ArtistAzIndexScreen(
                 if (filterQuery.isEmpty()) {
                     Text(
                         text = stringResource(R.string.editorial_search_artists_placeholder),
-                        fontSize = 14.sp,
+                        fontSize = 15.sp,
                         color = colors.textTertiary,
                     )
                 }
@@ -1242,7 +1251,7 @@ private fun ArtistAzIndexScreen(
                     onValueChange = { filterQuery = it },
                     singleLine = true,
                     textStyle = LocalTextStyle.current.copy(
-                        fontSize = 14.sp,
+                        fontSize = 15.sp,
                         color = colors.textPrimary,
                     ),
                     cursorBrush = SolidColor(colors.brass),
@@ -1270,6 +1279,7 @@ private fun ArtistAzIndexScreen(
                         } else {
                             stringResource(R.string.editorial_artist_az_empty_filter)
                         },
+                        fontSize = 15.sp,
                         color = colors.textSecondary,
                     )
                 }
@@ -1288,7 +1298,7 @@ private fun ArtistAzIndexScreen(
                                 text = letter.toString(),
                                 modifier = Modifier.padding(start = 20.dp, top = 16.dp, bottom = 4.dp),
                                 fontFamily = FontFamily.Serif,
-                                fontSize = 18.sp,
+                                fontSize = 20.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = colors.brass,
                             )
@@ -1335,9 +1345,9 @@ private fun ArtistAzIndexScreen(
                     filteredSections.forEach { (letter, _) ->
                         Text(
                             text = letter.toString(),
-                            fontSize = 10.sp,
-                            lineHeight = 12.sp,
-                            fontWeight = FontWeight.Bold,
+                            fontSize = 11.sp,
+                            lineHeight = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
                             textAlign = TextAlign.Center,
                             color = colors.brass,
                             style = LocalTextStyle.current.tnum(),
@@ -1349,7 +1359,7 @@ private fun ArtistAzIndexScreen(
     }
 }
 
-@OptIn(ExperimentalGlideComposeApi::class)
+@kotlin.OptIn(ExperimentalGlideComposeApi::class)
 @Composable
 private fun ArtistCoverBox(artist: ArtistID3, sizeDp: Int, circular: Boolean = false) {
     val colors = EditorialTheme.colors
@@ -1385,7 +1395,7 @@ private fun ArtistRow(artist: ArtistID3, onClick: () -> Unit) {
         Column(Modifier.padding(start = 14.dp).weight(1f)) {
             Text(
                 text = artist.name.orEmpty(),
-                fontSize = 15.5.sp,
+                fontSize = 15.sp,
                 fontWeight = FontWeight.Medium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -1394,7 +1404,7 @@ private fun ArtistRow(artist: ArtistID3, onClick: () -> Unit) {
             if (artist.albumCount > 0) {
                 Text(
                     text = stringResource(R.string.browse_album_count, artist.albumCount),
-                    fontSize = 12.5.sp,
+                    fontSize = 13.sp,
                     color = colors.textSecondary,
                     style = LocalTextStyle.current.tnum(),
                 )
@@ -1418,7 +1428,7 @@ private fun ErrorRow(onRetry: () -> Unit) {
             .padding(32.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text(stringResource(R.string.browse_error), color = colors.textSecondary)
+        Text(stringResource(R.string.browse_error), color = colors.textSecondary, fontSize = 15.sp)
         EditorialOutlinePill(
             text = stringResource(R.string.browse_retry),
             modifier = Modifier.padding(top = 12.dp),
@@ -1466,7 +1476,7 @@ private fun EditorialLanguageScreen(
                     modifier = Modifier
                         .padding(horizontal = 20.dp, vertical = 6.dp)
                         .fillMaxWidth()
-                        .editorialCard(shape = EditorialRadii.Hero, backgroundColor = colors.surface1)
+                        .editorialCard(shape = EditorialRadii.Card, backgroundColor = colors.surface1)
                         .padding(20.dp),
                 ) {
                     Box(
@@ -1498,7 +1508,7 @@ private fun EditorialLanguageScreen(
                             .height(40.dp)
                             .pressable(enabled = artists.isNotEmpty()) { actions.shuffleArtists(artists) }
                             .clip(EditorialRadii.Pill)
-                            .background(colors.brass)
+                            .background(if (artists.isNotEmpty()) colors.primary else colors.surface3)
                             .padding(horizontal = 20.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -1506,53 +1516,71 @@ private fun EditorialLanguageScreen(
                         Icon(
                             painter = painterResource(R.drawable.ic_shuffle),
                             contentDescription = null,
-                            tint = colors.onPrimary,
+                            tint = if (artists.isNotEmpty()) colors.onPrimary else colors.textTertiary,
                             modifier = Modifier.size(16.dp),
                         )
                         Text(
                             text = stringResource(R.string.browse_shuffle),
-                            color = colors.onPrimary,
-                            fontSize = 13.5.sp,
-                            fontWeight = FontWeight.Bold,
+                            color = if (artists.isNotEmpty()) colors.onPrimary else colors.textTertiary,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
                         )
                     }
                     Text(
                         text = stringResource(R.string.browse_language_hint),
                         modifier = Modifier.padding(top = 10.dp),
-                        fontSize = 11.5.sp,
+                        fontSize = 11.sp,
                         color = colors.textTertiary,
                     )
                 }
             }
         }
 
-        editorialGrid(artists, columns = 3) { artist, cellModifier ->
-            Column(
-                modifier = cellModifier
-                    .clip(EditorialRadii.Card)
-                    .clickable { actions.openArtist(artist) }
-                    .padding(vertical = 6.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
+        if (artists.isEmpty()) {
+            item(key = "lang_empty") {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .aspectRatio(1f),
+                        .padding(horizontal = 24.dp, vertical = 40.dp),
                     contentAlignment = Alignment.Center,
                 ) {
-                    ArtistCoverBox(artist = artist, sizeDp = 88, circular = true)
+                    Text(
+                        text = stringResource(R.string.editorial_lang_empty),
+                        fontSize = 15.sp,
+                        color = colors.textSecondary,
+                        textAlign = TextAlign.Center,
+                    )
                 }
-                Text(
-                    text = artist.name.orEmpty(),
-                    modifier = Modifier
-                        .padding(top = 6.dp)
-                        .height(20.dp),
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Medium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    color = colors.textPrimary,
-                )
+            }
+        } else {
+            editorialGrid(artists, columns = 3) { artist, cellModifier ->
+                Column(
+                    modifier = cellModifier
+                        .clip(EditorialRadii.Card)
+                        .clickable { actions.openArtist(artist) }
+                        .padding(vertical = 6.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .aspectRatio(1f),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        ArtistCoverBox(artist = artist, sizeDp = 88, circular = true)
+                    }
+                    Text(
+                        text = artist.name.orEmpty(),
+                        modifier = Modifier
+                            .padding(top = 6.dp)
+                            .height(20.dp),
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        color = colors.textPrimary,
+                    )
+                }
             }
         }
     }

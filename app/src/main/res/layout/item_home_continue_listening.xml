@@ -6,51 +6,81 @@
     android:paddingStart="8dp"
     android:paddingBottom="8dp">
 
-    <ImageView
-        android:id="@+id/continue_listening_cover_image_view"
-        android:layout_width="160dp"
-        android:layout_height="160dp"
-        android:background="?attr/colorSurfaceContainerHighest"
-        android:scaleType="centerCrop"
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/continue_listening_cover_card"
+        style="?attr/materialCardViewOutlinedStyle"
+        android:layout_width="156dp"
+        android:layout_height="156dp"
+        app:cardBackgroundColor="?attr/colorSurfaceContainerLow"
+        app:cardCornerRadius="16dp"
+        app:cardElevation="0dp"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        app:layout_constraintTop_toTopOf="parent">
+
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent">
+
+            <ImageView
+                android:id="@+id/continue_listening_cover_image_view"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="?attr/colorSurfaceContainerHighest"
+                android:contentDescription="@null"
+                android:scaleType="centerCrop" />
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="2dp"
+                android:layout_gravity="bottom"
+                android:background="?attr/colorSurfaceContainerHighest" />
+
+            <View
+                android:id="@+id/continue_listening_progress_bar"
+                android:layout_width="88dp"
+                android:layout_height="2dp"
+                android:layout_gravity="bottom|start"
+                android:background="?attr/colorPrimary" />
+        </FrameLayout>
+    </com.google.android.material.card.MaterialCardView>
 
     <TextView
         android:id="@+id/continue_listening_title_label"
-        android:layout_width="160dp"
+        android:layout_width="156dp"
         android:layout_height="wrap_content"
-        android:layout_marginTop="6dp"
+        android:layout_marginTop="8dp"
         android:ellipsize="end"
         android:fontFamily="@font/inter"
         android:maxLines="1"
         android:textColor="?android:attr/textColorPrimary"
         android:textFontWeight="600"
         android:textSize="15sp"
-        app:layout_constraintEnd_toEndOf="@id/continue_listening_cover_image_view"
-        app:layout_constraintStart_toStartOf="@id/continue_listening_cover_image_view"
-        app:layout_constraintTop_toBottomOf="@id/continue_listening_cover_image_view" />
+        app:layout_constraintEnd_toEndOf="@id/continue_listening_cover_card"
+        app:layout_constraintStart_toStartOf="@id/continue_listening_cover_card"
+        app:layout_constraintTop_toBottomOf="@id/continue_listening_cover_card" />
 
     <TextView
         android:id="@+id/continue_listening_album_label"
-        android:layout_width="160dp"
+        android:layout_width="156dp"
         android:layout_height="wrap_content"
         android:ellipsize="end"
         android:fontFamily="@font/inter"
         android:maxLines="1"
         android:textColor="?android:attr/textColorSecondary"
         android:textSize="13sp"
-        app:layout_constraintEnd_toEndOf="@id/continue_listening_cover_image_view"
-        app:layout_constraintStart_toStartOf="@id/continue_listening_cover_image_view"
+        app:layout_constraintEnd_toEndOf="@id/continue_listening_cover_card"
+        app:layout_constraintStart_toStartOf="@id/continue_listening_cover_card"
         app:layout_constraintTop_toBottomOf="@id/continue_listening_title_label" />
 
     <TextView
         android:id="@+id/continue_listening_resume_label"
-        android:layout_width="160dp"
+        android:layout_width="156dp"
         android:layout_height="wrap_content"
         android:fontFamily="@font/inter"
+        android:fontFeatureSettings="tnum"
         android:textColor="?attr/colorPrimary"
-        android:textSize="12sp"
-        app:layout_constraintEnd_toEndOf="@id/continue_listening_cover_image_view"
-        app:layout_constraintStart_toStartOf="@id/continue_listening_cover_image_view"
+        android:textSize="11sp"
+        app:layout_constraintEnd_toEndOf="@id/continue_listening_cover_card"
+        app:layout_constraintStart_toStartOf="@id/continue_listening_cover_card"
         app:layout_constraintTop_toBottomOf="@id/continue_listening_album_label" />
 </androidx.constraintlayout.widget.ConstraintLayout>

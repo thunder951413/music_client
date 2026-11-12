@@ -1,6 +1,7 @@
 package com.eddyizm.tempus.ui.browse
 
 import android.content.Context
+import android.os.Bundle
 import android.view.View
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -17,9 +18,15 @@ import com.eddyizm.tempus.util.Constants
 import com.eddyizm.tempus.util.Preferences
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.progressindicator.LinearProgressIndicator
-import androidx.core.os.bundleOf
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -29,6 +36,9 @@ import retrofit2.Call
  * Turns the library into real playlists on the server ([LibraryMixes]), so they also show up in
  * the playlist pages, Android Auto and other clients. The playlists it made are remembered per
  * server; a later run rewrites them in place and deletes those that no longer qualify.
+ *
+ * Runs on an app-wide [CoroutineScope] so navigating away from Discover never aborts playlist
+ * creation mid-flight.
  */
 object LibraryOrganizer {
     data class Result(val playlists: Int, val songs: Int)
@@ -37,11 +47,72 @@ object LibraryOrganizer {
     private const val SCAN_LIMIT = 50_000
     private const val CHUNK = 100
 
+    private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private var activeJob: Job? = null
+    private val _progress = MutableStateFlow(OrganizeProgressState())
+    val progress: StateFlow<OrganizeProgressState> = _progress.asStateFlow()
+
     private fun idsKey() = "library_mix_ids|${Preferences.getServerId()}|${Preferences.getUser().orEmpty()}"
     private fun countKey() = "library_mix_songs|${Preferences.getServerId()}|${Preferences.getUser().orEmpty()}"
 
     /** How many playlists the last run made on this server, 0 when it never ran. */
     fun playlistCount(): Int = App.getInstance().preferences.getStringSet(idsKey(), null)?.size ?: 0
+
+    val isRunning: Boolean
+        get() = activeJob?.isActive == true
+
+    /** Launches playlist organization on [appScope] so fragment detachment never leaves half-written playlists. */
+    fun startBackground(context: Context) {
+        if (activeJob?.isActive == true) return
+        val appCtx = context.applicationContext
+        _progress.value = OrganizeProgressState(
+            running = true,
+            phase = 0,
+            done = 0,
+            total = 0,
+            organizedCount = playlistCount(),
+        )
+        activeJob = appScope.launch {
+            val outcome = runCatching {
+                run(appCtx) { phase, done, total ->
+                    _progress.value = OrganizeProgressState(
+                        running = true,
+                        phase = phase,
+                        done = if (phase == 1) done + 1 else done,
+                        total = total,
+                        organizedCount = playlistCount(),
+                    )
+                }
+            }
+            val finalCount = playlistCount()
+            _progress.value = OrganizeProgressState(
+                running = false,
+                organizedCount = finalCount,
+            )
+            if (outcome.exceptionOrNull() is CancellationException) return@launch
+            withContext(Dispatchers.Main) {
+                val done = outcome.getOrNull()
+                when {
+                    done == null -> Toast.makeText(appCtx, R.string.library_mix_failed, Toast.LENGTH_LONG).show()
+                    done.playlists == 0 -> Toast.makeText(appCtx, R.string.library_mix_none, Toast.LENGTH_LONG).show()
+                    else -> Toast.makeText(
+                        appCtx,
+                        appCtx.getString(R.string.library_mix_done, done.playlists, done.songs),
+                        Toast.LENGTH_LONG,
+                    ).show()
+                }
+            }
+        }
+    }
+
+    fun cancelBackground() {
+        activeJob?.cancel()
+        activeJob = null
+        _progress.value = OrganizeProgressState(
+            running = false,
+            organizedCount = playlistCount(),
+        )
+    }
 
     private fun execute(call: Call<ApiResponse>) =
         call.execute().takeIf { it.isSuccessful }?.body()?.subsonicResponse
@@ -180,7 +251,8 @@ object LibraryOrganizer {
                     Toast.makeText(context, context.getString(R.string.library_mix_done, done.playlists, done.songs), Toast.LENGTH_LONG).show()
                     onDone()
                     if (fragment.isAdded) {
-                        fragment.findNavController().navigate(R.id.playlistCatalogueFragment, bundleOf(Constants.PLAYLIST_ALL to Constants.PLAYLIST_ALL))
+                        val args = Bundle().apply { putString(Constants.PLAYLIST_ALL, Constants.PLAYLIST_ALL) }
+                        fragment.findNavController().navigate(R.id.playlistCatalogueFragment, args)
                     }
                 }
             }

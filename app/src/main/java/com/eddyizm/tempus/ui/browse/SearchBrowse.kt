@@ -1,5 +1,6 @@
 package com.eddyizm.tempus.ui.browse
 
+import android.os.Bundle
 import androidx.annotation.OptIn
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -29,9 +30,9 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.os.bundleOf
 import androidx.fragment.app.Fragment
 import androidx.media3.common.util.UnstableApi
+import androidx.navigation.NavOptions
 import androidx.navigation.fragment.findNavController
 import com.eddyizm.tempus.R
 import com.eddyizm.tempus.subsonic.models.Genre
@@ -43,6 +44,19 @@ import com.eddyizm.tempus.util.Constants
  */
 @OptIn(UnstableApi::class)
 object SearchBrowse {
+    private fun navigateToDiscover(fragment: Fragment, shelf: LanguageShelf? = null) {
+        if (!fragment.isAdded) return
+        val navController = fragment.findNavController()
+        val args = shelf?.let {
+            Bundle().apply { putString(DiscoverFragment.ARG_INITIAL_SHELF, it.name) }
+        }
+        val navOptions = NavOptions.Builder()
+            .setLaunchSingleTop(true)
+            .setPopUpTo(navController.graph.startDestinationId, false)
+            .build()
+        navController.navigate(R.id.discoverFragment, args, navOptions)
+    }
+
     @JvmStatic
     fun bind(view: ComposeView, fragment: Fragment) {
         view.setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
@@ -63,7 +77,7 @@ object SearchBrowse {
                         title = stringResource(R.string.editorial_shelf_language_title),
                         modifier = Modifier.padding(start = 20.dp, end = 16.dp, top = 10.dp, bottom = 10.dp),
                         action = stringResource(R.string.discover_title),
-                        onAction = { fragment.findNavController().navigate(R.id.discoverFragment) },
+                        onAction = { navigateToDiscover(fragment, null) },
                     )
 
                     LazyRow(
@@ -74,14 +88,9 @@ object SearchBrowse {
                             val tabColor = BrowsePalette.colorAt(shelf.spineIndex)
                             Column(
                                 modifier = Modifier
-                                    .width(102.dp)
-                                    .height(78.dp)
-                                    .pressable {
-                                        fragment.findNavController().navigate(
-                                            R.id.discoverFragment,
-                                            bundleOf(DiscoverFragment.ARG_INITIAL_SHELF to shelf.name),
-                                        )
-                                    }
+                                    .width(104.dp)
+                                    .height(80.dp)
+                                    .pressable { navigateToDiscover(fragment, shelf) }
                                     .editorialCard(shape = EditorialRadii.Card, backgroundColor = colors.surface1),
                                 verticalArrangement = Arrangement.SpaceBetween,
                             ) {
@@ -100,14 +109,14 @@ object SearchBrowse {
                                     Text(
                                         text = stringResource(shelf.codeRes),
                                         fontFamily = FontFamily.Serif,
-                                        fontSize = 9.5.sp,
+                                        fontSize = 11.sp,
                                         letterSpacing = 0.8.sp,
-                                        color = tabColor,
+                                        color = colors.textSecondary,
                                     )
                                     Text(
                                         text = stringResource(shelf.labelRes),
-                                        fontSize = 15.5.sp,
-                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.SemiBold,
                                         color = colors.textPrimary,
                                         maxLines = 1,
                                     )
@@ -144,10 +153,10 @@ object SearchBrowse {
                                     ) {
                                         fragment.findNavController().navigate(
                                             R.id.songListPageFragment,
-                                            bundleOf(
-                                                Constants.MEDIA_BY_GENRE to Constants.MEDIA_BY_GENRE,
-                                                Constants.GENRE_OBJECT to genre,
-                                            ),
+                                            Bundle().apply {
+                                                putString(Constants.MEDIA_BY_GENRE, Constants.MEDIA_BY_GENRE)
+                                                putParcelable(Constants.GENRE_OBJECT, genre)
+                                            },
                                         )
                                     }
                                 }

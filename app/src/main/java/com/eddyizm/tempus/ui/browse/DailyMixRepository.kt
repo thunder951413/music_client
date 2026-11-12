@@ -20,6 +20,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import retrofit2.Call
@@ -42,6 +44,9 @@ object DailyMixRepository {
         val pending: Boolean = false,
         val stale: Boolean = false,
         val offline: Boolean = false,
+        val fromHub: Boolean = false,
+        val importedToday: Int = 0,
+        val syncedAtMs: Long = 0L,
     )
 
     private const val KEEP_DAYS = 7L
@@ -51,10 +56,21 @@ object DailyMixRepository {
     private const val CACHE_VALUE = "browse_daily_mix_today"
     private const val DEVICE_KEY = "browse_daily_mix_device"
 
+    private val mutex = Mutex()
+
     /** A random id per install, so two phones of the same model still get their own mix. */
     private val device: String by lazy {
         val prefs = App.getInstance().preferences
         prefs.getString(DEVICE_KEY, null) ?: UUID.randomUUID().toString().also { prefs.edit { putString(DEVICE_KEY, it) } }
+    }
+
+    private fun currentKey(date: LocalDate = LocalDate.now()): String =
+        "${Preferences.getServerId()}|${Preferences.getUser()}|$device|$date"
+
+    /** Non-blocking read of today's verified cache for the active server/account/date (`null` if stale/absent). */
+    fun peekCachedToday(): Today? {
+        com.eddyizm.tempus.hub.HubRepository.peekCachedToday()?.let { return it }
+        return readCache(currentKey(LocalDate.now()))
     }
 
     private fun execute(call: Call<ApiResponse>) =
@@ -64,31 +80,38 @@ object DailyMixRepository {
     private val client get() = App.getSubsonicClientInstance(false)
 
     suspend fun today(): Today = withContext(Dispatchers.IO) {
-        com.eddyizm.tempus.hub.HubRepository.today()?.let { return@withContext it }
-        val date = LocalDate.now()
-        val key = "${Preferences.getServerId()}|${Preferences.getUser()}|$device|$date"
-        readCache(key)?.let { return@withContext it }
-        // null when the server cannot be read: the mix is still built, just not saved.
-        val everything = runCatching { all() }.getOrNull()
-        val existing = everything?.filter { it.second.device == device }
-        val others = everything?.filter { it.second.device != device }?.flatMap { it.second.missing }
-        existing?.firstOrNull { it.second.date == date.toString() }?.let { (playlist, binding) ->
-            runCatching { entries(playlist.id) }.getOrNull()?.takeIf { it.isNotEmpty() }?.let {
-                return@withContext Today(it, binding.missing).also { today -> writeCache(key, today) }
+        mutex.withLock {
+            com.eddyizm.tempus.hub.HubRepository.today()?.let { return@withLock it }
+            val date = LocalDate.now()
+            val key = currentKey(date)
+            readCache(key)?.let { return@withLock it }
+            // null when the server cannot be read: the mix is still built, just not saved.
+            val everything = runCatching { all() }.getOrNull()
+            val existing = everything?.filter { it.second.device == device }
+            val others = everything?.filter { it.second.device != device }?.flatMap { it.second.missing }
+            existing?.firstOrNull { it.second.date == date.toString() }?.let { (playlist, binding) ->
+                runCatching { entries(playlist.id) }.getOrNull()?.takeIf { it.isNotEmpty() }?.let {
+                    return@withLock Today(
+                        songs = it,
+                        wishes = binding.missing,
+                        fromHub = false,
+                        syncedAtMs = System.currentTimeMillis(),
+                    ).also { today -> writeCache(key, today) }
+                }
             }
+            // Every device's pending picks, so two phones do not both ask for the same new song.
+            val recentPlaylists = existing.orEmpty()
+                .filter { it.second.date < date.toString() }
+                .sortedByDescending { it.second.date }
+                .take(3)
+            val recentMixIds = recentPlaylists.flatMapTo(HashSet()) { (playlist, _) ->
+                runCatching { entries(playlist.id).mapNotNull { it.id } }.getOrDefault(emptyList())
+            }
+            val today = generate(key, existing.orEmpty().flatMap { it.second.missing } + others.orEmpty(), recentMixIds)
+            if (everything != null && today.songs.isNotEmpty()) runCatching { save(date, today, everything) }
+            writeCache(key, today)
+            today
         }
-        // Every device's pending picks, so two phones do not both ask for the same new song.
-        val recentPlaylists = existing.orEmpty()
-            .filter { it.second.date < date.toString() }
-            .sortedByDescending { it.second.date }
-            .take(3)
-        val recentMixIds = recentPlaylists.flatMapTo(HashSet()) { (playlist, _) ->
-            runCatching { entries(playlist.id).mapNotNull { it.id } }.getOrDefault(emptyList())
-        }
-        val today = generate(key, existing.orEmpty().flatMap { it.second.missing } + others.orEmpty(), recentMixIds)
-        if (everything != null && today.songs.isNotEmpty()) runCatching { save(date, today, everything) }
-        writeCache(key, today)
-        today
     }
 
     private fun all(): List<Pair<Playlist, DailyBinding>> =
@@ -153,11 +176,16 @@ object DailyMixRepository {
         val seeds = DailyMixPlanner.seeds(liked, history, frequent, random).ifEmpty {
             songs.shuffled(random).take(DailyMixPlanner.SEEDS)
         }
-        if (seeds.isEmpty()) return@coroutineScope Today(emptyList(), wishList.await())
+        if (seeds.isEmpty()) return@coroutineScope Today(emptyList(), wishList.await(), fromHub = false, syncedAtMs = now)
         val related = seeds.map { seed -> async { related(seed, songs, noiseGenres, Random(key.hashCode() xor seed.id.hashCode())) } }.awaitAll()
         val heard = runCatching { DiscoveryRepository().heardIds() }.getOrDefault(emptySet())
         val unheard = MusicDiscoveryRules.unheard(songs.shuffled(random), heard, emptySet(), DailyMixPlanner.UNHEARD * 2)
-        Today(DailyMixPlanner.assemble(seeds, related, unheard, liked + frequent + songs, justHeard, random, recentMixIds), wishList.await())
+        Today(
+            songs = DailyMixPlanner.assemble(seeds, related, unheard, liked + frequent + songs, justHeard, random, recentMixIds),
+            wishes = wishList.await(),
+            fromHub = false,
+            syncedAtMs = System.currentTimeMillis(),
+        )
     }
 
     /** Similar songs from the server (needs Last.fm in Navidrome), else same artist, genre and decade. */

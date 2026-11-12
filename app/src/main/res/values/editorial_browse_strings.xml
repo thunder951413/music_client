@@ -1,29 +1,38 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="PluralsCandidate">
     <!-- Global Search Pills -->
     <string name="editorial_search_home_placeholder">Search songs, artists, albums, podcasts…</string>
     <string name="editorial_search_discover_placeholder">Search library, artists, or genres…</string>
     <string name="editorial_search_library_placeholder">Search in your library…</string>
     <string name="editorial_search_artists_placeholder">Filter artists by name or initial…</string>
 
-    <!-- Server / Account Chip -->
+    <!-- Server / Account / Navigation -->
     <string name="editorial_server_default">Server</string>
     <string name="editorial_library_all_folders">All folders</string>
     <string name="editorial_settings_desc">Settings</string>
+    <string name="editorial_drawer_desc">Navigation menu</string>
 
-    <!-- Home Hero & Wish Capsule -->
+    <!-- Home Hero & Honest Wish Capsule -->
     <string name="editorial_daily_status_ready">Ready for today</string>
     <string name="editorial_daily_status_ready_wishes">Ready · %1$d wishes queued</string>
     <string name="editorial_daily_status_preparing">Generating…</string>
     <string name="editorial_daily_status_local">Local mix</string>
+    <string name="editorial_daily_status_cached">Cached mix</string>
     <string name="editorial_daily_status_empty">Add tracks to start</string>
     <string name="editorial_roam_eyebrow">RADIO</string>
     <string name="editorial_roam_subtitle_short">From liked tracks · ~35 songs</string>
 
-    <string name="editorial_wish_syncing">◐ Syncing today’s mix…</string>
-    <string name="editorial_wish_offline">○ Hub offline · Using local mix</string>
-    <string name="editorial_wish_pending">◐ %1$d pending · %2$d daily ready · View wish list</string>
-    <string name="editorial_wish_synced">● Hub synced · %1$d daily tracks ready</string>
+    <string name="editorial_sync_just_now">synced just now</string>
+    <string name="editorial_sync_minutes_ago">synced %1$d min ago</string>
+    <string name="editorial_sync_hours_ago">synced %1$d hr ago</string>
+
+    <string name="editorial_wish_syncing">Syncing today’s mix…</string>
+    <string name="editorial_wish_offline">Hub offline · Using local fallback</string>
+    <string name="editorial_wish_offline_wishes">Hub offline · %1$d cached wishes · Tap to view</string>
+    <string name="editorial_wish_hub_pending">Pending %1$d · Imported today %2$d · %3$s</string>
+    <string name="editorial_wish_hub_synced">Imported today %1$d · %2$d ready · %3$s</string>
+    <string name="editorial_wish_local_wishes">Pending %1$d · Local mix %2$d ready · View wishes</string>
+    <string name="editorial_wish_local_ready">Local mix · %1$d tracks ready (Hub not configured)</string>
 
     <string name="editorial_wish_sheet_title">New Song Wish List</string>
     <string name="editorial_wish_sheet_subtitle">%1$d uncollected tracks from artists you listen to</string>
@@ -32,9 +41,8 @@
     <string name="editorial_wish_platform_netease">NetEase</string>
     <string name="editorial_wish_platform_qq">QQ Music</string>
 
-    <!-- Home Library Roam (Single Home) -->
+    <!-- Home Continue Listening & Library Roam (Single Home) -->
     <string name="editorial_home_roam_section">Library Roam</string>
-    <string name="editorial_home_roam_badge">Unique entry</string>
     <string name="editorial_roam_unheard_sub">Zero-play tracks</string>
     <string name="editorial_roam_frequent_sub">Top played albums</string>
     <string name="editorial_roam_frequent_count">%1$d+ top albums</string>
@@ -47,23 +55,25 @@
     <string name="editorial_sync_center_title">Sync Center</string>
     <string name="editorial_sync_center_import_action">Import link ›</string>
     <string name="editorial_sync_col_wishes">Daily Wishes</string>
-    <string name="editorial_sync_col_playlists">Linked Lists</string>
-    <string name="editorial_sync_col_charts">Chart Match</string>
+    <string name="editorial_sync_col_playlists">Import Pending</string>
+    <string name="editorial_sync_col_charts">Chart Missing</string>
     <string name="editorial_sync_sub_ready">%1$d daily ready</string>
-    <string name="editorial_sync_sub_pending_lists">%1$d lists · pending</string>
-    <string name="editorial_sync_sub_synced_lists">All lists synced</string>
+    <string name="editorial_sync_sub_wishes_idle">Not generated yet</string>
+    <string name="editorial_sync_sub_pending_lists">%1$d lists · %2$d incomplete</string>
+    <string name="editorial_sync_sub_backfill_lists">%1$d imported lists</string>
+    <string name="editorial_sync_sub_synced_lists">%1$d lists synced</string>
     <string name="editorial_sync_sub_no_lists">Paste link below</string>
     <string name="editorial_sync_sub_charts_matched">%1$d/8 charts checked</string>
-    <string name="editorial_sync_sub_charts_idle">8 public charts</string>
+    <string name="editorial_sync_sub_charts_idle">Tap chart to match</string>
 
     <!-- External Playlist Import Card & Screen -->
     <string name="editorial_import_card_title">Full External Playlist Import</string>
     <string name="editorial_import_card_subtitle">Pull up to 5,000 tracks from NetEase or QQ Music, resolve versions, and backfill missing songs</string>
     <string name="editorial_import_paste_cta">Paste NetEase / QQ Music Playlist Link</string>
     <string name="editorial_import_item_progress">%1$d / %2$d matched</string>
-    <string name="editorial_import_badge_incomplete">Confirm</string>
-    <string name="editorial_import_badge_pending">Pending %1$d</string>
-    <string name="editorial_import_badge_ready">View</string>
+    <string name="editorial_import_badge_incomplete">Save incomplete</string>
+    <string name="editorial_import_badge_pending">Backfill %1$d</string>
+    <string name="editorial_import_badge_ready">All ready</string>
 
     <string name="editorial_ext_title">External Playlist Import</string>
     <string name="editorial_ext_subtitle">NetEase Cloud Music · QQ Music\nSupports charts, curated playlists, and public user playlists up to 5,000 tracks.</string>
@@ -103,12 +113,15 @@
     <string name="editorial_badge_netease">NetEase</string>
     <string name="editorial_badge_qq">QQ Music</string>
 
-    <!-- Library Gallery -->
+    <!-- Library Gallery & Organizer -->
     <string name="editorial_gallery_title">Library Gallery</string>
     <string name="editorial_organize_pill_idle">Organize playlists</string>
     <string name="editorial_organize_pill_synced">Organize · Synced %1$d</string>
     <string name="editorial_organize_pill_scanning">Scanning %1$d…</string>
     <string name="editorial_organize_pill_writing">Syncing %1$d/%2$d · %3$d%%</string>
+    <string name="editorial_organize_cancel_title">Stop Organizing?</string>
+    <string name="editorial_organize_cancel_message">Playlist organization is running in the background. Stop now?</string>
+    <string name="editorial_organize_cancel_confirm">Stop</string>
 
     <string name="editorial_shelf_language_title">Language Shelves</string>
     <string name="editorial_lang_mandarin">Mandarin</string>
@@ -121,6 +134,7 @@
     <string name="editorial_lang_code_japanese">J-POP</string>
     <string name="editorial_lang_code_korean">K-POP</string>
     <string name="editorial_lang_code_western">WESTERN</string>
+    <string name="editorial_lang_empty">No artists found in this language shelf yet</string>
 
     <string name="editorial_decade_title">Decades</string>
     <string name="editorial_genre_title">Genres</string>
@@ -132,8 +146,10 @@
     <string name="editorial_artist_az_preview">A · B · C … Z ›</string>
     <string name="editorial_artist_az_empty_filter">No matching artists</string>
 
-    <!-- Library Tab Header & Chips -->
+    <!-- Library Tab Header, Chips & Empty/See-All -->
     <string name="editorial_library_title">Library</string>
+    <string name="editorial_library_see_all_count">See all (%1$d)</string>
+    <string name="editorial_library_empty">Your library is empty or still syncing. Pull down to refresh.</string>
     <string name="editorial_chip_playlists">Playlists</string>
     <string name="editorial_chip_albums">Albums</string>
     <string name="editorial_chip_artists">Artists</string>

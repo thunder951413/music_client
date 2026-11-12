@@ -2,13 +2,11 @@ package com.eddyizm.tempus.ui.browse
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.eddyizm.tempus.App
 import com.eddyizm.tempus.discovery.ExternalPlaylistRepository
 import com.eddyizm.tempus.discovery.ImportedPlaylist
 import com.eddyizm.tempus.subsonic.models.ArtistID3
 import com.eddyizm.tempus.subsonic.models.Genre
 import com.eddyizm.tempus.util.Preferences
-import com.google.gson.Gson
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -32,6 +30,7 @@ class DiscoverViewModel : ViewModel() {
         val chartsVersion: Int = 0,
         val dailyWishesCount: Int = 0,
         val dailySongsCount: Int = 0,
+        val dailyLoaded: Boolean = false,
         val imports: List<ImportedPlaylist> = emptyList(),
     )
 
@@ -39,34 +38,46 @@ class DiscoverViewModel : ViewModel() {
     val state: StateFlow<State> = _state
 
     init {
-        readCachedDailySnapshot()
+        readValidatedDailySnapshot()
         load()
         refreshSyncCenter()
     }
 
-    private fun readCachedDailySnapshot() {
-        runCatching {
-            val json = App.getInstance().preferences.getString("browse_daily_mix_today", null) ?: return
-            val today = Gson().fromJson(json, DailyMixRepository.Today::class.java) ?: return
+    private fun readValidatedDailySnapshot(): DailyMixRepository.Today? {
+        val today = DailyMixRepository.peekCachedToday()
+        if (today == null) {
             _state.update {
                 it.copy(
-                    dailyWishesCount = today.wishes?.size ?: 0,
-                    dailySongsCount = today.songs?.size ?: 0,
+                    dailyWishesCount = 0,
+                    dailySongsCount = 0,
+                    dailyLoaded = false,
                 )
             }
+            return null
         }
+        _state.update {
+            it.copy(
+                dailyWishesCount = today.wishes.size,
+                dailySongsCount = today.songs.size,
+                dailyLoaded = true,
+            )
+        }
+        return today
     }
 
     /** Refreshes Sync Center counts (Daily Wishes + Imported External Playlists) in background. */
     fun refreshSyncCenter() {
-        readCachedDailySnapshot()
+        val cachedToday = readValidatedDailySnapshot()
         viewModelScope.launch {
             val importsDeferred = async(Dispatchers.IO) {
                 runCatching { ExternalPlaylistRepository().imports() }.getOrNull()
             }
             val dailyDeferred = async(Dispatchers.IO) {
-                if (_state.value.dailySongsCount > 0) null
-                else runCatching { DailyMixRepository.today() }.getOrNull()
+                if (cachedToday != null && !cachedToday.pending && !cachedToday.stale) {
+                    cachedToday
+                } else {
+                    runCatching { DailyMixRepository.today() }.getOrNull()
+                }
             }
             val loadedImports = importsDeferred.await()
             val loadedDaily = dailyDeferred.await()
@@ -75,6 +86,7 @@ class DiscoverViewModel : ViewModel() {
                     imports = loadedImports ?: current.imports,
                     dailyWishesCount = loadedDaily?.wishes?.size ?: current.dailyWishesCount,
                     dailySongsCount = loadedDaily?.songs?.size ?: current.dailySongsCount,
+                    dailyLoaded = loadedDaily != null || current.dailyLoaded,
                 )
             }
         }
@@ -91,6 +103,7 @@ class DiscoverViewModel : ViewModel() {
                     chartsVersion = cur.chartsVersion,
                     dailyWishesCount = cur.dailyWishesCount,
                     dailySongsCount = cur.dailySongsCount,
+                    dailyLoaded = cur.dailyLoaded,
                     imports = cur.imports,
                 )
             }

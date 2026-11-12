@@ -708,33 +708,10 @@ public class HomeTabMusicFragment extends Fragment implements ClickCallback {
     }
 
     private void initContinueListening() {
-        if (homeViewModel.checkHomeSectorVisibility(Constants.HOME_SECTOR_CONTINUE_LISTENING)) return;
-
-        bind.continueListeningRecyclerView.setLayoutManager(new LinearLayoutManager(requireContext(), LinearLayoutManager.HORIZONTAL, false));
-        bind.continueListeningRecyclerView.setHasFixedSize(true);
-
-        continueListeningAdapter = new ContinueListeningAdapter(mediaBrowserListenableFuture);
-        bind.continueListeningRecyclerView.setAdapter(continueListeningAdapter);
-
-        List<Preferences.ResumePoint> resumePoints = Preferences.getContinueListening();
-        if (resumePoints.isEmpty()) {
+        // Continue listening is hosted inside HomeHeader directly above Library Roam (`曲库漫游`).
+        if (bind != null) {
             bind.homeContinueListeningSector.setVisibility(View.GONE);
-        } else {
-            bind.homeContinueListeningSector.setVisibility(View.VISIBLE);
-            continueListeningAdapter.setItems(resumePoints);
         }
-
-        // Sync from server bookmarks (async) so cross-device resume points appear too, then refresh.
-        new QueueRepository().syncBookmarksFromServer(() -> {
-            if (continueListeningAdapter == null || bind == null) return;
-            List<Preferences.ResumePoint> synced = Preferences.getContinueListening();
-            if (synced.isEmpty()) {
-                bind.homeContinueListeningSector.setVisibility(View.GONE);
-            } else {
-                bind.homeContinueListeningSector.setVisibility(View.VISIBLE);
-                continueListeningAdapter.setItems(synced);
-            }
-        });
     }
 
     private void initSimilarSongView() {
@@ -1012,26 +989,10 @@ public class HomeTabMusicFragment extends Fragment implements ClickCallback {
     }
 
     private void initMostPlayedAlbumView() {
-        if (homeViewModel.checkHomeSectorVisibility(Constants.HOME_SECTOR_MOST_PLAYED)) return;
-
-        bind.mostPlayedAlbumsRecyclerView.setLayoutManager(new LinearLayoutManager(requireContext(), LinearLayoutManager.HORIZONTAL, false));
-        bind.mostPlayedAlbumsRecyclerView.setHasFixedSize(true);
-
-        mostPlayedAlbumAdapter = new AlbumAdapter(this);
-        bind.mostPlayedAlbumsRecyclerView.setAdapter(mostPlayedAlbumAdapter);
-        homeViewModel.getMostPlayedAlbums(getViewLifecycleOwner()).observe(getViewLifecycleOwner(), albums -> {
-            if (albums == null) {
-                if (bind != null) bind.homeMostPlayedAlbumsSector.setVisibility(View.GONE);
-            } else {
-                if (bind != null)
-                    bind.homeMostPlayedAlbumsSector.setVisibility(!albums.isEmpty() ? View.VISIBLE : View.GONE);
-
-                mostPlayedAlbumAdapter.setItems(albums);
-            }
-        });
-
-        CustomLinearSnapHelper mostPlayedAlbumSnapHelper = new CustomLinearSnapHelper();
-        mostPlayedAlbumSnapHelper.attachToRecyclerView(bind.mostPlayedAlbumsRecyclerView);
+        // Most-played albums live inside HomeHeader (`曲库漫游`) to avoid duplicate shelves on Home.
+        if (bind != null) {
+            bind.homeMostPlayedAlbumsSector.setVisibility(View.GONE);
+        }
     }
 
     private void initRecentPlayedAlbumView() {
@@ -1058,26 +1019,10 @@ public class HomeTabMusicFragment extends Fragment implements ClickCallback {
     }
 
     private void initRecentAddedAlbumView() {
-        if (homeViewModel.checkHomeSectorVisibility(Constants.HOME_SECTOR_RECENTLY_ADDED)) return;
-
-        bind.recentlyAddedAlbumsRecyclerView.setLayoutManager(new LinearLayoutManager(requireContext(), LinearLayoutManager.HORIZONTAL, false));
-        bind.recentlyAddedAlbumsRecyclerView.setHasFixedSize(true);
-
-        recentlyAddedAlbumAdapter = new AlbumAdapter(this);
-        bind.recentlyAddedAlbumsRecyclerView.setAdapter(recentlyAddedAlbumAdapter);
-        homeViewModel.getMostRecentlyAddedAlbums(getViewLifecycleOwner()).observe(getViewLifecycleOwner(), albums -> {
-            if (albums == null) {
-                if (bind != null) bind.homeRecentlyAddedAlbumsSector.setVisibility(View.GONE);
-            } else {
-                if (bind != null)
-                    bind.homeRecentlyAddedAlbumsSector.setVisibility(!albums.isEmpty() ? View.VISIBLE : View.GONE);
-
-                recentlyAddedAlbumAdapter.setItems(albums);
-            }
-        });
-
-        CustomLinearSnapHelper recentAddedAlbumSnapHelper = new CustomLinearSnapHelper();
-        recentAddedAlbumSnapHelper.attachToRecyclerView(bind.recentlyAddedAlbumsRecyclerView);
+        // Recently-added albums live inside HomeHeader (`曲库漫游`) to avoid duplicate shelves on Home.
+        if (bind != null) {
+            bind.homeRecentlyAddedAlbumsSector.setVisibility(View.GONE);
+        }
     }
 
     private void initPinnedPlaylistsView() {

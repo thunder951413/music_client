@@ -27,6 +27,19 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content" />
 
+                <TextView
+                    android:id="@+id/library_empty_text_view"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="@font/inter"
+                    android:gravity="center"
+                    android:paddingHorizontal="24dp"
+                    android:paddingVertical="40dp"
+                    android:text="@string/editorial_library_empty"
+                    android:textColor="?android:attr/textColorSecondary"
+                    android:textSize="15sp"
+                    android:visibility="gone" />
+
                 <!-- 1. Playlists Preview Shelf -->
                 <LinearLayout
                     android:id="@+id/library_playlist_sector"

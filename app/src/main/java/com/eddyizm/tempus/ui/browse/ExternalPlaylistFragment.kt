@@ -44,6 +44,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -58,7 +59,6 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.os.bundleOf
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.navigation.fragment.findNavController
@@ -78,10 +78,12 @@ class ExternalPlaylistFragment : Fragment() {
                     val colors = EditorialTheme.colors
                     val state by model.state.collectAsState()
                     var choosing by remember { mutableStateOf<Int?>(null) }
+                    var autoLoaded by rememberSaveable(initialUrl) { mutableStateOf(false) }
 
                     LaunchedEffect(initialUrl) {
-                        if (!initialUrl.isNullOrBlank() && state.link.isBlank()) {
-                            model.setLink(initialUrl)
+                        if (!initialUrl.isNullOrBlank() && !autoLoaded) {
+                            autoLoaded = true
+                            model.load(initialUrl)
                         }
                     }
 
@@ -120,8 +122,8 @@ class ExternalPlaylistFragment : Fragment() {
                                     }
                                     Text(
                                         text = stringResource(R.string.editorial_ext_title),
-                                        fontSize = 22.sp,
-                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 20.sp,
+                                        fontWeight = FontWeight.SemiBold,
                                         color = colors.textPrimary,
                                     )
                                 }
@@ -138,7 +140,7 @@ class ExternalPlaylistFragment : Fragment() {
                                 ) {
                                     Text(
                                         text = stringResource(R.string.editorial_ext_subtitle),
-                                        fontSize = 12.5.sp,
+                                        fontSize = 13.sp,
                                         lineHeight = 18.sp,
                                         color = colors.textSecondary,
                                     )
@@ -198,13 +200,13 @@ class ExternalPlaylistFragment : Fragment() {
                                             .height(44.dp)
                                             .pressable(enabled = canFetch) { model.load() }
                                             .clip(EditorialRadii.Pill)
-                                            .background(if (canFetch) colors.brass else colors.surface3),
+                                            .background(if (canFetch) colors.primary else colors.surface3),
                                         contentAlignment = Alignment.Center,
                                     ) {
                                         Text(
                                             text = stringResource(R.string.editorial_ext_load_btn),
-                                            fontSize = 14.sp,
-                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 15.sp,
+                                            fontWeight = FontWeight.SemiBold,
                                             color = if (canFetch) colors.onPrimary else colors.textTertiary,
                                         )
                                     }
@@ -228,7 +230,7 @@ class ExternalPlaylistFragment : Fragment() {
                                             Text(
                                                 text = state.phase + if (state.total > 0) " ${state.done} / ${state.total}" else "",
                                                 modifier = Modifier.weight(1f),
-                                                fontSize = 13.5.sp,
+                                                fontSize = 13.sp,
                                                 fontWeight = FontWeight.Medium,
                                                 color = colors.textPrimary,
                                                 style = LocalTextStyle.current.tnum(),
@@ -316,14 +318,14 @@ class ExternalPlaylistFragment : Fragment() {
                                             Column(Modifier.weight(1f).padding(end = 12.dp)) {
                                                 Text(
                                                     text = source.name,
-                                                    fontWeight = FontWeight.Bold,
-                                                    fontSize = 18.sp,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    fontSize = 16.sp,
                                                     color = colors.textPrimary,
                                                 )
                                                 Text(
                                                     text = stringResource(R.string.editorial_ext_stat_total, state.rows.size),
                                                     modifier = Modifier.padding(top = 2.dp),
-                                                    fontSize = 12.sp,
+                                                    fontSize = 13.sp,
                                                     color = colors.textSecondary,
                                                     style = LocalTextStyle.current.tnum(),
                                                 )
@@ -363,9 +365,9 @@ class ExternalPlaylistFragment : Fragment() {
 
                                         Text(
                                             text = stringResource(R.string.editorial_ext_save_hint),
-                                            fontSize = 12.sp,
-                                            lineHeight = 17.sp,
-                                            color = colors.textTertiary,
+                                            fontSize = 13.sp,
+                                            lineHeight = 18.sp,
+                                            color = colors.textSecondary,
                                         )
 
                                         val canSave = state.ambiguous == 0
@@ -375,10 +377,10 @@ class ExternalPlaylistFragment : Fragment() {
                                                 .height(44.dp)
                                                 .pressable(enabled = canSave, onClick = model::save)
                                                 .clip(EditorialRadii.Pill)
-                                                .background(if (canSave) colors.brass else colors.surface3)
+                                                .background(if (canSave) colors.primary else colors.surface3)
                                                 .border(
                                                     width = 1.dp,
-                                                    color = if (canSave) colors.brass else colors.brass.copy(alpha = 0.4f),
+                                                    color = if (canSave) colors.primary else colors.brass.copy(alpha = 0.4f),
                                                     shape = EditorialRadii.Pill,
                                                 ),
                                             contentAlignment = Alignment.Center,
@@ -389,8 +391,8 @@ class ExternalPlaylistFragment : Fragment() {
                                                 } else {
                                                     stringResource(R.string.editorial_ext_save_blocked, state.ambiguous)
                                                 },
-                                                fontSize = 13.5.sp,
-                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 13.sp,
+                                                fontWeight = FontWeight.SemiBold,
                                                 color = if (canSave) colors.onPrimary else colors.brass,
                                                 style = LocalTextStyle.current.tnum(),
                                             )
@@ -432,7 +434,7 @@ class ExternalPlaylistFragment : Fragment() {
                                         Text(
                                             text = "%02d".format(Locale.US, index + 1),
                                             modifier = Modifier.width(30.dp),
-                                            fontSize = 12.sp,
+                                            fontSize = 13.sp,
                                             fontWeight = FontWeight.SemiBold,
                                             color = colors.textTertiary,
                                             style = LocalTextStyle.current.tnum(),
@@ -440,7 +442,7 @@ class ExternalPlaylistFragment : Fragment() {
                                         Column(Modifier.weight(1f).padding(end = 10.dp)) {
                                             Text(
                                                 text = row.title,
-                                                fontSize = 14.5.sp,
+                                                fontSize = 15.sp,
                                                 fontWeight = FontWeight.Medium,
                                                 color = colors.textPrimary,
                                                 maxLines = 1,
@@ -453,7 +455,7 @@ class ExternalPlaylistFragment : Fragment() {
                                                     row.artist
                                                 },
                                                 modifier = Modifier.padding(top = 2.dp),
-                                                fontSize = 12.sp,
+                                                fontSize = 13.sp,
                                                 color = colors.textSecondary,
                                                 maxLines = 1,
                                                 overflow = TextOverflow.Ellipsis,
@@ -490,8 +492,8 @@ class ExternalPlaylistFragment : Fragment() {
                                     Text(
                                         text = stringResource(R.string.editorial_ext_saved_header),
                                         modifier = Modifier.padding(top = 16.dp),
-                                        fontSize = 18.sp,
-                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 20.sp,
+                                        fontWeight = FontWeight.SemiBold,
                                         color = colors.textPrimary,
                                     )
                                 }
@@ -501,8 +503,8 @@ class ExternalPlaylistFragment : Fragment() {
                                 item(key = "ext_saved_empty") {
                                     Text(
                                         text = stringResource(R.string.editorial_ext_saved_empty),
-                                        fontSize = 13.5.sp,
-                                        color = colors.textTertiary,
+                                        fontSize = 13.sp,
+                                        color = colors.textSecondary,
                                     )
                                 }
                             }
@@ -520,7 +522,7 @@ class ExternalPlaylistFragment : Fragment() {
                                         .clickable {
                                             findNavController().navigate(
                                                 R.id.playlistPageFragment,
-                                                bundleOf(Constants.PLAYLIST_OBJECT to entry.playlist),
+                                                Bundle().apply { putParcelable(Constants.PLAYLIST_OBJECT, entry.playlist) },
                                             )
                                         }
                                         .padding(15.dp),
@@ -533,8 +535,8 @@ class ExternalPlaylistFragment : Fragment() {
                                         Column(Modifier.weight(1f).padding(end = 10.dp)) {
                                             Text(
                                                 text = entry.playlist.name.orEmpty(),
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 15.5.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                fontSize = 15.sp,
                                                 color = colors.textPrimary,
                                                 maxLines = 1,
                                                 overflow = TextOverflow.Ellipsis,
@@ -546,8 +548,8 @@ class ExternalPlaylistFragment : Fragment() {
                                                     else -> stringResource(R.string.editorial_ext_saved_pending, matchedCount, total, missingCount)
                                                 },
                                                 modifier = Modifier.padding(top = 2.dp),
-                                                fontSize = 12.sp,
-                                                color = if (incomplete) colors.brass else colors.textSecondary,
+                                                fontSize = 13.sp,
+                                                color = if (incomplete) colors.terracotta else colors.textSecondary,
                                                 style = LocalTextStyle.current.tnum(),
                                             )
                                         }
@@ -562,8 +564,8 @@ class ExternalPlaylistFragment : Fragment() {
 
                                     ThreeSegmentBar(
                                         matched = matchedCount,
-                                        pending = if (incomplete) missingCount.coerceAtLeast(1) else 0,
-                                        missing = if (incomplete) 0 else missingCount,
+                                        pending = 0,
+                                        missing = missingCount,
                                         height = 5.dp,
                                     )
                                 }
@@ -571,7 +573,7 @@ class ExternalPlaylistFragment : Fragment() {
                         }
                     }
 
-                    // Warm-Dark Version Picker Dialog
+                    // Warm-Dark Version Picker Dialog (16dp Card radius per Editorial 5-tier scale)
                     choosing?.let { index ->
                         val row = state.rows.getOrNull(index)
                         if (row != null) {
@@ -581,18 +583,18 @@ class ExternalPlaylistFragment : Fragment() {
                                 containerColor = colors.surface2,
                                 titleContentColor = colors.textPrimary,
                                 textContentColor = colors.textPrimary,
-                                shape = EditorialRadii.Hero,
+                                shape = EditorialRadii.Card,
                                 title = {
                                     Column {
                                         Text(
                                             text = stringResource(R.string.editorial_ext_dialog_title),
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 18.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            fontSize = 16.sp,
                                         )
                                         Text(
                                             text = "${row.title} · ${row.artist}",
                                             modifier = Modifier.padding(top = 2.dp),
-                                            fontSize = 12.5.sp,
+                                            fontSize = 13.sp,
                                             color = colors.textSecondary,
                                         )
                                     }
@@ -625,14 +627,14 @@ class ExternalPlaylistFragment : Fragment() {
                                             ) {
                                                 Text(
                                                     text = song.title.orEmpty(),
-                                                    fontSize = 14.5.sp,
+                                                    fontSize = 15.sp,
                                                     fontWeight = FontWeight.SemiBold,
                                                     color = colors.textPrimary,
                                                 )
                                                 Text(
                                                     text = "${song.artist.orEmpty()} · ${song.album.orEmpty()}$dur",
                                                     modifier = Modifier.padding(top = 2.dp),
-                                                    fontSize = 12.sp,
+                                                    fontSize = 13.sp,
                                                     color = colors.textSecondary,
                                                     style = LocalTextStyle.current.tnum(),
                                                 )
@@ -685,7 +687,7 @@ private fun StatusStatDot(
         Spacer(Modifier.width(5.dp))
         Text(
             text = label,
-            fontSize = 12.sp,
+            fontSize = 13.sp,
             fontWeight = FontWeight.Medium,
             color = colors.textSecondary,
             style = LocalTextStyle.current.tnum(),

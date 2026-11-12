@@ -1,29 +1,38 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="PluralsCandidate">
     <!-- Global Search Pills -->
     <string name="editorial_search_home_placeholder">搜索歌曲、歌手、专辑、播客…</string>
     <string name="editorial_search_discover_placeholder">搜索曲库、歌手或流派…</string>
     <string name="editorial_search_library_placeholder">在音乐库中检索…</string>
     <string name="editorial_search_artists_placeholder">筛选歌手姓名或首字母…</string>
 
-    <!-- Server / Account Chip -->
+    <!-- Server / Account / Navigation -->
     <string name="editorial_server_default">音乐服务器</string>
     <string name="editorial_library_all_folders">全部目录</string>
     <string name="editorial_settings_desc">设置</string>
+    <string name="editorial_drawer_desc">打开导航菜单</string>
 
-    <!-- Home Hero & Wish Capsule -->
+    <!-- Home Hero & Honest Wish Capsule -->
     <string name="editorial_daily_status_ready">今日已就绪</string>
     <string name="editorial_daily_status_ready_wishes">今日已就绪 · 含 %1$d 首心愿</string>
     <string name="editorial_daily_status_preparing">生成中…</string>
     <string name="editorial_daily_status_local">本地推荐</string>
+    <string name="editorial_daily_status_cached">缓存推荐</string>
     <string name="editorial_daily_status_empty">入库音乐后生成推荐</string>
     <string name="editorial_roam_eyebrow">RADIO</string>
     <string name="editorial_roam_subtitle_short">从红心出发 · ~35 首</string>
 
-    <string name="editorial_wish_syncing">◐ 正在同步今日推荐…</string>
-    <string name="editorial_wish_offline">○ Hub 未连接 · 已用本地推荐</string>
-    <string name="editorial_wish_pending">◐ 待入库 %1$d 首 · 今日推荐 %2$d 首 · 点击查看心愿单</string>
-    <string name="editorial_wish_synced">● Hub 已同步 · 今日推荐 %1$d 首就绪</string>
+    <string name="editorial_sync_just_now">刚刚同步</string>
+    <string name="editorial_sync_minutes_ago">%1$d 分钟前同步</string>
+    <string name="editorial_sync_hours_ago">%1$d 小时前同步</string>
+
+    <string name="editorial_wish_syncing">正在同步今日推荐…</string>
+    <string name="editorial_wish_offline">Hub 未连接 · 已用本地推荐</string>
+    <string name="editorial_wish_offline_wishes">Hub 未连接 · 缓存待入库 %1$d 首 · 点击查看</string>
+    <string name="editorial_wish_hub_pending">待入库 %1$d · 今日入库 %2$d · %3$s</string>
+    <string name="editorial_wish_hub_synced">今日入库 %1$d · 今日推荐 %2$d 首 · %3$s</string>
+    <string name="editorial_wish_local_wishes">待入库 %1$d · 本地推荐 %2$d 首 · 点击查看心愿</string>
+    <string name="editorial_wish_local_ready">本地推荐 · %1$d 首就绪（未配置 Hub）</string>
 
     <string name="editorial_wish_sheet_title">待入库新歌心愿单</string>
     <string name="editorial_wish_sheet_subtitle">共 %1$d 首常听歌手新歌尚未入库，可一键复制或导出回填</string>
@@ -32,9 +41,8 @@
     <string name="editorial_wish_platform_netease">网易云</string>
     <string name="editorial_wish_platform_qq">QQ</string>
 
-    <!-- Home Library Roam (Single Home) -->
+    <!-- Home Continue Listening & Library Roam (Single Home) -->
     <string name="editorial_home_roam_section">曲库漫游</string>
-    <string name="editorial_home_roam_badge">唯一归口</string>
     <string name="editorial_roam_unheard_sub">零播放曲目探索</string>
     <string name="editorial_roam_frequent_sub">高频播放专辑</string>
     <string name="editorial_roam_frequent_count">%1$d+ 张高频专辑</string>
@@ -47,23 +55,25 @@
     <string name="editorial_sync_center_title">入库中心</string>
     <string name="editorial_sync_center_import_action">导入歌单 ›</string>
     <string name="editorial_sync_col_wishes">日推心愿</string>
-    <string name="editorial_sync_col_playlists">外链歌单</string>
-    <string name="editorial_sync_col_charts">热榜覆盖</string>
+    <string name="editorial_sync_col_playlists">导入待回填</string>
+    <string name="editorial_sync_col_charts">全榜缺歌</string>
     <string name="editorial_sync_sub_ready">今日推荐 %1$d 首</string>
-    <string name="editorial_sync_sub_pending_lists">%1$d 份歌单待回填</string>
-    <string name="editorial_sync_sub_synced_lists">导入歌单已齐</string>
-    <string name="editorial_sync_sub_no_lists">支持链接导入</string>
+    <string name="editorial_sync_sub_wishes_idle">待生成今日推荐</string>
+    <string name="editorial_sync_sub_pending_lists">%1$d 份歌单 · %2$d 未完成</string>
+    <string name="editorial_sync_sub_backfill_lists">来自 %1$d 份导入歌单</string>
+    <string name="editorial_sync_sub_synced_lists">%1$d 份导入歌单已齐</string>
+    <string name="editorial_sync_sub_no_lists">支持外链完整导入</string>
     <string name="editorial_sync_sub_charts_matched">已比对 %1$d/8 榜</string>
-    <string name="editorial_sync_sub_charts_idle">8 大公开热榜</string>
+    <string name="editorial_sync_sub_charts_idle">点击榜单比对缺歌</string>
 
     <!-- External Playlist Import Card & Screen -->
     <string name="editorial_import_card_title">外部歌单完整导入</string>
     <string name="editorial_import_card_subtitle">支持拉取最高 5,000 首曲目，自动匹配曲库、多版本确认与缺歌回填</string>
     <string name="editorial_import_paste_cta">粘贴网易云 / QQ 音乐歌单链接</string>
     <string name="editorial_import_item_progress">已匹配 %1$d / %2$d 首</string>
-    <string name="editorial_import_badge_incomplete">待确认</string>
+    <string name="editorial_import_badge_incomplete">保存未完成</string>
     <string name="editorial_import_badge_pending">待回填 %1$d</string>
-    <string name="editorial_import_badge_ready">查看</string>
+    <string name="editorial_import_badge_ready">全部就绪</string>
 
     <string name="editorial_ext_title">外部歌单完整导入</string>
     <string name="editorial_ext_subtitle">网易云音乐 · QQ 音乐\n支持榜单、精选歌单和可分享的个人歌单（最高 5,000 首），保存在服务器并支持后续同步更新。</string>
@@ -103,12 +113,15 @@
     <string name="editorial_badge_netease">网易云</string>
     <string name="editorial_badge_qq">QQ 音乐</string>
 
-    <!-- Library Gallery -->
+    <!-- Library Gallery & Organizer -->
     <string name="editorial_gallery_title">曲库画廊</string>
     <string name="editorial_organize_pill_idle">整理歌单</string>
     <string name="editorial_organize_pill_synced">整理歌单 · 已同步 %1$d</string>
     <string name="editorial_organize_pill_scanning">扫描中 %1$d…</string>
     <string name="editorial_organize_pill_writing">整理 %1$d/%2$d · %3$d%%</string>
+    <string name="editorial_organize_cancel_title">中止整理歌单？</string>
+    <string name="editorial_organize_cancel_message">曲库歌单正在后台同步写入服务器，确定要现在中止吗？</string>
+    <string name="editorial_organize_cancel_confirm">中止整理</string>
 
     <string name="editorial_shelf_language_title">语种唱片架</string>
     <string name="editorial_lang_mandarin">华语</string>
@@ -121,6 +134,7 @@
     <string name="editorial_lang_code_japanese">J-POP</string>
     <string name="editorial_lang_code_korean">K-POP</string>
     <string name="editorial_lang_code_western">WESTERN</string>
+    <string name="editorial_lang_empty">当前语种唱片架下暂无歌手</string>
 
     <string name="editorial_decade_title">年代</string>
     <string name="editorial_genre_title">流派</string>
@@ -132,8 +146,10 @@
     <string name="editorial_artist_az_preview">A · B · C … Z ›</string>
     <string name="editorial_artist_az_empty_filter">未找到匹配的歌手</string>
 
-    <!-- Library Tab Header & Chips -->
+    <!-- Library Tab Header, Chips & Empty/See-All -->
     <string name="editorial_library_title">音乐库</string>
+    <string name="editorial_library_see_all_count">查看全部 (%1$d)</string>
+    <string name="editorial_library_empty">当前音乐库暂无内容，可下拉刷新同步</string>
     <string name="editorial_chip_playlists">歌单</string>
     <string name="editorial_chip_albums">专辑</string>
     <string name="editorial_chip_artists">歌手</string>

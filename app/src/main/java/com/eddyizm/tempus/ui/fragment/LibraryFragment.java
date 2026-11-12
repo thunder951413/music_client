@@ -49,6 +49,16 @@ public class LibraryFragment extends Fragment implements ClickCallback {
     private GenreAdapter genreAdapter;
     private PlaylistHorizontalAdapter playlistHorizontalAdapter;
 
+    private boolean playlistsLoaded = false;
+    private boolean albumsLoaded = false;
+    private boolean artistsLoaded = false;
+    private boolean genresLoaded = false;
+
+    private boolean playlistsEmpty = true;
+    private boolean albumsEmpty = true;
+    private boolean artistsEmpty = true;
+    private boolean genresEmpty = true;
+
     @Nullable
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
@@ -69,6 +79,11 @@ public class LibraryFragment extends Fragment implements ClickCallback {
     @Override
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
+
+        playlistsLoaded = false;
+        albumsLoaded = false;
+        artistsLoaded = false;
+        genresLoaded = false;
 
         LibraryHeaderBinder.bind(bind.libraryHeaderCompose, this, libraryViewModel, mainViewModel);
         initPlaylistView();
@@ -104,6 +119,13 @@ public class LibraryFragment extends Fragment implements ClickCallback {
     public void onDestroyView() {
         super.onDestroyView();
         bind = null;
+    }
+
+    private void updateEmptyState() {
+        if (bind == null) return;
+        boolean allLoaded = playlistsLoaded && albumsLoaded && artistsLoaded && genresLoaded;
+        boolean allEmpty = playlistsEmpty && albumsEmpty && artistsEmpty && genresEmpty;
+        bind.libraryEmptyTextView.setVisibility(allLoaded && allEmpty ? View.VISIBLE : View.GONE);
     }
 
     private void init() {
@@ -179,6 +201,8 @@ public class LibraryFragment extends Fragment implements ClickCallback {
         albumAdapter = new AlbumAdapter(this, true);
         bind.albumRecyclerView.setAdapter(albumAdapter);
         libraryViewModel.getAlbumSample(getViewLifecycleOwner()).observe(getViewLifecycleOwner(), albums -> {
+            albumsLoaded = true;
+            albumsEmpty = albums == null || albums.isEmpty();
             if (albums == null) {
                 if (bind != null) bind.libraryAlbumSector.setVisibility(View.GONE);
             } else {
@@ -187,6 +211,7 @@ public class LibraryFragment extends Fragment implements ClickCallback {
 
                 albumAdapter.setItems(albums);
             }
+            updateEmptyState();
         });
 
         CustomLinearSnapHelper albumSnapHelper = new CustomLinearSnapHelper();
@@ -200,6 +225,8 @@ public class LibraryFragment extends Fragment implements ClickCallback {
         artistAdapter = new ArtistAdapter(this, false, false, true);
         bind.artistRecyclerView.setAdapter(artistAdapter);
         libraryViewModel.getArtistSample(getViewLifecycleOwner()).observe(getViewLifecycleOwner(), artists -> {
+            artistsLoaded = true;
+            artistsEmpty = artists == null || artists.isEmpty();
             if (artists == null) {
                 if (bind != null) bind.libraryArtistSector.setVisibility(View.GONE);
             } else {
@@ -208,6 +235,7 @@ public class LibraryFragment extends Fragment implements ClickCallback {
 
                 artistAdapter.setItems(artists);
             }
+            updateEmptyState();
         });
 
         CustomLinearSnapHelper artistSnapHelper = new CustomLinearSnapHelper();
@@ -222,6 +250,8 @@ public class LibraryFragment extends Fragment implements ClickCallback {
         bind.genreRecyclerView.setAdapter(genreAdapter);
 
         libraryViewModel.getGenreSample(getViewLifecycleOwner()).observe(getViewLifecycleOwner(), genres -> {
+            genresLoaded = true;
+            genresEmpty = genres == null || genres.isEmpty();
             if (genres == null) {
                 if (bind != null) bind.libraryGenresSector.setVisibility(View.GONE);
             } else {
@@ -230,6 +260,7 @@ public class LibraryFragment extends Fragment implements ClickCallback {
 
                 genreAdapter.setItems(genres);
             }
+            updateEmptyState();
         });
 
         CustomLinearSnapHelper genreSnapHelper = new CustomLinearSnapHelper();
@@ -243,14 +274,27 @@ public class LibraryFragment extends Fragment implements ClickCallback {
         playlistHorizontalAdapter = new PlaylistHorizontalAdapter(this);
         bind.playlistRecyclerView.setAdapter(playlistHorizontalAdapter);
         libraryViewModel.getPlaylistSample(getViewLifecycleOwner()).observe(getViewLifecycleOwner(), playlists -> {
+            playlistsLoaded = true;
+            playlistsEmpty = playlists == null || playlists.isEmpty();
             if (playlists == null) {
                 if (bind != null) bind.libraryPlaylistSector.setVisibility(View.GONE);
             } else {
-                if (bind != null)
+                if (bind != null) {
                     bind.libraryPlaylistSector.setVisibility(!playlists.isEmpty() ? View.VISIBLE : View.GONE);
+                    if (playlists.size() > 5) {
+                        bind.playlistCatalogueTextViewClickable.setText(
+                                getString(R.string.editorial_library_see_all_count, playlists.size())
+                        );
+                    } else {
+                        bind.playlistCatalogueTextViewClickable.setText(
+                                R.string.library_title_playlist_see_all_button
+                        );
+                    }
+                }
 
                 playlistHorizontalAdapter.setItems(playlists.subList(0, Math.min(5, playlists.size())));
             }
+            updateEmptyState();
         });
     }
 

@@ -31,6 +31,8 @@ import java.util.*;
 @UnstableApi
 public final class MusicDiscoveryFragment extends Fragment implements ClickCallback {
     public static final String ARG_MODE="discovery_mode", ARG_SOURCE="chart_source", ARG_TITLE="discovery_title";
+    public static final String ARG_PLAYABLE_ONLY="playable_only";
+    public static final String PREF_PLAYABLE_ONLY="editorial_discover_playable_only";
     private FragmentMusicDiscoveryBinding bind;
     private MusicDiscoveryViewModel model;
     private MusicDiscoveryViewModel.State current;
@@ -82,8 +84,15 @@ public final class MusicDiscoveryFragment extends Fragment implements ClickCallb
         bind.discoveryMatch.setOnClickListener(v -> model.matchLibrary());
         bind.discoveryPlay.setOnClickListener(v -> playAll());
         bind.discoveryExport.setOnClickListener(v -> exportMissing());
+        Bundle initArgs=getArguments();
+        playableOnly=initArgs!=null && initArgs.containsKey(ARG_PLAYABLE_ONLY)
+                ? initArgs.getBoolean(ARG_PLAYABLE_ONLY,true)
+                : com.eddyizm.tempus.App.getInstance().getPreferences().getBoolean(PREF_PLAYABLE_ONLY,true);
+        bind.discoveryPlayable.setChecked(playableOnly);
         bind.discoveryPlayable.setOnCheckedChangeListener((button,checked) -> {
-            playableOnly=checked;if (current!=null) render(current);
+            playableOnly=checked;
+            com.eddyizm.tempus.App.getInstance().getPreferences().edit().putBoolean(PREF_PLAYABLE_ONLY,checked).apply();
+            if (current!=null) render(current);
         });
         applyPreset();
         model.state().observe(getViewLifecycleOwner(),this::render);model.enter();return bind.getRoot();

@@ -47,7 +47,18 @@ object HubRepository {
         .apply { ClientCertManager.sslSocketFactory?.let { sslSocketFactory(it, ClientCertManager.trustManager) } }.build() }
 
     internal data class Session(val account: String, val base: String, val auth: String, val headers: Map<String, String>, val device: String, val identity: Pair<String?, String?>)
-    @Keep private data class Daily(val date: String, val songs: List<Child>, val wishes: List<com.eddyizm.tempus.ui.browse.DailyWish>, val playlist_id: String?, val stale: Boolean = false)
+    @Keep private data class Daily(
+        val date: String,
+        val songs: List<Child>,
+        val wishes: List<com.eddyizm.tempus.ui.browse.DailyWish>,
+        val playlist_id: String?,
+        val stale: Boolean = false,
+        val imported_today: Int = 0,
+        val synced_at: Long? = null,
+    )
+
+    private fun normalizeEpochMs(raw: Long?): Long? =
+        raw?.takeIf { it > 0L }?.let { if (it < 4_000_000_000L) it * 1000L else it }
 
     private fun session(): Session? {
         val user = Preferences.getUser()?.takeIf { it.isNotBlank() } ?: return null
@@ -167,6 +178,27 @@ object HubRepository {
         true
     }
 
+    /** Non-blocking read of today's cached Hub mix for the active account (`null` if absent or from an older day). */
+    fun peekCachedToday(): DailyMixRepository.Today? = runCatching {
+        val s = session() ?: return null
+        if (!known(s)) return null
+        val raw = outbox.cached(s.account) ?: return null
+        val cached = gson.fromJson(raw, Daily::class.java) ?: return null
+        if (cached.date != java.time.LocalDate.now().toString()) return null
+        val syncedAt = normalizeEpochMs(cached.synced_at)
+            ?: App.getInstance().preferences.getLong("hub_synced_at:${s.account}", 0L)
+        DailyMixRepository.Today(
+            songs = cached.songs.orEmpty(),
+            wishes = cached.wishes.orEmpty(),
+            pending = cached.playlist_id == null,
+            stale = cached.stale,
+            offline = false,
+            fromHub = true,
+            importedToday = cached.imported_today.coerceAtLeast(0),
+            syncedAtMs = syncedAt,
+        )
+    }.getOrNull()
+
     /** Null means this server has no hub. A hub outage returns its cached result without generating. */
     suspend fun today(): DailyMixRepository.Today? = withContext(Dispatchers.IO) {
         val s = session() ?: return@withContext null
@@ -174,16 +206,39 @@ object HubRepository {
             if (!synchronize(s)) return@withContext null
             val json = request(s, "daily?device=${s.device}", null) ?: error("hub 返回空内容")
             val value = gson.fromJson(json, Daily::class.java)
+            val now = System.currentTimeMillis()
+            val syncedAt = normalizeEpochMs(value.synced_at) ?: now
+            App.getInstance().preferences.edit().putLong("hub_synced_at:${s.account}", syncedAt).apply()
             if (value.songs.isNotEmpty() && value.playlist_id != null) outbox.cache(s.account, json.toString())
             val visible = if (value.songs.isEmpty()) outbox.cached(s.account)?.let { gson.fromJson(it, Daily::class.java) } ?: value else value
             checkCurrent(s)
-            DailyMixRepository.Today(visible.songs, visible.wishes, pending = value.playlist_id == null, stale = visible.stale)
+            DailyMixRepository.Today(
+                songs = visible.songs.orEmpty(),
+                wishes = visible.wishes.orEmpty(),
+                pending = value.playlist_id == null,
+                stale = visible.stale,
+                offline = false,
+                fromHub = true,
+                importedToday = visible.imported_today.coerceAtLeast(0),
+                syncedAtMs = syncedAt,
+            )
         } catch (e: CancellationException) { throw e }
         catch (e: Exception) {
             checkCurrent(s)
             if (!known(s)) throw e
             val cached = outbox.cached(s.account)?.let { gson.fromJson(it, Daily::class.java) }
-            DailyMixRepository.Today(cached?.songs.orEmpty(), cached?.wishes.orEmpty(), pending = cached == null, stale = true, offline = true)
+            val lastSync = normalizeEpochMs(cached?.synced_at)
+                ?: App.getInstance().preferences.getLong("hub_synced_at:${s.account}", 0L)
+            DailyMixRepository.Today(
+                songs = cached?.songs.orEmpty(),
+                wishes = cached?.wishes.orEmpty(),
+                pending = false,
+                stale = true,
+                offline = true,
+                fromHub = true,
+                importedToday = (cached?.imported_today ?: 0).coerceAtLeast(0),
+                syncedAtMs = lastSync,
+            )
         }
     }
 
