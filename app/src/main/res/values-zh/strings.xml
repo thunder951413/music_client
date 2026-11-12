@@ -146,7 +146,7 @@
     <string name="home_section_podcast">播客</string>
     <string name="home_section_radio">电台</string>
     <string name="home_subtitle_best_of">您最喜欢的艺术家的热门歌曲</string>
-    <string name="home_subtitle_made_for_you">从您喜欢的歌曲开始混听</string>
+    <string name="home_subtitle_made_for_you">融合红心收藏与近期常听，点击开启混听</string>
     <string name="home_subtitle_new_internet_radio_station">添加新的电台</string>
     <string name="home_subtitle_new_podcast_channel">添加新的播客频道</string>
     <plurals name="home_sync_starred_albums_count">

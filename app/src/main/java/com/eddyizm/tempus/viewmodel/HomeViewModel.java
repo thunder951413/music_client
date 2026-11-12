@@ -152,7 +152,7 @@ public class HomeViewModel extends AndroidViewModel {
 
     public LiveData<List<Child>> getStarredTracksSample(LifecycleOwner owner) {
         if (starredTracksSample.getValue() == null) {
-            songRepository.getStarredSongs(true, 10).observe(owner, starredTracksSample::postValue);
+            songRepository.getMadeForYouSample(12).observe(owner, setIfCurrentGeneration(starredTracksSample));
         }
 
         return starredTracksSample;
@@ -239,7 +239,7 @@ public class HomeViewModel extends AndroidViewModel {
     }
 
     public LiveData<List<Child>> getMediaInstantMix(Child media) {
-        return songRepository.getInstantMix(media, 20);
+        return songRepository.getInstantMix(media, 25);
     }
 
     public LiveData<List<Child>> getArtistInstantMix(LifecycleOwner owner, ArtistID3 artist) {
@@ -334,6 +334,7 @@ public class HomeViewModel extends AndroidViewModel {
         musicFolderGeneration++;
 
         dicoverSongSample.setValue(null);
+        starredTracksSample.setValue(null);
         newReleasedAlbum.setValue(null);
         mostPlayedAlbumSample.setValue(null);
         recentlyPlayedAlbumSample.setValue(null);
@@ -356,6 +357,7 @@ public class HomeViewModel extends AndroidViewModel {
         // name: true means the id is absent from the saved sector list, which is not the same as
         // the user hiding it, since hiding keeps the entry and only clears its isVisible flag.
         if (!checkHomeSectorVisibility(Constants.HOME_SECTOR_DISCOVERY)) refreshDiscoverySongSample(owner);
+        if (!checkHomeSectorVisibility(Constants.HOME_SECTOR_MADE_FOR_YOU)) refreshSimilarSongSample(owner);
         if (!checkHomeSectorVisibility(Constants.HOME_SECTOR_NEW_RELEASES)) refreshRecentlyReleasedAlbums(owner);
         if (!checkHomeSectorVisibility(Constants.HOME_SECTOR_MOST_PLAYED)) refreshMostPlayedAlbums(owner);
         if (!checkHomeSectorVisibility(Constants.HOME_SECTOR_LAST_PLAYED)) refreshRecentlyPlayedAlbumList(owner);
@@ -386,7 +388,7 @@ public class HomeViewModel extends AndroidViewModel {
     }
 
     public void refreshSimilarSongSample(LifecycleOwner owner) {
-        songRepository.getStarredSongs(true, 10).observe(owner, starredTracksSample::postValue);
+        songRepository.getMadeForYouSample(12).observe(owner, setIfCurrentGeneration(starredTracksSample));
     }
 
     public void refreshRadioArtistSample(LifecycleOwner owner) {

@@ -3,19 +3,39 @@ package com.eddyizm.tempus.repository;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.OptIn;
 import androidx.lifecycle.MutableLiveData;
+import androidx.media3.common.util.UnstableApi;
 
 import com.eddyizm.tempus.App;
+import com.eddyizm.tempus.database.AppDatabase;
+import com.eddyizm.tempus.discovery.MusicDiscoveryRules;
+import com.eddyizm.tempus.model.Chronology;
+import com.eddyizm.tempus.subsonic.Subsonic;
+import com.eddyizm.tempus.subsonic.api.albumsonglist.AlbumSongListClient;
+import com.eddyizm.tempus.subsonic.api.browsing.BrowsingClient;
+import com.eddyizm.tempus.subsonic.api.searching.SearchingClient;
 import com.eddyizm.tempus.subsonic.base.ApiResponse;
+import com.eddyizm.tempus.subsonic.models.AlbumID3;
 import com.eddyizm.tempus.subsonic.models.Child;
 import com.eddyizm.tempus.subsonic.models.SubsonicResponse;
+import com.eddyizm.tempus.ui.browse.LibraryMixes;
 import com.eddyizm.tempus.util.Constants.SeedType;
+import com.eddyizm.tempus.util.Preferences;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 import retrofit2.Call;
@@ -25,6 +45,21 @@ import retrofit2.Response;
 public class SongRepository {
 
     private static final String TAG = "SongRepository";
+    private static final int MIN_SIMILAR_SONGS = 5;
+    private static final int PER_ARTIST_CAP = 3;
+    private static final int MADE_FOR_YOU_PER_ARTIST_CAP = 2;
+    private static final long HISTORY_WINDOW_DAYS = 30L;
+    private static final Executor IO_EXECUTOR = Executors.newCachedThreadPool();
+
+    private final Executor backgroundExecutor;
+
+    public SongRepository() {
+        this(IO_EXECUTOR);
+    }
+
+    SongRepository(Executor backgroundExecutor) {
+        this.backgroundExecutor = backgroundExecutor != null ? backgroundExecutor : IO_EXECUTOR;
+    }
 
     public interface MediaCallbackInternal {
         void onSongsAvailable(List<Child> songs);
@@ -44,10 +79,11 @@ public class SongRepository {
 
                             if (songs != null) {
                                 if (!random) {
-                                    starredSongs.setValue(songs);
+                                    starredSongs.setValue(new ArrayList<>(songs));
                                 } else {
-                                    Collections.shuffle(songs);
-                                    starredSongs.setValue(songs.subList(0, Math.min(size, songs.size())));
+                                    List<Child> copy = new ArrayList<>(songs);
+                                    Collections.shuffle(copy);
+                                    starredSongs.setValue(new ArrayList<>(copy.subList(0, Math.min(size, copy.size()))));
                                 }
                             }
                         }
@@ -58,6 +94,50 @@ public class SongRepository {
                 });
 
         return starredSongs;
+    }
+
+    /**
+     * Builds the multi-signal "Made for you" (`为您定制`) shelf sample (~12 tracks) by blending:
+     * 1) red-heart favorites (`getStarred2`),
+     * 2) local recent plays (`chronologyDao`),
+     * 3) server frequent & recent album tracks (`getAlbumList2("frequent" / "recent")`),
+     * falling back to library random tracks only when all 3 user signals are empty.
+     */
+    public MutableLiveData<List<Child>> getMadeForYouSample(int size) {
+        MutableLiveData<List<Child>> result = new MutableLiveData<>(new ArrayList<>());
+        final int target = Math.max(1, size);
+        backgroundExecutor.execute(() -> {
+            try {
+                Subsonic subsonic = App.getSubsonicClientInstance(false);
+                AlbumSongListClient albumSongClient = subsonic != null ? subsonic.getAlbumSongListClient() : null;
+                BrowsingClient browsingClient = subsonic != null ? subsonic.getBrowsingClient() : null;
+
+                List<Child> starred = fetchStarredSync(albumSongClient);
+                List<Child> recentLocal = fetchLocalHistorySync(60);
+                List<Child> frequentAlbums = fetchAlbumTracksByTypeSync(albumSongClient, browsingClient, "frequent", 4, target * 2);
+                List<Child> recentAlbums = fetchAlbumTracksByTypeSync(albumSongClient, browsingClient, "recent", 4, target * 2);
+
+                List<Child> randomFallback = Collections.emptyList();
+                if (starred.isEmpty() && recentLocal.isEmpty() && frequentAlbums.isEmpty() && recentAlbums.isEmpty()) {
+                    randomFallback = fetchResilientPoolSync(albumSongClient, browsingClient, null, target * 2);
+                }
+
+                List<Child> sample = blendMadeForYouSample(
+                        starred,
+                        recentLocal,
+                        frequentAlbums,
+                        recentAlbums,
+                        randomFallback,
+                        target,
+                        new Random(System.nanoTime())
+                );
+                result.postValue(new ArrayList<>(sample));
+            } catch (Exception e) {
+                Log.e(TAG, "getMadeForYouSample failed", e);
+                result.postValue(new ArrayList<>());
+            }
+        });
+        return result;
     }
 
     /** Each request completes once, including partial mixes and unsupported recommendations. */
@@ -91,9 +171,447 @@ public class SongRepository {
         if (initial.size() >= count) {
             callback.onSongsAvailable(initial);
         } else {
-            fetchSimilarOnly(id, count, similar ->
-                    callback.onSongsAvailable(mergeMix(initial, similar, count)));
+            fetchSimilarOnly(id, count, similar -> {
+                List<Child> merged = mergeMix(initial, similar, count);
+                if (initial.isEmpty() || similar.size() >= MIN_SIMILAR_SONGS || merged.size() >= count) {
+                    callback.onSongsAvailable(merged);
+                    return;
+                }
+                expandInstantMixFallback(initial, similar, count, callback);
+            });
         }
+    }
+
+    private void expandInstantMixFallback(
+            List<Child> seeds,
+            List<Child> similar,
+            int count,
+            MediaCallbackInternal callback
+    ) {
+        Subsonic subsonic = App.getSubsonicClientInstance(false);
+        BrowsingClient browsing = subsonic != null ? subsonic.getBrowsingClient() : null;
+        AlbumSongListClient albumSongClient = subsonic != null ? subsonic.getAlbumSongListClient() : null;
+        SearchingClient searchingClient = subsonic != null ? subsonic.getSearchingClient() : null;
+        boolean hasContext = App.getContext() != null;
+
+        Child primarySeed = seeds.get(0);
+        Call<ApiResponse> artistSimCall = null;
+        if (browsing != null && primarySeed != null && !isBlank(primarySeed.getArtistId())) {
+            artistSimCall = browsing.getSimilarSongs2(primarySeed.getArtistId(), count);
+        }
+
+        // Preserve deterministic synchronous completion when no fallback clients or DB context exist.
+        if (!hasContext && albumSongClient == null && searchingClient == null && artistSimCall == null) {
+            callback.onSongsAvailable(mergeMix(seeds, similar, count));
+            return;
+        }
+
+        final Call<ApiResponse> preparedArtistSimCall = artistSimCall;
+        backgroundExecutor.execute(() -> {
+            try {
+                List<Child> artistSimilar = Collections.emptyList();
+                if (preparedArtistSimCall != null) {
+                    SubsonicResponse res = executeSync(preparedArtistSimCall);
+                    if (res != null && res.getSimilarSongs2() != null && res.getSimilarSongs2().getSongs() != null) {
+                        artistSimilar = filterPlayable(res.getSimilarSongs2().getSongs());
+                    }
+                }
+
+                List<Child> sameArtist = fetchSameArtistTracksSync(primarySeed, searchingClient, browsing);
+                List<Child> sameGenre = fetchSameGenreTracksSync(primarySeed, albumSongClient, count);
+                List<Child> taste = new ArrayList<>();
+                taste.addAll(fetchLocalHistorySync(60));
+                taste.addAll(fetchStarredSync(albumSongClient));
+
+                List<Child> combinedSimilar = new ArrayList<>();
+                if (similar != null) combinedSimilar.addAll(similar);
+                combinedSimilar.addAll(artistSimilar);
+
+                List<Child> libraryPool = fetchResilientPoolSync(
+                        albumSongClient,
+                        browsing,
+                        searchingClient,
+                        Math.max(count * 3, 60)
+                );
+
+                List<Child> assembled = assembleInstantMix(
+                        seeds,
+                        combinedSimilar,
+                        sameArtist,
+                        sameGenre,
+                        taste,
+                        libraryPool,
+                        count,
+                        new Random(System.nanoTime())
+                );
+                callback.onSongsAvailable(assembled);
+            } catch (Exception e) {
+                Log.e(TAG, "expandInstantMixFallback failed", e);
+                callback.onSongsAvailable(mergeMix(seeds, similar, count));
+            }
+        });
+    }
+
+    static List<Child> blendMadeForYouSample(
+            List<Child> starred,
+            List<Child> recentLocal,
+            List<Child> frequentAlbumTracks,
+            List<Child> recentAlbumTracks,
+            List<Child> randomFallback,
+            int limit,
+            Random random
+    ) {
+        if (limit <= 0) return Collections.emptyList();
+        Random rng = random != null ? random : new Random(1L);
+
+        List<List<Child>> tasteBuckets = new ArrayList<>();
+        for (List<Child> raw : Arrays.asList(starred, recentLocal, frequentAlbumTracks, recentAlbumTracks)) {
+            List<Child> playable = new ArrayList<>(filterPlayable(raw));
+            if (!playable.isEmpty()) {
+                Collections.shuffle(playable, rng);
+                tasteBuckets.add(playable);
+            }
+        }
+
+        if (tasteBuckets.isEmpty()) {
+            List<Child> fallback = new ArrayList<>(filterPlayable(randomFallback));
+            Collections.shuffle(fallback, rng);
+            return mergeMix(Collections.emptyList(), fallback, limit);
+        }
+
+        Collections.shuffle(tasteBuckets, rng);
+        Map<String, Child> picked = new LinkedHashMap<>();
+        Map<String, Integer> perArtist = new HashMap<>();
+
+        // First pass: round-robin across active taste signals with light artist diversity.
+        int[] cursors = new int[tasteBuckets.size()];
+        boolean progressed = true;
+        while (picked.size() < limit && progressed) {
+            progressed = false;
+            for (int b = 0; b < tasteBuckets.size(); b++) {
+                if (picked.size() >= limit) break;
+                List<Child> bucket = tasteBuckets.get(b);
+                while (cursors[b] < bucket.size()) {
+                    Child candidate = bucket.get(cursors[b]++);
+                    if (tryPutWithArtistCap(picked, perArtist, candidate, limit, MADE_FOR_YOU_PER_ARTIST_CAP)) {
+                        progressed = true;
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Second pass: relax artist cap within user's taste tracks if small/single-artist taste pool.
+        if (picked.size() < limit) {
+            for (List<Child> bucket : tasteBuckets) {
+                for (Child candidate : bucket) {
+                    if (picked.size() >= limit) break;
+                    tryPutWithArtistCap(picked, perArtist, candidate, limit, Integer.MAX_VALUE);
+                }
+            }
+        }
+
+        return new ArrayList<>(picked.values());
+    }
+
+    static List<Child> assembleInstantMix(
+            List<Child> seeds,
+            List<Child> similar,
+            List<Child> sameArtist,
+            List<Child> sameGenre,
+            List<Child> taste,
+            List<Child> libraryPool,
+            int count,
+            Random random
+    ) {
+        if (count <= 0) return Collections.emptyList();
+        Random rng = random != null ? random : new Random(1L);
+
+        Map<String, Child> chosen = new LinkedHashMap<>();
+        Map<String, Integer> perArtist = new HashMap<>();
+
+        // 1. Always preserve visible seed(s) at the head of the queue.
+        if (seeds != null) {
+            for (Child seed : seeds) {
+                if (chosen.size() >= count) break;
+                if (seed != null && seed.getId() != null && !seed.getId().isEmpty() && !seed.isDir() && !seed.isVideo()) {
+                    Set<String> artists = MusicDiscoveryRules.artistNames(seed.getArtist());
+                    for (String a : artists) {
+                        perArtist.put(a, perArtist.getOrDefault(a, 0) + 1);
+                    }
+                    chosen.putIfAbsent(seed.getId(), seed);
+                }
+            }
+        }
+
+        // 2. Add direct similarity matches first.
+        for (Child song : filterPlayable(similar)) {
+            if (chosen.size() >= count) break;
+            tryPutWithArtistCap(chosen, perArtist, song, count, PER_ARTIST_CAP + 1);
+        }
+
+        // 3. Interleave same-artist, same-genre, user taste, and library discovery with artist cap.
+        List<Child> artistShuffled = new ArrayList<>(filterPlayable(sameArtist));
+        List<Child> genreShuffled = new ArrayList<>(filterPlayable(sameGenre));
+        List<Child> tasteShuffled = new ArrayList<>(filterPlayable(taste));
+        List<Child> poolShuffled = new ArrayList<>(filterPlayable(libraryPool));
+        Collections.shuffle(artistShuffled, rng);
+        Collections.shuffle(genreShuffled, rng);
+        Collections.shuffle(tasteShuffled, rng);
+        Collections.shuffle(poolShuffled, rng);
+
+        List<ArrayDeque<Child>> queues = new ArrayList<>();
+        if (!artistShuffled.isEmpty()) queues.add(new ArrayDeque<>(artistShuffled));
+        if (!genreShuffled.isEmpty()) queues.add(new ArrayDeque<>(genreShuffled));
+        if (!tasteShuffled.isEmpty()) queues.add(new ArrayDeque<>(tasteShuffled));
+        if (!poolShuffled.isEmpty()) queues.add(new ArrayDeque<>(poolShuffled));
+
+        boolean anyRemaining = true;
+        while (chosen.size() < count && anyRemaining) {
+            anyRemaining = false;
+            for (ArrayDeque<Child> q : queues) {
+                if (chosen.size() >= count) break;
+                while (!q.isEmpty()) {
+                    anyRemaining = true;
+                    // Allow up to 4 total tracks for the seed artist (seed + 3 same-artist), 3 for others.
+                    if (tryPutWithArtistCap(chosen, perArtist, q.pollFirst(), count, PER_ARTIST_CAP + 1)) {
+                        break;
+                    }
+                }
+            }
+        }
+
+        // 4. Second pass with relaxed artist cap so small or single-artist libraries never return [seed].
+        if (chosen.size() < count) {
+            for (List<Child> batch : Arrays.asList(similar, artistShuffled, genreShuffled, tasteShuffled, poolShuffled)) {
+                for (Child song : filterPlayable(batch)) {
+                    if (chosen.size() >= count) break;
+                    tryPutWithArtistCap(chosen, perArtist, song, count, Integer.MAX_VALUE);
+                }
+            }
+        }
+
+        return new ArrayList<>(chosen.values());
+    }
+
+    private static boolean tryPutWithArtistCap(
+            Map<String, Child> target,
+            Map<String, Integer> perArtist,
+            Child song,
+            int limit,
+            int artistCap
+    ) {
+        if (target.size() >= limit || !isPlayable(song) || target.containsKey(song.getId())) {
+            return false;
+        }
+        Set<String> artists = MusicDiscoveryRules.artistNames(song.getArtist());
+        // Never apply per-artist cap to blank/unknown artist metadata.
+        if (artistCap < Integer.MAX_VALUE && !artists.isEmpty()) {
+            for (String artist : artists) {
+                if (perArtist.getOrDefault(artist, 0) >= artistCap) {
+                    return false;
+                }
+            }
+        }
+        for (String artist : artists) {
+            perArtist.put(artist, perArtist.getOrDefault(artist, 0) + 1);
+        }
+        target.put(song.getId(), song);
+        return true;
+    }
+
+    private static boolean isPlayable(Child song) {
+        return song != null
+                && !song.isDir()
+                && !song.isVideo()
+                && song.getId() != null
+                && !song.getId().trim().isEmpty();
+    }
+
+    private static List<Child> filterPlayable(List<Child> rows) {
+        if (rows == null || rows.isEmpty()) return Collections.emptyList();
+        List<Child> valid = new ArrayList<>(rows.size());
+        for (Child song : rows) {
+            if (isPlayable(song)) valid.add(song);
+        }
+        return valid;
+    }
+
+    private static boolean isBlank(String s) {
+        return s == null || s.trim().isEmpty();
+    }
+
+    private static SubsonicResponse executeSync(Call<ApiResponse> call) {
+        if (call == null) return null;
+        try {
+            if (call.timeout() != null) {
+                call.timeout().timeout(4, TimeUnit.SECONDS);
+            }
+            Response<ApiResponse> response = call.execute();
+            if (response != null && response.isSuccessful() && response.body() != null) {
+                SubsonicResponse sub = response.body().getSubsonicResponse();
+                if (sub != null && sub.getError() == null) {
+                    return sub;
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        return null;
+    }
+
+    private static List<Child> fetchStarredSync(AlbumSongListClient albumSongClient) {
+        if (albumSongClient == null) return Collections.emptyList();
+        SubsonicResponse res = executeSync(albumSongClient.getStarred2());
+        if (res != null && res.getStarred2() != null && res.getStarred2().getSongs() != null) {
+            return filterPlayable(res.getStarred2().getSongs());
+        }
+        return Collections.emptyList();
+    }
+
+    @OptIn(markerClass = UnstableApi.class)
+    private static List<Child> fetchLocalHistorySync(int limit) {
+        if (App.getContext() == null) return Collections.emptyList();
+        try {
+            long since = System.currentTimeMillis() - TimeUnit.DAYS.toMillis(HISTORY_WINDOW_DAYS);
+            List<Chronology> rows = AppDatabase.getInstance()
+                    .chronologyDao()
+                    .getPlayedSince(Preferences.getServerId(), since, limit);
+            if (rows == null || rows.isEmpty()) return Collections.emptyList();
+            List<Child> out = new ArrayList<>(rows.size());
+            for (Chronology c : rows) {
+                if (c == null) continue;
+                if (c.getUserRating() != null && c.getUserRating() == 0) {
+                    c.setUserRating(null);
+                }
+                if (isPlayable(c)) out.add(c);
+            }
+            return out;
+        } catch (Exception ignored) {
+            return Collections.emptyList();
+        }
+    }
+
+    private static List<Child> fetchAlbumTracksByTypeSync(
+            AlbumSongListClient albumSongClient,
+            BrowsingClient browsingClient,
+            String type,
+            int albumLimit,
+            int trackLimit
+    ) {
+        if (albumSongClient == null || browsingClient == null) return Collections.emptyList();
+        SubsonicResponse listRes = executeSync(albumSongClient.getAlbumList2(type, albumLimit, 0, null, null));
+        if (listRes == null || listRes.getAlbumList2() == null || listRes.getAlbumList2().getAlbums() == null) {
+            return Collections.emptyList();
+        }
+        Map<String, Child> collected = new LinkedHashMap<>();
+        for (AlbumID3 album : listRes.getAlbumList2().getAlbums()) {
+            if (collected.size() >= trackLimit) break;
+            if (album == null || isBlank(album.getId())) continue;
+            SubsonicResponse albumRes = executeSync(browsingClient.getAlbum(album.getId()));
+            if (albumRes != null && albumRes.getAlbum() != null && albumRes.getAlbum().getSongs() != null) {
+                for (Child song : filterPlayable(albumRes.getAlbum().getSongs())) {
+                    collected.putIfAbsent(song.getId(), song);
+                    if (collected.size() >= trackLimit) break;
+                }
+            }
+        }
+        return new ArrayList<>(collected.values());
+    }
+
+    private static List<Child> fetchSameArtistTracksSync(
+            Child seed,
+            SearchingClient searchingClient,
+            BrowsingClient browsingClient
+    ) {
+        if (seed == null) return Collections.emptyList();
+        Map<String, Child> found = new LinkedHashMap<>();
+        Set<String> seedArtists = MusicDiscoveryRules.artistNames(seed.getArtist());
+        String lead = null;
+        if (!isBlank(seed.getArtist())) {
+            String[] parts = seed.getArtist().split("[/•·,&、，(]");
+            if (parts.length > 0 && !isBlank(parts[0])) {
+                lead = parts[0].trim();
+            }
+        }
+        if (lead != null && searchingClient != null) {
+            SubsonicResponse searchRes = executeSync(searchingClient.search3(lead, 50, 0, 0, 0, 0, 0));
+            if (searchRes != null && searchRes.getSearchResult3() != null && searchRes.getSearchResult3().getSongs() != null) {
+                for (Child candidate : filterPlayable(searchRes.getSearchResult3().getSongs())) {
+                    if (candidate.getId().equals(seed.getId())) continue;
+                    boolean sameId = !isBlank(seed.getArtistId()) && seed.getArtistId().equals(candidate.getArtistId());
+                    boolean sameName = !seedArtists.isEmpty()
+                            && !Collections.disjoint(MusicDiscoveryRules.artistNames(candidate.getArtist()), seedArtists);
+                    if (sameId || sameName) {
+                        found.putIfAbsent(candidate.getId(), candidate);
+                    }
+                }
+            }
+        }
+        if (found.isEmpty() && !isBlank(seed.getAlbumId()) && browsingClient != null) {
+            SubsonicResponse albumRes = executeSync(browsingClient.getAlbum(seed.getAlbumId()));
+            if (albumRes != null && albumRes.getAlbum() != null && albumRes.getAlbum().getSongs() != null) {
+                for (Child sibling : filterPlayable(albumRes.getAlbum().getSongs())) {
+                    if (!sibling.getId().equals(seed.getId())) {
+                        found.putIfAbsent(sibling.getId(), sibling);
+                    }
+                }
+            }
+        }
+        return new ArrayList<>(found.values());
+    }
+
+    private static List<Child> fetchSameGenreTracksSync(Child seed, AlbumSongListClient albumSongClient, int count) {
+        if (seed == null || albumSongClient == null) return Collections.emptyList();
+        List<String> genres = LibraryMixes.INSTANCE.genresOf(seed);
+        if (genres.isEmpty()) return Collections.emptyList();
+        String genre = genres.get(0);
+        SubsonicResponse randomRes = executeSync(albumSongClient.getRandomSongs(Math.max(count, 20), null, null, genre));
+        if (randomRes != null && randomRes.getRandomSongs() != null && randomRes.getRandomSongs().getSongs() != null) {
+            List<Child> byRandom = filterPlayable(randomRes.getRandomSongs().getSongs());
+            if (!byRandom.isEmpty()) return byRandom;
+        }
+        SubsonicResponse genreRes = executeSync(albumSongClient.getSongsByGenre(genre, Math.max(count * 2, 40), 0));
+        if (genreRes != null && genreRes.getSongsByGenre() != null && genreRes.getSongsByGenre().getSongs() != null) {
+            return filterPlayable(genreRes.getSongsByGenre().getSongs());
+        }
+        return Collections.emptyList();
+    }
+
+    private static List<Child> fetchResilientPoolSync(
+            AlbumSongListClient albumSongClient,
+            BrowsingClient browsingClient,
+            SearchingClient searchingClient,
+            int targetSize
+    ) {
+        Map<String, Child> pool = new LinkedHashMap<>();
+        if (albumSongClient != null) {
+            for (int size : new int[]{Math.min(Math.max(targetSize, 50), 100), 50}) {
+                SubsonicResponse res = executeSync(albumSongClient.getRandomSongs(size, null, null));
+                if (res != null && res.getRandomSongs() != null && res.getRandomSongs().getSongs() != null) {
+                    for (Child song : filterPlayable(res.getRandomSongs().getSongs())) {
+                        pool.putIfAbsent(song.getId(), song);
+                    }
+                }
+                if (pool.size() >= targetSize) break;
+            }
+        }
+        if (pool.size() < targetSize && albumSongClient != null && browsingClient != null) {
+            for (String type : new String[]{"frequent", "recent", "random", "newest"}) {
+                if (pool.size() >= targetSize) break;
+                for (Child song : fetchAlbumTracksByTypeSync(albumSongClient, browsingClient, type, 4, targetSize)) {
+                    pool.putIfAbsent(song.getId(), song);
+                }
+            }
+        }
+        if (pool.size() < targetSize && searchingClient != null) {
+            SubsonicResponse res = executeSync(searchingClient.search3("", 80, 0, 0, 0, 0, 0));
+            if (res != null && res.getSearchResult3() != null && res.getSearchResult3().getSongs() != null) {
+                for (Child song : filterPlayable(res.getSearchResult3().getSongs())) {
+                    pool.putIfAbsent(song.getId(), song);
+                }
+            }
+        }
+        return new ArrayList<>(pool.values());
     }
 
     static List<Child> mergeMix(List<Child> seeds, List<Child> similar, int count) {

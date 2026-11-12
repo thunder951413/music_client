@@ -723,15 +723,16 @@ public class HomeTabMusicFragment extends Fragment implements ClickCallback {
         similarMusicAdapter = new SimilarTrackAdapter(this);
         bind.similarTracksRecyclerView.setAdapter(similarMusicAdapter);
         homeViewModel.getStarredTracksSample(getViewLifecycleOwner()).observe(getViewLifecycleOwner(), songs -> {
-            MusicUtil.ratingFilter(songs);
-
             if (songs == null) {
                 if (bind != null) bind.homeSimilarTracksSector.setVisibility(View.GONE);
             } else {
+                List<Child> filtered = new ArrayList<>(songs);
+                MusicUtil.ratingFilter(filtered);
+                List<Child> display = (!filtered.isEmpty() || songs.isEmpty()) ? filtered : new ArrayList<>(songs);
                 if (bind != null)
-                    bind.homeSimilarTracksSector.setVisibility(!songs.isEmpty() ? View.VISIBLE : View.GONE);
+                    bind.homeSimilarTracksSector.setVisibility(!display.isEmpty() ? View.VISIBLE : View.GONE);
 
-                similarMusicAdapter.setItems(songs);
+                similarMusicAdapter.setItems(display);
             }
         });
 

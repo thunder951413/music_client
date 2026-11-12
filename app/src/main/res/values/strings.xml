@@ -186,7 +186,7 @@
     <string name="home_section_podcast">Podcast</string>
     <string name="home_section_radio">Radio</string>
     <string name="home_subtitle_best_of">Top songs of your favorite artists</string>
-    <string name="home_subtitle_made_for_you">Start mix from a song you liked</string>
+    <string name="home_subtitle_made_for_you">Favorites &amp; recent plays · tap to start a mix</string>
     <string name="home_subtitle_new_internet_radio_station">Add a new radio</string>
     <string name="home_subtitle_new_podcast_channel">Add a new podcast channel</string>
     <string name="home_sync_starred_cancel">Cancel</string>

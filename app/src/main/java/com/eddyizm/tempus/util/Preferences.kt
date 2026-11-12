@@ -265,7 +265,7 @@ object Preferences {
     fun getActiveMusicFolderId(): String? {
         val key = activeMusicFolderKey() ?: return null
         val stored = App.getInstance().preferences.getString(key, MUSIC_FOLDER_ALL)
-        return if (stored == null || stored == MUSIC_FOLDER_ALL) null else stored
+        return if (stored.isNullOrBlank() || stored == MUSIC_FOLDER_ALL) null else stored
     }
 
     @JvmStatic

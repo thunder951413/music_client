@@ -147,28 +147,22 @@ object DailyMixRepository {
         val random = Random(key.hashCode())
         val now = System.currentTimeMillis()
         val starred = async { runCatching { BrowseRepository.starredSongs() }.getOrDefault(emptyList()) }
-        val pool = async { runCatching { BrowseRepository.randomSongs(500) }.getOrDefault(emptyList()) }
+        val pool = async {
+            val initial = runCatching { BrowseRepository.randomSongs(500) }.getOrDefault(emptyList())
+            if (initial.size >= DailyMixPlanner.SIZE) initial
+            else (initial + runCatching { BrowseRepository.resilientCandidatePool(100) }.getOrDefault(emptyList())).distinctBy { it.id }
+        }
+        val frequentAlbums = async { runCatching { BrowseRepository.albumTracksByType("frequent", 4, 24) }.getOrDefault(emptyList()) }
         val history = runCatching {
             AppDatabase.getInstance().chronologyDao()
                 .getPlayedSince(Preferences.getServerId(), now - TimeUnit.DAYS.toMillis(HISTORY_DAYS), 200)
+                .map(BrowseRepository::normalizeLocalTrack)
         }.getOrDefault(emptyList())
         val justHeard = history.filter { it.timestamp >= now - TimeUnit.DAYS.toMillis(2) }.mapTo(HashSet()) { it.id }
         val songs = pool.await()
-        val genreCounts = HashMap<String, Int>()
-        var taggedSongs = 0
-        for (s in songs) {
-            val genres = LibraryMixes.genresOf(s)
-            if (genres.isNotEmpty()) {
-                taggedSongs++
-                genres.forEach { genreCounts[it] = (genreCounts[it] ?: 0) + 1 }
-            }
-        }
-        val noiseGenres = if (taggedSongs >= 10) {
-            genreCounts.filterValues { it * 5 > taggedSongs * 3 }.keys
-        } else {
-            emptySet()
-        }
-        val frequent = songs.filter { (it.playCount ?: 0L) > 0L }.sortedByDescending { it.playCount }.take(30)
+        val noiseGenres = detectNoiseGenres(songs)
+        val frequent = (frequentAlbums.await() + songs.filter { (it.playCount ?: 0L) > 0L }.sortedByDescending { it.playCount }.take(30))
+            .distinctBy { it.id }
         val liked = starred.await()
         val listened = liked + history + frequent
         val wishList = async { withTimeoutOrNull(WISH_TIMEOUT_MS) { runCatching { wishes(listened, pending) }.getOrNull() }.orEmpty() }
@@ -188,25 +182,48 @@ object DailyMixRepository {
         )
     }
 
-    /** Similar songs from the server (needs Last.fm in Navidrome), else same artist, genre and decade. */
+    private fun detectNoiseGenres(songs: List<Child>): Set<String> {
+        val genreCounts = HashMap<String, Int>()
+        var taggedSongs = 0
+        for (s in songs) {
+            val genres = LibraryMixes.genresOf(s)
+            if (genres.isNotEmpty()) {
+                taggedSongs++
+                genres.forEach { genreCounts[it] = (genreCounts[it] ?: 0) + 1 }
+            }
+        }
+        return if (taggedSongs >= 10) {
+            genreCounts.filterValues { it * 5 > taggedSongs * 3 }.keys
+        } else {
+            emptySet()
+        }
+    }
+
+    /** Similar songs from the server (song ID then artist ID), else same artist, genre and decade. */
     private suspend fun related(seed: Child, pool: List<Child>, noiseGenres: Set<String>, random: Random): List<Child> {
-        val similar = BrowseRepository.similarSongs(seed.id, 15).filter { it.id != seed.id }
+        val similar = BrowseRepository.similarSongs(seed.id, 15, seed.artistId).filter { it.id != seed.id }
         if (similar.size >= 5) return similar
         val seedArtists = MusicDiscoveryRules.artistNames(seed.artist)
         val lead = seed.artist?.split('/', '•', '·', ',', '&', '、', '，', '(')?.firstOrNull()?.trim()
         val artist = if (!lead.isNullOrEmpty() && seedArtists.isNotEmpty()) {
             (runCatching { search(lead) }.getOrDefault(emptyList()) + pool)
+                .filter(BrowseRepository::isPlayableSong)
                 .distinctBy { it.id }
-                .filter { it.id != seed.id && (it.artistId == seed.artistId || ! java.util.Collections.disjoint(MusicDiscoveryRules.artistNames(it.artist), seedArtists)) }
+                .filter { it.id != seed.id && ((!seed.artistId.isNullOrBlank() && it.artistId == seed.artistId) || !java.util.Collections.disjoint(MusicDiscoveryRules.artistNames(it.artist), seedArtists)) }
                 .shuffled(random).take(6)
         } else emptyList()
         val genre = LibraryMixes.genresOf(seed).firstOrNull { it !in noiseGenres }?.let { name ->
-            runCatching {
-                execute(client.albumSongListClient.getRandomSongs(4, null, null, name)).randomSongs?.songs.orEmpty()
-            }.getOrDefault(emptyList())
-        }.orEmpty().take(2)
+            val byRandom = runCatching {
+                execute(client.albumSongListClient.getRandomSongs(6, null, null, name)).randomSongs?.songs.orEmpty()
+            }.getOrDefault(emptyList()).filter(BrowseRepository::isPlayableSong)
+            byRandom.ifEmpty {
+                runCatching {
+                    execute(client.albumSongListClient.getSongsByGenre(name, 12, 0)).songsByGenre?.songs.orEmpty()
+                }.getOrDefault(emptyList()).filter(BrowseRepository::isPlayableSong).shuffled(random)
+            }
+        }.orEmpty().filter { it.id != seed.id }.take(4)
         val decade = seed.year?.takeIf { it >= 1900 }?.let { it / 10 }
-        val era = if (decade == null) emptyList() else pool.filter { (it.year ?: 0) / 10 == decade }.shuffled(random).take(3)
+        val era = if (decade == null) emptyList() else pool.filter { it.id != seed.id && (it.year ?: 0) / 10 == decade }.shuffled(random).take(3)
         val fallback = listOf(artist, genre, era).flatMap { it.withIndex() }.sortedBy { it.index }.map { it.value }
         return (similar + fallback.filter { it.id != seed.id }).distinctBy { it.id }
     }
@@ -214,42 +231,75 @@ object DailyMixRepository {
     private fun search(query: String): List<Child> =
         execute(client.searchingClient.search3(query, 100, 0, 0, 0, 0, 0)).searchResult3?.songs.orEmpty()
 
-    /** Builds a ~35-track personal radio queue even when Last.fm similarity is unavailable. */
+    /**
+     * Builds a ~35-track Personal Roam (`私人漫游`) queue combining 4 signals:
+     * 1) red-heart favorites (`starredSongs`),
+     * 2) high-frequency listening (`frequent` albums + `playCount > 0`),
+     * 3) recent listening (local `chronologyDao` + server `recent` albums),
+     * 4) library exploration (`resilientCandidatePool`).
+     */
     suspend fun roamQueue(): List<Child> = withContext(Dispatchers.IO) {
-        val random = Random(System.nanoTime())
-        val starred = runCatching { BrowseRepository.starredSongs() }.getOrDefault(emptyList())
-        val now = System.currentTimeMillis()
-        val history = runCatching {
-            AppDatabase.getInstance().chronologyDao()
-                .getPlayedSince(Preferences.getServerId(), now - TimeUnit.DAYS.toMillis(HISTORY_DAYS), 100)
-        }.getOrDefault(emptyList())
-        val pool = runCatching { BrowseRepository.randomSongs(200) }.getOrDefault(emptyList())
-        val seed: Child = (starred.shuffled(random).firstOrNull()
-            ?: history.shuffled(random).firstOrNull()
-            ?: pool.shuffled(random).firstOrNull())
-            ?: return@withContext emptyList()
-        val similar = BrowseRepository.similarSongs(seed.id, 40).filter { it.id != seed.id }
-        if (similar.size >= 20) return@withContext listOf(seed) + similar.take(34)
-        val queue = LinkedHashMap<String, Child>()
-        val perArtist = HashMap<String, Int>()
-        fun append(song: Child, artistCap: Int = 3) {
-            if (queue.size >= 35 || song.isDir || song.isVideo || song.id == null || song.id in queue) return
-            val names = MusicDiscoveryRules.artistNames(song.artist).ifEmpty { setOf("") }
-            if (names.any { (perArtist[it] ?: 0) >= artistCap }) return
-            names.forEach { perArtist[it] = (perArtist[it] ?: 0) + 1 }
-            queue[song.id] = song
+        coroutineScope {
+            val random = Random(System.nanoTime())
+            val now = System.currentTimeMillis()
+
+            val starredDeferred = async { runCatching { BrowseRepository.starredSongs() }.getOrDefault(emptyList()) }
+            val frequentAlbumsDeferred = async { runCatching { BrowseRepository.albumTracksByType("frequent", 6, 36) }.getOrDefault(emptyList()) }
+            val recentAlbumsDeferred = async { runCatching { BrowseRepository.albumTracksByType("recent", 6, 36) }.getOrDefault(emptyList()) }
+            val poolDeferred = async { runCatching { BrowseRepository.resilientCandidatePool(100) }.getOrDefault(emptyList()) }
+
+            val localHistory = runCatching {
+                AppDatabase.getInstance().chronologyDao()
+                    .getPlayedSince(Preferences.getServerId(), now - TimeUnit.DAYS.toMillis(HISTORY_DAYS), 100)
+                    .map(BrowseRepository::normalizeLocalTrack)
+                    .filter(BrowseRepository::isPlayableSong)
+            }.getOrDefault(emptyList())
+
+            val starred = BrowseRepository.safeRatingFilter(starredDeferred.await())
+            val explorePool = poolDeferred.await()
+            val frequentFromPool = explorePool
+                .filter { (it.playCount ?: 0L) > 0L }
+                .sortedByDescending { it.playCount }
+                .take(30)
+            val frequent = BrowseRepository.safeRatingFilter(
+                (frequentAlbumsDeferred.await() + frequentFromPool).distinctBy { it.id }
+            )
+            val recent = BrowseRepository.safeRatingFilter(
+                (localHistory + recentAlbumsDeferred.await()).distinctBy { it.id }
+            )
+            val allCandidates = (explorePool + starred + frequent + recent).distinctBy { it.id }
+
+            val seeds = DailyMixPlanner.roamSeeds(
+                starred = starred,
+                frequent = frequent,
+                recent = recent,
+                explorePool = allCandidates,
+                random = random,
+            )
+            if (seeds.isEmpty()) return@coroutineScope emptyList()
+
+            val noiseGenres = detectNoiseGenres(allCandidates)
+            val seedRelated = seeds.map { seed ->
+                async {
+                    val similar = runCatching { BrowseRepository.similarSongs(seed.id, 20, seed.artistId) }
+                        .getOrDefault(emptyList())
+                        .filter { it.id != seed.id }
+                    if (similar.size >= 10) similar
+                    else (similar + runCatching { related(seed, allCandidates, noiseGenres, Random(random.nextLong())) }
+                        .getOrDefault(emptyList())).distinctBy { it.id }
+                }
+            }.awaitAll()
+
+            DailyMixPlanner.assembleRoamQueue(
+                seeds = seeds,
+                seedRelated = seedRelated,
+                starred = starred,
+                frequent = frequent,
+                recent = recent,
+                explorePool = allCandidates,
+                random = random,
+            )
         }
-        append(seed)
-        similar.forEach(::append)
-        val seedRelated = related(seed, pool, emptySet(), random)
-        seedRelated.forEach(::append)
-        for (extraSeed in (starred + history).shuffled(random).filter { it.id != seed.id }.take(3)) {
-            append(extraSeed)
-            related(extraSeed, pool, emptySet(), random).take(4).forEach(::append)
-        }
-        starred.shuffled(random).forEach(::append)
-        pool.shuffled(random).forEach(::append)
-        queue.values.toList()
     }
 
     private suspend fun wishes(listened: List<Child>, pending: List<DailyWish>): List<DailyWish> {

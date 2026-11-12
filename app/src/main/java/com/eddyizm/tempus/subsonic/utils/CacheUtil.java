@@ -9,6 +9,9 @@ import android.os.Build;
 
 import com.eddyizm.tempus.App;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import okhttp3.Interceptor;
 import okhttp3.Request;
 
@@ -59,23 +62,71 @@ public class CacheUtil {
             return false;
         }
 
-        boolean hasAppropriateTransport = capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)
-                || capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
-                || capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)
-                || capabilities.hasTransport(NetworkCapabilities.TRANSPORT_BLUETOOTH);
-
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q
                 && capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN)
-                && !hasAppropriateTransport) {
+                && !hasPhysicalTransport(capabilities)) {
             return hasNetworkUnderVpn(connectivityManager);
         }
 
-        boolean hasInternet = capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET);
-        if (!hasInternet) {
-            return false;
+        List<NetworkCapabilities> allCapabilities = new ArrayList<>();
+        if (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN) && !hasPhysicalTransport(capabilities)) {
+            Network[] networks = connectivityManager.getAllNetworks();
+            if (networks != null) {
+                for (Network candidate : networks) {
+                    if (candidate == null || candidate.equals(network)) continue;
+                    NetworkCapabilities candidateCaps = connectivityManager.getNetworkCapabilities(candidate);
+                    if (candidateCaps != null) {
+                        allCapabilities.add(candidateCaps);
+                    }
+                }
+            }
         }
 
-        return hasAppropriateTransport;
+        return isCapabilitiesConnected(capabilities, allCapabilities);
+    }
+
+    static boolean hasPhysicalTransport(NetworkCapabilities capabilities) {
+        return capabilities != null && (
+                capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)
+                        || capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
+                        || capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)
+                        || capabilities.hasTransport(NetworkCapabilities.TRANSPORT_BLUETOOTH)
+        );
+    }
+
+    // On Android 10+, an active VPN (e.g. Tailscale/WireGuard/Clash reaching a home Subsonic server)
+    // often reports ONLY TRANSPORT_VPN on getActiveNetwork() when setUnderlyingNetworks() was not set.
+    // Treating that as offline forces Cache-Control: only-if-cached and causes synthetic HTTP 504s.
+    static boolean isCapabilitiesConnected(
+            NetworkCapabilities activeCapabilities,
+            Iterable<NetworkCapabilities> otherNetworkCapabilities
+    ) {
+        if (activeCapabilities == null) {
+            return false;
+        }
+        if (!activeCapabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)) {
+            return false;
+        }
+        if (hasPhysicalTransport(activeCapabilities)) {
+            return true;
+        }
+        if (activeCapabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN)) {
+            if (otherNetworkCapabilities != null) {
+                boolean sawOther = false;
+                for (NetworkCapabilities caps : otherNetworkCapabilities) {
+                    if (caps == null) continue;
+                    sawOther = true;
+                    if (hasPhysicalTransport(caps) && caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)) {
+                        return true;
+                    }
+                }
+                if (sawOther) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        return false;
     }
 
     // Before Android 10 a VPN can report only TRANSPORT_VPN even while it runs over another network.

@@ -569,9 +569,12 @@ public class MusicUtil {
     public static void ratingFilter(List<Child> toFilter) {
         if (toFilter == null || toFilter.isEmpty()) return;
 
+        int minAccepted = Preferences.getMinStarRatingAccepted();
+        if (minAccepted <= 0) return;
+
         List<Child> filtered = toFilter
                 .stream()
-                .filter(child -> (child.getUserRating() != null && child.getUserRating() >= Preferences.getMinStarRatingAccepted()) || (child.getUserRating() == null))
+                .filter(child -> child.getUserRating() == null || child.getUserRating() == 0 || child.getUserRating() >= minAccepted)
                 .collect(Collectors.toList());
 
         toFilter.clear();

@@ -96,4 +96,79 @@ class DailyMixPlannerTest {
         val capped = DailyMixPlanner.assemble(emptyList(), listOf(collabs), emptyList(), emptyList(), emptySet(), Random(2))
         assertEquals(DailyMixPlanner.PER_ARTIST, capped.size)
     }
+
+    @Test
+    fun roamSeedsRotateAcrossSignalsInsteadOfLockingToSingleStarredSong() {
+        val starred = listOf(song("s1", "FavArtist"))
+        val frequent = (1..5).map { song("f$it", "FreqArtist $it") }
+        val recent = (1..5).map { song("r$it", "RecentArtist $it") }
+        val explore = (1..20).map { song("e$it", "ExploreArtist $it") }
+
+        val firstLeads = (1..24).map { seed ->
+            val picks = DailyMixPlanner.roamSeeds(starred, frequent, recent, explore, Random(seed))
+            assertEquals(DailyMixPlanner.ROAM_SEEDS, picks.size)
+            assertTrue(picks.any { it.id == "s1" })
+            assertTrue(picks.any { it.id.startsWith("f") })
+            assertTrue(picks.any { it.id.startsWith("r") })
+            assertTrue(picks.any { it.id.startsWith("e") })
+            picks.first().id
+        }.toSet()
+
+        // Primary seed must rotate across signals rather than always starting on the 1 starred song.
+        assertTrue(firstLeads.size >= 2)
+        assertTrue(firstLeads.any { it != "s1" })
+    }
+
+    @Test
+    fun assembleRoamQueueBuildsFull35QueueWithOneStarredEmptySimilarAndWeavesExploration() {
+        val starred = listOf(song("s1", "StarArtist"))
+        val frequent = (1..8).map { song("f$it", "FreqArtist $it") }
+        val recent = (1..8).map { song("r$it", "RecentArtist $it") }
+        val fresh = (1..30).map { song("x$it", "ExploreArtist $it") }
+        val pool = starred + frequent + recent + fresh
+        val seeds = DailyMixPlanner.roamSeeds(starred, frequent, recent, pool, Random(7))
+
+        val queue = DailyMixPlanner.assembleRoamQueue(
+            seeds = seeds,
+            seedRelated = seeds.map { emptyList() },
+            starred = starred,
+            frequent = frequent,
+            recent = recent,
+            explorePool = pool,
+            random = Random(7),
+        )
+
+        assertEquals(DailyMixPlanner.ROAM_SIZE, queue.size)
+        assertEquals(queue.size, queue.map { it.id }.toSet().size)
+        assertEquals(seeds.first().id, queue.first().id)
+        val freshCount = queue.count { it.id.startsWith("x") }
+        assertTrue("Expected ~25-30% fresh exploration tracks, got $freshCount", freshCount >= 10)
+    }
+
+    @Test
+    fun assembleRoamQueueDoesNotCapBlankArtistsAndRelaxesSingleArtistCap() {
+        val blankArtists = (1..40).map { Child("b$it", title = "Untitled $it", artist = "") }
+        val blankQueue = DailyMixPlanner.assembleRoamQueue(
+            seeds = listOf(blankArtists.first()),
+            seedRelated = listOf(emptyList()),
+            starred = listOf(blankArtists.first()),
+            frequent = emptyList(),
+            recent = emptyList(),
+            explorePool = blankArtists,
+            random = Random(3),
+        )
+        assertEquals(DailyMixPlanner.ROAM_SIZE, blankQueue.size)
+
+        val singleArtist = (1..18).map { song("solo$it", "OnlyArtist") }
+        val soloQueue = DailyMixPlanner.assembleRoamQueue(
+            seeds = listOf(singleArtist.first()),
+            seedRelated = listOf(emptyList()),
+            starred = listOf(singleArtist.first()),
+            frequent = emptyList(),
+            recent = emptyList(),
+            explorePool = singleArtist,
+            random = Random(4),
+        )
+        assertEquals(18, soloQueue.size)
+    }
 }

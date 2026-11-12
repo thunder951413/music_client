@@ -20,7 +20,7 @@
     <string name="editorial_daily_status_cached">Cached mix</string>
     <string name="editorial_daily_status_empty">Add tracks to start</string>
     <string name="editorial_roam_eyebrow">RADIO</string>
-    <string name="editorial_roam_subtitle_short">From liked tracks · ~35 songs</string>
+    <string name="editorial_roam_subtitle_short">Favorites &amp; listening · ~35 tracks</string>
 
     <string name="editorial_sync_just_now">synced just now</string>
     <string name="editorial_sync_minutes_ago">synced %1$d min ago</string>
