@@ -3,7 +3,8 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:background="?attr/colorSurface">
 
     <androidx.core.widget.NestedScrollView
         android:id="@+id/home_podcast_sector"
@@ -20,25 +21,41 @@
             android:orientation="vertical"
             android:paddingBottom="@dimen/global_padding_bottom">
 
-            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical">
-            <TextView
-                android:id="@+id/podcast_channels_pre_text_view"
-                style="@style/TitleMedium"
-                android:layout_width="0dp"
-                android:layout_weight="1"
+            <LinearLayout
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:background="?attr/selectableItemBackground"
-                android:paddingStart="16dp"
-                android:paddingTop="12dp"
-                android:paddingBottom="12dp"
-                android:paddingEnd="16dp"
-                android:text="@string/home_subtitle_new_podcast_channel"
-                android:textAllCaps="true"
-                android:textColor="?attr/colorPrimary"
-                android:textStyle="bold" />
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingHorizontal="4dp">
 
-                <TextView android:id="@+id/podcast_refresh" style="@style/TitleMedium" android:layout_width="wrap_content" android:layout_height="48dp" android:gravity="center" android:paddingHorizontal="16dp" android:text="@string/audio_refresh" android:textColor="?attr/colorPrimary" android:background="?attr/selectableItemBackground" />
+                <TextView
+                    android:id="@+id/podcast_channels_pre_text_view"
+                    style="@style/TitleMedium"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:background="?attr/selectableItemBackground"
+                    android:paddingStart="16dp"
+                    android:paddingTop="8dp"
+                    android:paddingEnd="16dp"
+                    android:paddingBottom="8dp"
+                    android:text="@string/home_subtitle_new_podcast_channel"
+                    android:textAllCaps="false"
+                    android:textColor="?attr/colorPrimary"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/podcast_refresh"
+                    style="@style/TitleMedium"
+                    android:layout_width="wrap_content"
+                    android:layout_height="40dp"
+                    android:background="?attr/selectableItemBackground"
+                    android:gravity="center"
+                    android:paddingHorizontal="16dp"
+                    android:text="@string/audio_refresh"
+                    android:textColor="?attr/colorPrimary" />
             </LinearLayout>
+
             <LinearLayout
                 android:id="@+id/home_podcast_channels_sector"
                 android:layout_width="match_parent"
@@ -48,48 +65,53 @@
                 android:visibility="gone"
                 tools:visibility="visible">
 
-                <!--  Label and button  -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="horizontal">
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:paddingTop="4dp">
 
                     <TextView
                         style="@style/TitleLarge"
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:paddingStart="16dp"
+                        android:paddingStart="20dp"
                         android:paddingEnd="16dp"
-                        android:text="@string/audio_subscriptions" />
+                        android:text="@string/audio_subscriptions"
+                        android:textSize="18sp" />
 
                     <TextView
                         android:id="@+id/podcast_channels_text_view_clickable"
                         style="@style/TitleMedium"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
+                        android:fontFeatureSettings="tnum"
                         android:paddingStart="8dp"
-                        android:paddingTop="12dp"
-                        android:paddingEnd="16dp"
-                        android:text="@string/home_title_podcast_channels_see_all_button" />
+                        android:paddingTop="8dp"
+                        android:paddingEnd="20dp"
+                        android:paddingBottom="8dp"
+                        android:text="@string/home_title_podcast_channels_see_all_button"
+                        android:textColor="?attr/colorPrimary" />
                 </LinearLayout>
 
                 <androidx.recyclerview.widget.RecyclerView
                     android:id="@+id/podcast_channels_recycler_view"
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
-                    android:layout_marginTop="8dp"
-                    android:layout_marginBottom="8dp"
+                    android:layout_marginTop="4dp"
+                    android:layout_marginBottom="4dp"
                     android:clipToPadding="false"
                     android:nestedScrollingEnabled="false"
-                    android:paddingTop="8dp"
-                    android:paddingBottom="8dp" />
+                    android:paddingTop="4dp"
+                    android:paddingBottom="4dp" />
             </LinearLayout>
 
             <View
                 android:id="@+id/upper_button_divider"
                 style="@style/Divider"
-                android:layout_marginHorizontal="16dp" />
+                android:layout_marginHorizontal="20dp" />
 
             <LinearLayout
                 android:id="@+id/home_newest_podcasts_sector"
@@ -103,21 +125,21 @@
                     style="@style/TitleLarge"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginBottom="8dp"
-                    android:paddingStart="16dp"
-                    android:paddingTop="16dp"
-                    android:paddingEnd="16dp"
-                    android:text="@string/home_title_newest_podcasts" />
+                    android:layout_marginBottom="6dp"
+                    android:paddingStart="20dp"
+                    android:paddingTop="14dp"
+                    android:paddingEnd="20dp"
+                    android:text="@string/home_title_newest_podcasts"
+                    android:textSize="18sp" />
 
                 <androidx.recyclerview.widget.RecyclerView
                     android:id="@+id/newest_podcasts_recycler_view"
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
-                    android:layout_marginTop="8dp"
                     android:layout_marginBottom="8dp"
                     android:clipToPadding="false"
                     android:nestedScrollingEnabled="false"
-                    android:paddingTop="8dp" />
+                    android:paddingTop="4dp" />
             </LinearLayout>
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>
@@ -140,8 +162,8 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:adjustViewBounds="true"
-            android:maxWidth="240dp"
-            android:maxHeight="240dp"
+            android:maxWidth="220dp"
+            android:maxHeight="220dp"
             android:scaleType="centerInside"
             android:src="@drawable/ui_empty_podcast" />
 
@@ -175,6 +197,8 @@
             android:layout_height="wrap_content"
             android:background="?attr/selectableItemBackground"
             android:gravity="center"
-            android:text="@string/podcast_info_empty_button" />
+            android:paddingVertical="8dp"
+            android:text="@string/podcast_info_empty_button"
+            android:textColor="?attr/colorPrimary" />
     </LinearLayout>
 </androidx.constraintlayout.widget.ConstraintLayout>

@@ -1,13 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="titleTextColor">#DADADA</color>
-    <color name="subtitleTextColor">#9B9B9B</color>
-    <color name="dividerColor">#404040</color>
+    <color name="titleTextColor">#F2ECE3</color>
+    <color name="subtitleTextColor">#A39C93</color>
+    <color name="dividerColor">#1AFFF0DC</color>
 
-    <color name="lyricsTextColor">#DADADA</color>
-    <color name="shadowsLyricsTextColor">#606060</color>
+    <color name="lyricsTextColor">#F2ECE3</color>
+    <color name="shadowsLyricsTextColor">#66F2ECE3</color>
 
-    <color name="searchPlaceholderColor">#CFCFCF</color>
-    <color name="searchColor">#DADADA</color>
+    <color name="searchPlaceholderColor">#A39C93</color>
+    <color name="searchColor">#F2ECE3</color>
 </resources>
-

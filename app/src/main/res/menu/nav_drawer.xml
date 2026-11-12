@@ -19,9 +19,14 @@
                 android:title="@string/menu_discover_label" />
 
             <item
+                android:id="@+id/listenFragment"
+                android:icon="@drawable/ic_listen_tab"
+                android:title="@string/editorial_nav_listen" />
+
+            <item
                 android:id="@+id/libraryFragment"
                 android:icon="@drawable/ic_library_music"
-                android:title="@string/menu_mine_label" />
+                android:title="@string/editorial_nav_library" />
 
             <item
                 android:id="@+id/downloadFragment"

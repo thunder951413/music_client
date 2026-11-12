@@ -108,6 +108,13 @@ public class MainActivity extends BaseActivity {
     private Intent pendingDownloadPlaybackIntent;
     private boolean pendingOpenNowPlaying = false;
 
+    private final android.content.SharedPreferences.OnSharedPreferenceChangeListener listenVisibilityListener =
+            (prefs, key) -> {
+                if ("podcast_section_visibility".equals(key) || "radio_section_visibility".equals(key)) {
+                    runOnUiThread(this::syncListenTabVisibility);
+                }
+            };
+
     public ActivityMainBinding getBinding() {
         return bind;
     }
@@ -166,6 +173,7 @@ public class MainActivity extends BaseActivity {
         isLandscape = (getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE);
 
         init();
+        App.getInstance().getPreferences().registerOnSharedPreferenceChangeListener(listenVisibilityListener);
         checkConnectionType();
         getOpenSubsonicExtensions();
         checkTempusUpdate();
@@ -195,6 +203,7 @@ public class MainActivity extends BaseActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        syncListenTabVisibility();
         pingServer();
         toggleNavigationDrawerLockOnOrientationChange();
     }
@@ -217,6 +226,7 @@ public class MainActivity extends BaseActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        App.getInstance().getPreferences().unregisterOnSharedPreferenceChangeListener(listenVisibilityListener);
         connectivityStatusReceiverManager(false);
         if (isFinishing()) PlaylistRepository.resetKeptSync();
         if (!isChangingConfigurations()) ConnectionUtil.expirePingDeferral();
@@ -273,6 +283,34 @@ public class MainActivity extends BaseActivity {
         // Controller
         navigationController = new NavigationController(navigationHelper);
         navigationController.syncWithBottomSheetBehavior(bottomSheetBehavior, navController);
+        syncListenTabVisibility();
+    }
+
+    public void syncListenTabVisibility() {
+        boolean isListenVisible = Preferences.isPodcastSectionVisible() || Preferences.isRadioSectionVisible();
+        if (navigationController != null) {
+            navigationController.setListenTabVisible(isListenVisible);
+        }
+        if (bind != null) {
+            android.view.MenuItem bottomItem = bind.bottomNavigation.getMenu().findItem(R.id.listenFragment);
+            if (bottomItem != null && bottomItem.isVisible() != isListenVisible) {
+                bottomItem.setVisible(isListenVisible);
+            }
+            if (bind.navView != null) {
+                android.view.MenuItem drawerItem = bind.navView.getMenu().findItem(R.id.listenFragment);
+                if (drawerItem != null && drawerItem.isVisible() != isListenVisible) {
+                    drawerItem.setVisible(isListenVisible);
+                }
+            }
+        }
+        if (!isListenVisible
+                && navController != null
+                && navController.getCurrentDestination() != null
+                && navController.getCurrentDestination().getId() == R.id.listenFragment) {
+            if (!navController.popBackStack(R.id.homeFragment, false)) {
+                navController.navigate(R.id.homeFragment);
+            }
+        }
     }
 
     public NavigationController getNavigationController() {
@@ -524,6 +562,14 @@ public class MainActivity extends BaseActivity {
             nc.navigate(R.id.action_settingsFragment_to_loginFragment);
         } else if (id == R.id.homeFragment) {
             nc.navigate(R.id.action_homeFragment_to_loginFragment);
+        } else if (id != R.id.loginFragment) {
+            nc.navigate(
+                    R.id.loginFragment,
+                    null,
+                    new androidx.navigation.NavOptions.Builder()
+                            .setPopUpTo(R.id.homeFragment, true)
+                            .build()
+            );
         }
     }
 

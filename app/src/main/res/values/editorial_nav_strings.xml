@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <item name="listen_podcast_container" type="id" />
+    <item name="listen_radio_container" type="id" />
+
+    <string name="editorial_nav_listen">Listen</string>
+    <string name="editorial_nav_library">Library</string>
+    <string name="editorial_listen_title">Listen</string>
+    <string name="editorial_listen_tab_podcast">Podcasts</string>
+    <string name="editorial_listen_tab_radio">Live Radio</string>
+    <string name="editorial_listen_add_podcast">+ Subscribe RSS</string>
+    <string name="editorial_listen_add_radio">+ Custom Stream</string>
+    <string name="editorial_podcast_resume_remaining">Resume · %1$s left</string>
+    <string name="editorial_podcast_resume_at">Resume at %1$s</string>
+</resources>

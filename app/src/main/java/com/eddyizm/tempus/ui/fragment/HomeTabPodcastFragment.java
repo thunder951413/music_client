@@ -29,7 +29,6 @@ import com.eddyizm.tempus.ui.adapter.PodcastEpisodeAdapter;
 import com.eddyizm.tempus.ui.dialog.PodcastChannelEditorDialog;
 import com.eddyizm.tempus.util.Constants;
 import com.eddyizm.tempus.util.Preferences;
-import com.eddyizm.tempus.util.UIUtil;
 import com.eddyizm.tempus.viewmodel.PodcastViewModel;
 import com.google.common.util.concurrent.ListenableFuture;
 
@@ -79,6 +78,14 @@ public class HomeTabPodcastFragment extends Fragment implements ClickCallback, P
     }
 
     @Override
+    public void onResume() {
+        super.onResume();
+        if (podcastEpisodeAdapter != null) {
+            podcastEpisodeAdapter.notifyDataSetChanged();
+        }
+    }
+
+    @Override
     public void onStop() {
         releaseMediaBrowser();
         super.onStop();
@@ -96,7 +103,7 @@ public class HomeTabPodcastFragment extends Fragment implements ClickCallback, P
             dialog.show(activity.getSupportFragmentManager(), null);
         });
 
-        bind.podcastChannelsTextViewClickable.setOnClickListener(v -> activity.navController.navigate(R.id.action_homeFragment_to_podcastChannelCatalogueFragment));
+        bind.podcastChannelsTextViewClickable.setOnClickListener(v -> activity.navController.navigate(R.id.podcastChannelCatalogueFragment));
         bind.podcastRefresh.setOnClickListener(v -> {
             com.eddyizm.tempus.podcast.LocalPodcastStore.getInstance().refreshAll(true);
             podcastViewModel.refreshPodcastChannels(getViewLifecycleOwner());
@@ -131,15 +138,14 @@ public class HomeTabPodcastFragment extends Fragment implements ClickCallback, P
                 if (bind != null)
                     bind.homePodcastChannelsSector.setVisibility(!podcastChannels.isEmpty() ? View.VISIBLE : View.GONE);
 
-                podcastChannelHorizontalAdapter.setItems(new java.util.ArrayList<>(podcastChannels.subList(0,Math.min(6,podcastChannels.size()))));
-                if (bind != null) bind.podcastChannelsTextViewClickable.setText(getString(R.string.audio_subscriptions_count,podcastChannels.size()));
+                podcastChannelHorizontalAdapter.setItems(new java.util.ArrayList<>(podcastChannels.subList(0, Math.min(6, podcastChannels.size()))));
+                if (bind != null) bind.podcastChannelsTextViewClickable.setText(getString(R.string.audio_subscriptions_count, podcastChannels.size()));
             }
         });
     }
 
     private void initNewestPodcastsView() {
         bind.newestPodcastsRecyclerView.setLayoutManager(new LinearLayoutManager(requireContext()));
-        bind.newestPodcastsRecyclerView.addItemDecoration(UIUtil.getDividerItemDecoration(requireContext()));
 
         podcastEpisodeAdapter = new PodcastEpisodeAdapter(this);
         bind.newestPodcastsRecyclerView.setAdapter(podcastEpisodeAdapter);
@@ -187,6 +193,7 @@ public class HomeTabPodcastFragment extends Fragment implements ClickCallback, P
     @Override
     public void onDismiss() {
         new Handler().postDelayed(() -> {
+            if (!isAdded() || getView() == null) return;
             if (podcastViewModel != null) podcastViewModel.refreshPodcastChannels(getViewLifecycleOwner());
             if (podcastViewModel != null) podcastViewModel.refreshNewestPodcastEpisodes(getViewLifecycleOwner());
         }, 1000);

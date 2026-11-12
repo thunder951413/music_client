@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="editorial_nav_listen">收听</string>
+    <string name="editorial_nav_library">音乐库</string>
+    <string name="editorial_listen_title">收听</string>
+    <string name="editorial_listen_tab_podcast">播客</string>
+    <string name="editorial_listen_tab_radio">广播电台</string>
+    <string name="editorial_listen_add_podcast">＋ 订阅 RSS</string>
+    <string name="editorial_listen_add_radio">＋ 添加电台</string>
+    <string name="editorial_podcast_resume_remaining">断点续播 · 剩余 %1$s</string>
+    <string name="editorial_podcast_resume_at">续播至 %1$s</string>
+</resources>

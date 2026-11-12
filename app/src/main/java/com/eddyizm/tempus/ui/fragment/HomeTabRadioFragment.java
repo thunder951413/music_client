@@ -1,6 +1,7 @@
 package com.eddyizm.tempus.ui.fragment;
 
 import android.content.ComponentName;
+import android.content.res.ColorStateList;
 import android.os.Bundle;
 import android.os.Handler;
 import android.view.LayoutInflater;
@@ -27,6 +28,8 @@ import com.eddyizm.tempus.ui.dialog.RadioEditorDialog;
 import com.eddyizm.tempus.util.Constants;
 import com.eddyizm.tempus.util.Preferences;
 import com.eddyizm.tempus.viewmodel.RadioViewModel;
+import com.google.android.material.chip.Chip;
+import com.google.android.material.color.MaterialColors;
 import com.google.common.util.concurrent.ListenableFuture;
 
 @UnstableApi
@@ -51,7 +54,6 @@ public class HomeTabRadioFragment extends Fragment implements ClickCallback, Rad
         }
         internetRadioStationAdapter.setItems(filtered);
     }
-
 
     @Nullable
     @Override
@@ -103,13 +105,42 @@ public class HomeTabRadioFragment extends Fragment implements ClickCallback, Rad
             return true;
         });
 
+        bind.radioCategories.removeAllViews();
+        float density = requireContext().getResources().getDisplayMetrics().density;
+        int[][] states = new int[][]{
+                new int[]{android.R.attr.state_checked},
+                new int[]{}
+        };
+
         for (String category : new String[]{"", "新闻资讯", "音乐", "故事文艺", "财经商业", "交通生活"}) {
-            var chip = new com.google.android.material.chip.Chip(requireContext());
+            Chip chip = new Chip(requireContext());
             chip.setId(View.generateViewId());
             chip.setText(category.isEmpty() ? getString(com.eddyizm.tempus.R.string.audio_all) : category);
-            chip.setCheckable(true); chip.setChecked(category.equals(selectedCategory));
+            chip.setCheckable(true);
+            chip.setCheckedIconVisible(false);
+            chip.setEnsureMinTouchTargetSize(false);
+            chip.setChipCornerRadius(999f);
+            chip.setChipStrokeWidth(density);
+
+            int surfaceChecked = MaterialColors.getColor(chip, com.google.android.material.R.attr.colorSurfaceContainerHighest);
+            int surfaceUnchecked = MaterialColors.getColor(chip, com.google.android.material.R.attr.colorSurfaceContainer);
+            int primary = MaterialColors.getColor(chip, com.google.android.material.R.attr.colorPrimary);
+            int onSurfaceVariant = MaterialColors.getColor(chip, com.google.android.material.R.attr.colorOnSurfaceVariant);
+            int outlineVariant = MaterialColors.getColor(chip, com.google.android.material.R.attr.colorOutlineVariant);
+
+            chip.setChipBackgroundColor(new ColorStateList(states, new int[]{surfaceChecked, surfaceUnchecked}));
+            chip.setTextColor(new ColorStateList(states, new int[]{primary, onSurfaceVariant}));
+            chip.setChipStrokeColor(new ColorStateList(states, new int[]{primary, outlineVariant}));
+            chip.setRippleColor(ColorStateList.valueOf(MaterialColors.compositeARGBWithAlpha(primary, 36)));
+
+            chip.setChecked(category.equals(selectedCategory));
             bind.radioCategories.addView(chip);
-            chip.setOnCheckedChangeListener((button, checked) -> { if (checked) { selectedCategory=category; filterStations(); } });
+            chip.setOnCheckedChangeListener((button, checked) -> {
+                if (checked) {
+                    selectedCategory = category;
+                    filterStations();
+                }
+            });
         }
         bind.hideSectionButton.setOnClickListener(v -> Preferences.setRadioSectionHidden());
     }
@@ -155,7 +186,9 @@ public class HomeTabRadioFragment extends Fragment implements ClickCallback, Rad
         RadioEditorDialog dialog = new RadioEditorDialog(new RadioCallback() {
             @Override
             public void onDismiss() {
-                radioViewModel.getInternetRadioStations(getViewLifecycleOwner());
+                if (isAdded() && getView() != null) {
+                    radioViewModel.getInternetRadioStations(getViewLifecycleOwner());
+                }
             }
         });
         dialog.setArguments(bundle);
@@ -165,6 +198,7 @@ public class HomeTabRadioFragment extends Fragment implements ClickCallback, Rad
     @Override
     public void onDismiss() {
         new Handler().postDelayed(() -> {
+            if (!isAdded() || getView() == null) return;
             if (radioViewModel != null)
                 radioViewModel.refreshInternetRadioStations(getViewLifecycleOwner());
         }, 1000);

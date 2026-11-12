@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <style name="AppTheme.SplashScreen" parent="Theme.SplashScreen">
-        <item name="windowSplashScreenBackground">#000000</item>
+        <item name="windowSplashScreenBackground">#0E0D0C</item>
         <item name="windowSplashScreenAnimatedIcon">@drawable/ui_splash_screen</item>
         <item name="postSplashScreenTheme">@style/AppTheme</item>
         <item name="windowSplashScreenAnimationDuration">100</item>
@@ -43,15 +43,49 @@
         <item name="colorSurfaceDim">@color/md_theme_light_surfaceDim</item>
         <item name="colorSurfaceBright">@color/md_theme_light_surfaceBright</item>
 
+        <item name="elevationOverlayEnabled">false</item>
         <item name="android:windowLightStatusBar">true</item>
         <item name="android:statusBarColor">?attr/colorSurface</item>
         <item name="android:navigationBarColor">?attr/colorSurface</item>
         <item name="android:scrollbars">none</item>
 
+        <item name="bottomNavigationStyle">@style/Widget.App.BottomNavigationView</item>
+        <item name="navigationRailStyle">@style/Widget.App.NavigationRailView</item>
         <item name="floatingActionButtonStyle">@style/FloatingActionButtonStyle</item>
         <item name="snackbarStyle">@style/Widget.App.Snackbar</item>
         <item name="snackbarTextViewStyle">@style/Widget.App.Snackbar.TextView</item>
         <item name="snackbarButtonStyle">@style/Widget.App.Snackbar.Button</item>
+    </style>
+
+    <style name="Widget.App.BottomNavigationView" parent="Widget.Material3.BottomNavigationView">
+        <item name="backgroundTint">?attr/colorSurface</item>
+        <item name="android:background">?attr/colorSurface</item>
+        <item name="elevation">0dp</item>
+        <item name="android:elevation">0dp</item>
+        <item name="elevationOverlayEnabled">false</item>
+        <item name="compatShadowEnabled">false</item>
+        <item name="itemIconTint">@color/bottom_nav_item</item>
+        <item name="itemTextColor">@color/bottom_nav_item</item>
+        <item name="itemActiveIndicatorStyle">@style/Widget.App.BottomNavigationView.ActiveIndicator</item>
+    </style>
+
+    <style name="Widget.App.BottomNavigationView.ActiveIndicator" parent="Widget.Material3.BottomNavigationView.ActiveIndicator">
+        <item name="android:color">?attr/colorSecondaryContainer</item>
+    </style>
+
+    <style name="Widget.App.NavigationRailView" parent="Widget.Material3.NavigationRailView">
+        <item name="backgroundTint">?attr/colorSurface</item>
+        <item name="android:background">?attr/colorSurface</item>
+        <item name="elevation">0dp</item>
+        <item name="android:elevation">0dp</item>
+        <item name="elevationOverlayEnabled">false</item>
+        <item name="itemIconTint">@color/bottom_nav_item</item>
+        <item name="itemTextColor">@color/bottom_nav_item</item>
+        <item name="itemActiveIndicatorStyle">@style/Widget.App.NavigationRailView.ActiveIndicator</item>
+    </style>
+
+    <style name="Widget.App.NavigationRailView.ActiveIndicator" parent="Widget.Material3.NavigationRailView.ActiveIndicator">
+        <item name="android:color">?attr/colorSecondaryContainer</item>
     </style>
 
     <style name="Divider">
@@ -61,7 +95,7 @@
     </style>
 
     <style name="FloatingActionButtonStyle" parent="Widget.MaterialComponents.FloatingActionButton">
-        <item name="backgroundTint">?attr/colorSecondary</item>
+        <item name="backgroundTint">?attr/colorPrimary</item>
         <item name="tint">?attr/colorOnPrimary</item>
         <item name="shapeAppearanceOverlay">@style/FabShapeStyle</item>
     </style>

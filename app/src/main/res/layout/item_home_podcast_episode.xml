@@ -1,120 +1,165 @@
-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:clipChildren="false"
-    android:orientation="horizontal"
-    android:paddingHorizontal="16dp">
+    android:layout_marginHorizontal="16dp"
+    android:layout_marginVertical="5dp"
+    app:cardBackgroundColor="?attr/colorSurfaceContainer"
+    app:cardCornerRadius="16dp"
+    app:cardElevation="0dp"
+    app:strokeColor="?attr/colorOutlineVariant"
+    app:strokeWidth="1dp">
 
-    <ImageView
-        android:id="@+id/podcast_cover_image_view"
-        android:layout_width="96dp"
-        android:layout_height="96dp"
-        android:layout_gravity="center"
-        app:layout_constraintBottom_toTopOf="@+id/podcast_upper_divider"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
-
-    <TextView
-        android:id="@+id/podcast_title_label"
-        style="@style/LabelMedium"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="12dp"
-        android:ellipsize="end"
-        android:maxLines="5"
-        android:text="@string/label_placeholder"
-        app:layout_constraintBottom_toTopOf="@+id/podcast_subtitle_label"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toEndOf="@+id/podcast_cover_image_view"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintVertical_chainStyle="packed" />
-
-
-    <TextView
-        android:id="@+id/podcast_subtitle_label"
-        style="@style/LabelSmall"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="12dp"
-        android:ellipsize="end"
-        android:maxLines="2"
-        android:text="@string/label_placeholder"
-        app:layout_constraintBottom_toTopOf="@id/podcast_upper_divider"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toEndOf="@+id/podcast_cover_image_view"
-        app:layout_constraintTop_toBottomOf="@+id/podcast_title_label" />
-
-    <View
-        android:id="@+id/podcast_upper_divider"
-        android:layout_width="match_parent"
-        android:layout_height="0.5dp"
-        android:layout_marginTop="12dp"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/podcast_cover_image_view" />
-
-    <TextView
-        android:id="@+id/podcast_description_text"
-        style="@style/LabelSmall"
+    <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:ellipsize="end"
-        android:maxLines="7"
-        android:text="@string/label_placeholder"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/podcast_upper_divider" />
+        android:clipChildren="false">
 
-    <Button
-        android:id="@+id/podcast_play_button"
-        style="@style/Widget.Material3.Button.TonalButton.Icon"
-        android:layout_width="52dp"
-        android:layout_height="52dp"
-        android:layout_marginTop="12dp"
-        android:layout_marginBottom="12dp"
-        android:insetLeft="0dp"
-        android:insetTop="0dp"
-        android:insetRight="0dp"
-        android:insetBottom="0dp"
-        app:cornerRadius="30dp"
-        app:icon="@drawable/ic_play"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/podcast_description_text" />
+        <ImageView
+            android:id="@+id/podcast_cover_image_view"
+            android:layout_width="64dp"
+            android:layout_height="64dp"
+            android:layout_marginStart="14dp"
+            android:layout_marginTop="14dp"
+            android:scaleType="centerCrop"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
 
-    <TextView
-        android:id="@+id/podcast_releases_and_duration_label"
-        style="@style/LabelSmall"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:paddingStart="12dp"
-        android:paddingEnd="12dp"
-        android:text="@string/label_placeholder"
-        app:layout_constraintBottom_toBottomOf="@+id/podcast_play_button"
-        app:layout_constraintStart_toEndOf="@+id/podcast_play_button"
-        app:layout_constraintTop_toTopOf="@+id/podcast_play_button" />
+        <TextView
+            android:id="@+id/podcast_title_label"
+            style="@style/LabelMedium"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:layout_marginTop="14dp"
+            android:layout_marginEnd="14dp"
+            android:ellipsize="end"
+            android:maxLines="2"
+            android:text="@string/label_placeholder"
+            android:textColor="?attr/colorOnSurface"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toEndOf="@+id/podcast_cover_image_view"
+            app:layout_constraintTop_toTopOf="parent" />
 
-    <Button
-        android:id="@+id/podcast_more_button"
-        style="@style/Widget.Material3.Button.IconButton"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:visibility="gone"
-        app:icon="@drawable/ic_more_vert"
-        app:layout_constraintBottom_toBottomOf="@+id/podcast_play_button"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toTopOf="@+id/podcast_play_button" />
+        <TextView
+            android:id="@+id/podcast_subtitle_label"
+            style="@style/LabelSmall"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:layout_marginTop="4dp"
+            android:layout_marginEnd="14dp"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:text="@string/label_placeholder"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toEndOf="@+id/podcast_cover_image_view"
+            app:layout_constraintTop_toBottomOf="@+id/podcast_title_label" />
 
-    <Button
-        android:id="@+id/podcast_download_request_button"
-        style="@style/Widget.Material3.Button.IconButton"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:visibility="gone"
-        app:icon="@drawable/ic_podcast_download"
-        app:layout_constraintBottom_toBottomOf="@+id/podcast_play_button"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toTopOf="@+id/podcast_play_button" />
+        <View
+            android:id="@+id/podcast_upper_divider"
+            android:layout_width="match_parent"
+            android:layout_height="0.5dp"
+            android:layout_marginHorizontal="14dp"
+            android:layout_marginTop="12dp"
+            android:background="@color/dividerColor"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/podcast_cover_image_view" />
 
-</androidx.constraintlayout.widget.ConstraintLayout>
+        <TextView
+            android:id="@+id/podcast_description_text"
+            style="@style/LabelSmall"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginHorizontal="14dp"
+            android:layout_marginTop="8dp"
+            android:ellipsize="end"
+            android:maxLines="3"
+            android:text="@string/label_placeholder"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/podcast_upper_divider" />
+
+        <Button
+            android:id="@+id/podcast_play_button"
+            style="@style/Widget.Material3.Button.TonalButton.Icon"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginStart="14dp"
+            android:layout_marginTop="10dp"
+            android:layout_marginBottom="12dp"
+            android:insetLeft="0dp"
+            android:insetTop="0dp"
+            android:insetRight="0dp"
+            android:insetBottom="0dp"
+            app:backgroundTint="?attr/colorPrimaryContainer"
+            app:cornerRadius="20dp"
+            app:icon="@drawable/ic_play"
+            app:iconGravity="textStart"
+            app:iconPadding="0dp"
+            app:iconTint="?attr/colorPrimary"
+            app:layout_constraintBottom_toTopOf="@+id/podcast_resume_progress"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/podcast_description_text" />
+
+        <TextView
+            android:id="@+id/podcast_releases_and_duration_label"
+            style="@style/LabelSmall"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:fontFeatureSettings="tnum"
+            android:maxLines="1"
+            android:paddingStart="12dp"
+            android:paddingEnd="8dp"
+            android:text="@string/label_placeholder"
+            app:layout_constraintBottom_toBottomOf="@+id/podcast_play_button"
+            app:layout_constraintEnd_toStartOf="@+id/podcast_more_button"
+            app:layout_constraintStart_toEndOf="@+id/podcast_play_button"
+            app:layout_constraintTop_toTopOf="@+id/podcast_play_button" />
+
+        <Button
+            android:id="@+id/podcast_more_button"
+            style="@style/Widget.Material3.Button.IconButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="4dp"
+            android:visibility="gone"
+            app:icon="@drawable/ic_more_vert"
+            app:iconTint="?attr/colorOnSurfaceVariant"
+            app:layout_constraintBottom_toBottomOf="@+id/podcast_play_button"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toTopOf="@+id/podcast_play_button" />
+
+        <Button
+            android:id="@+id/podcast_download_request_button"
+            style="@style/Widget.Material3.Button.IconButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="4dp"
+            android:visibility="gone"
+            app:icon="@drawable/ic_podcast_download"
+            app:iconTint="?attr/colorPrimary"
+            app:layout_constraintBottom_toBottomOf="@+id/podcast_play_button"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toTopOf="@+id/podcast_play_button" />
+
+        <com.google.android.material.progressindicator.LinearProgressIndicator
+            android:id="@+id/podcast_resume_progress"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:max="1000"
+            android:visibility="gone"
+            app:indicatorColor="?attr/colorPrimary"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:trackColor="?attr/colorSurfaceContainerHighest"
+            app:trackCornerRadius="0dp"
+            app:trackThickness="2dp" />
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+</com.google.android.material.card.MaterialCardView>
