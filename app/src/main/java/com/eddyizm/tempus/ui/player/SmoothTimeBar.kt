@@ -21,13 +21,14 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.TimeBar
 import com.eddyizm.tempus.R
 import java.util.concurrent.CopyOnWriteArraySet
+import kotlin.math.abs
 
 /**
- * A quiet progress bar for Media3's control view, in the style of Apple Music.
+ * Low-power progress bar for Media3's control view in Editorial Warm Dark.
  *
  * At rest it is a thin rounded bar without a thumb; touching it thickens the bar for scrubbing.
- * Between Media3's position updates the played part advances by elapsed time, so it glides
- * instead of stepping once a second.
+ * Steady playback schedules `postInvalidateDelayed(>= 250ms)` (~1px step, <= 4fps) instead of
+ * 120Hz `postInvalidateOnAnimation()`, and halts completely when hidden or collapsed.
  */
 @UnstableApi
 class SmoothTimeBar @JvmOverloads constructor(
@@ -38,12 +39,16 @@ class SmoothTimeBar @JvmOverloads constructor(
     private val density = resources.displayMetrics.density
     private val listeners = CopyOnWriteArraySet<TimeBar.OnScrubListener>()
 
-    private val foreground = ContextCompat.getColor(context, R.color.player_foreground)
+    private val foreground = ContextCompat.getColor(context, R.color.player_brass)
+    private val trackColor = ContextCompat.getColor(context, R.color.player_track)
+    private val bufferedColor = ColorUtils.setAlphaComponent(
+        ContextCompat.getColor(context, R.color.player_foreground),
+        0x40
+    )
+
     private val playedPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = foreground }
-    private val trackPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = ContextCompat.getColor(context, R.color.player_track)
-    }
-    private val bufferedPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = ColorUtils.setAlphaComponent(foreground, 0x4D) }
+    private val trackPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = trackColor }
+    private val bufferedPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = bufferedColor }
     private val trackPath = Path()
 
     private var duration = 0L
@@ -73,9 +78,8 @@ class SmoothTimeBar @JvmOverloads constructor(
     }
 
     override fun onPlayerMotionChanged() {
-        // Restart the extrapolation from the last reported position on every play/pause change.
         positionStamp = SystemClock.uptimeMillis()
-        invalidate()
+        if (isShown) invalidate()
     }
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
@@ -109,25 +113,25 @@ class SmoothTimeBar @JvmOverloads constructor(
         if (this.position == position) return
         this.position = position
         positionStamp = SystemClock.uptimeMillis()
-        invalidate()
+        if (isShown) invalidate()
     }
 
     override fun setBufferedPosition(bufferedPosition: Long) {
         if (buffered == bufferedPosition) return
         buffered = bufferedPosition
-        invalidate()
+        if (isShown) invalidate()
     }
 
     override fun setDuration(duration: Long) {
         if (this.duration == duration) return
         this.duration = duration
         if (scrubbing && duration == C.TIME_UNSET) stopScrubbing(true)
-        invalidate()
+        if (isShown) invalidate()
     }
 
     override fun getPreferredUpdateDelay(): Long {
         val widthDp = (trackWidth() / density).toLong()
-        return if (widthDp <= 0 || duration <= 0 || duration == C.TIME_UNSET) Long.MAX_VALUE else duration / widthDp
+        return if (widthDp <= 0 || duration <= 0 || duration == C.TIME_UNSET) Long.MAX_VALUE else (duration / widthDp).coerceAtLeast(250L)
     }
 
     override fun setAdGroupTimesMs(adGroupTimesMs: LongArray?, playedAdGroups: BooleanArray?, adGroupCount: Int) = Unit
@@ -135,7 +139,7 @@ class SmoothTimeBar @JvmOverloads constructor(
     override fun setEnabled(enabled: Boolean) {
         super.setEnabled(enabled)
         if (scrubbing && !enabled) stopScrubbing(true)
-        invalidate()
+        if (isShown) invalidate()
     }
     // endregion
 
@@ -146,7 +150,6 @@ class SmoothTimeBar @JvmOverloads constructor(
     private fun displayedPosition(): Long {
         if (scrubbing) return scrubPosition
         if (!PlayerMotion.isPlaying || duration <= 0) return position
-        // Glide between updates, but never run far ahead of a stalled or buffering player.
         val elapsed = (SystemClock.uptimeMillis() - positionStamp).coerceIn(0L, MAX_EXTRAPOLATION_MS)
         return (position + elapsed).coerceAtMost(duration)
     }
@@ -180,9 +183,19 @@ class SmoothTimeBar @JvmOverloads constructor(
             drawRect(start, top, start + width * fraction, bottom, playedPaint)
         }
 
-        val settling = kotlin.math.abs(targetHeight - barHeight) > 0.05f
-        if ((settling || (PlayerMotion.isPlaying && !scrubbing)) && isShown) {
+        val settling = abs(targetHeight - barHeight) > 0.05f
+        if (!isShown || !PlayerMotion.sheetExpanded) {
+            lastFrameNanos = 0L
+        } else if (settling) {
             postInvalidateOnAnimation()
+        } else if (PlayerMotion.isPlaying && !scrubbing) {
+            lastFrameNanos = 0L
+            val stepMs = if (duration > 0L && duration != C.TIME_UNSET) {
+                (duration / width.toLong().coerceAtLeast(1L)).coerceIn(MIN_IDLE_STEP_MS, MAX_IDLE_STEP_MS)
+            } else {
+                MIN_IDLE_STEP_MS
+            }
+            postInvalidateDelayed(stepMs)
         } else {
             lastFrameNanos = 0L
         }
@@ -240,8 +253,11 @@ class SmoothTimeBar @JvmOverloads constructor(
         super.onInitializeAccessibilityNodeInfo(info)
         info.className = SeekBar::class.java.name
         if (duration <= 0) return
-        info.rangeInfo = AccessibilityNodeInfo.RangeInfo.obtain(
-            AccessibilityNodeInfo.RangeInfo.RANGE_TYPE_INT, 0f, duration.toFloat(), position.toFloat(),
+        info.rangeInfo = AccessibilityNodeInfo.RangeInfo(
+            AccessibilityNodeInfo.RangeInfo.RANGE_TYPE_INT,
+            0f,
+            duration.toFloat(),
+            position.toFloat(),
         )
         info.addAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_FORWARD)
         info.addAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_BACKWARD)
@@ -267,6 +283,8 @@ class SmoothTimeBar @JvmOverloads constructor(
         const val HEIGHT_DP = 28f
         const val BAR_DP = 5f
         const val BAR_ACTIVE_DP = 11f
+        const val MIN_IDLE_STEP_MS = 250L
+        const val MAX_IDLE_STEP_MS = 1000L
         const val MAX_EXTRAPOLATION_MS = 1500L
         const val DEFAULT_KEY_COUNT = 20
     }

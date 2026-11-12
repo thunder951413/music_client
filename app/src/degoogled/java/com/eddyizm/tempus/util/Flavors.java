@@ -5,8 +5,10 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 
+import androidx.annotation.Nullable;
 import androidx.core.content.ContextCompat;
 import androidx.mediarouter.app.MediaRouteButton;
+import androidx.mediarouter.media.MediaRouteSelector;
 
 import com.eddyizm.tempus.R;
 
@@ -18,6 +20,11 @@ public class Flavors {
     /** True here, this build has no Cast, so the button has nothing to offer with UPnP turned off. */
     public static boolean routeButtonIsOnlyForUpnp(Context context) {
         return true;
+    }
+
+    @Nullable
+    public static MediaRouteSelector castRouteSelector(Context context) {
+        return null;
     }
 
     public static void setUpRouteButton(Context context, Menu menu) {

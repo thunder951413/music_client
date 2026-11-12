@@ -4,13 +4,16 @@ import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.ComponentName;
 import android.content.Context;
-import android.content.Intent;
-import android.content.ServiceConnection;
 import android.content.SharedPreferences;
 import android.content.res.ColorStateList;
+import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
+import android.media.AudioDeviceCallback;
+import android.media.AudioDeviceInfo;
+import android.media.AudioManager;
 import android.os.Bundle;
-import android.os.IBinder;
+import android.os.Handler;
+import android.os.Looper;
 import android.text.TextUtils;
 import android.util.Log;
 import android.view.Gravity;
@@ -32,6 +35,7 @@ import androidx.annotation.Nullable;
 import androidx.appcompat.widget.PopupMenu;
 import androidx.appcompat.widget.TooltipCompat;
 import androidx.constraintlayout.widget.ConstraintLayout;
+import androidx.core.content.ContextCompat;
 import androidx.core.view.ViewCompat;
 import androidx.core.widget.ImageViewCompat;
 import androidx.fragment.app.Fragment;
@@ -49,8 +53,6 @@ import androidx.media3.session.SessionToken;
 import androidx.mediarouter.media.MediaControlIntent;
 import androidx.mediarouter.media.MediaRouteSelector;
 import androidx.mediarouter.media.MediaRouter;
-import androidx.navigation.NavController;
-import androidx.navigation.NavOptions;
 import androidx.navigation.fragment.NavHostFragment;
 import androidx.transition.ChangeBounds;
 import androidx.transition.Slide;
@@ -61,7 +63,6 @@ import androidx.viewpager2.widget.ViewPager2;
 import com.eddyizm.tempus.App;
 import com.eddyizm.tempus.R;
 import com.eddyizm.tempus.databinding.InnerFragmentPlayerControllerBinding;
-import com.eddyizm.tempus.service.BaseMediaService;
 import com.eddyizm.tempus.service.MediaService;
 import com.eddyizm.tempus.subsonic.models.Child;
 import com.eddyizm.tempus.subsonic.models.ReplayGainInfo;
@@ -94,38 +95,81 @@ import com.google.common.util.concurrent.MoreExecutors;
 
 import java.text.DecimalFormat;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Set;
 
 @UnstableApi
 public class PlayerControllerFragment extends Fragment {
     private static final String TAG = "PlayerCoverFragment";
 
-    // Editorial Warm Dark ("唱片店夜色") tokens
-    private static final int COLOR_SURFACE_3 = 0xFF28241F;
-    private static final int COLOR_FROSTED_CAPSULE = 0xCC1E1B18;
-    private static final int COLOR_HAIRLINE = 0x14FFF0DC;
-    private static final int COLOR_IVORY = 0xFFF2ECE3;
-    private static final int COLOR_IVORY_SECONDARY = 0xA3F2ECE3;
-    private static final int COLOR_IVORY_MUTED = 0x80F2ECE3;
-    private static final int COLOR_BRASS = 0xFFCFA46A;
-    private static final int COLOR_BRASS_SUBTLE = 0x22CFA46A;
-    private static final int COLOR_BRASS_BORDER = 0x88CFA46A;
-    private static final int COLOR_MOSS = 0xFF8DB596;
-    private static final int COLOR_MOSS_SUBTLE = 0x228DB596;
-    private static final int COLOR_MOSS_BORDER = 0x888DB596;
-    private static final int COLOR_ON_BRASS = 0xFF0E0D0C;
+    private static final Set<String> RELEVANT_PREF_KEYS = new HashSet<>(Arrays.asList(
+            "selected_equalizer",
+            "equalizer_enabled",
+            "equalizer_band_levels",
+            "parametric_eq_profile",
+            "parametric_eq_name",
+            "replay_gain_mode",
+            "loudness_preamp",
+            "playback_speed",
+            "skip_silence",
+            "bitrate_visible",
+            "track_number_visible",
+            "song_rating_per_item",
+            "rating_per_item",
+            Preferences.LAN_REMOTE_ENABLED,
+            Preferences.UPNP_ENABLED
+    ));
+
+    // Resolved @color/player_* tokens
+    private int colorSurface3;
+    private int colorFrostedCapsule;
+    private int colorHairline;
+    private int colorIvoryOutline;
+    private int colorIvory;
+    private int colorIvorySecondary;
+    private int colorIvoryTertiary;
+    private int colorBrass;
+    private int colorBrassSubtle;
+    private int colorBrassBorder;
+    private int colorMoss;
+    private int colorMossSubtle;
+    private int colorMossBorder;
+    private int colorOnAction;
+
+    // Pre-allocated reusable GradientDrawables (zero allocations on 1Hz ticks or badge updates)
+    @Nullable private GradientDrawable topPillBgDrawable;
+    @Nullable private GradientDrawable badgeCodecBgDrawable;
+    @Nullable private GradientDrawable badgeRateBgDrawable;
+    @Nullable private GradientDrawable badgeRgBgDrawable;
+    @Nullable private GradientDrawable badgeEqBgDrawable;
+    @Nullable private GradientDrawable capsuleLyricsBgDrawable;
+    @Nullable private GradientDrawable capsuleOutputBgDrawable;
+    @Nullable private GradientDrawable capsuleSoundBgDrawable;
+    @Nullable private GradientDrawable capsuleQueueBgDrawable;
+
+    @Nullable private PlayerSheets.OutputSummary cachedOutputSummary;
+    @Nullable private Boolean lastSleepTimerActive;
 
     private InnerFragmentPlayerControllerBinding bind;
     private com.eddyizm.tempus.lan.LanPlayerAdapter remotePlayer;
     private final SharedPreferences.OnSharedPreferenceChangeListener prefsChangeListener = (prefs, key) -> {
         if (bind == null || !isAdded()) return;
-        updateRemoteToggleVisibility();
+        if (key != null && !RELEVANT_PREF_KEYS.contains(key)) return;
+        if (key == null || Preferences.LAN_REMOTE_ENABLED.equals(key) || Preferences.UPNP_ENABLED.equals(key)) {
+            refreshOutputSummaryAndDestination();
+        }
+        if ("song_rating_per_item".equals(key) || "rating_per_item".equals(key)) {
+            checkAndSetRatingContainerVisibility();
+        }
         refreshSignalBadges();
         updateCapsuleState();
     };
+
     private boolean renderingRemote;
     private ViewPager2 playerMediaCoverViewPager;
     private ToggleButton buttonFavorite;
@@ -145,7 +189,6 @@ public class PlayerControllerFragment extends Fragment {
     @Nullable private TextView playerContextLabel;
     @Nullable private ImageButton playModeButton;
     @Nullable private View playerFavoriteSurface;
-    private boolean immersiveLayout;
     @Nullable private ImageButton playerTrackInfo;
     @Nullable private LinearLayout ratingContainer;
     @Nullable private LinearLayout sleepTimerContainer;
@@ -181,6 +224,7 @@ public class PlayerControllerFragment extends Fragment {
     private boolean queueSheetOpen = false;
 
     @Nullable private MediaRouter mediaRouter;
+    @Nullable private AudioManager audioManager;
     private final MediaRouter.Callback mediaRouterCallback = new MediaRouter.Callback() {
         @Override
         public void onRouteSelected(@NonNull MediaRouter router, @NonNull MediaRouter.RouteInfo route, int reason) {
@@ -199,8 +243,26 @@ public class PlayerControllerFragment extends Fragment {
 
         private void onRoutesUpdated() {
             if (bind == null || !isAdded()) return;
-            updatePlaybackDestinationLabel();
+            refreshOutputSummaryAndDestination();
             refreshSignalBadges();
+            updateCapsuleState();
+        }
+    };
+
+    private final AudioDeviceCallback audioDeviceCallback = new AudioDeviceCallback() {
+        @Override
+        public void onAudioDevicesAdded(AudioDeviceInfo[] addedDevices) {
+            onAudioDevicesUpdated();
+        }
+
+        @Override
+        public void onAudioDevicesRemoved(AudioDeviceInfo[] removedDevices) {
+            onAudioDevicesUpdated();
+        }
+
+        private void onAudioDevicesUpdated() {
+            if (bind == null || !isAdded()) return;
+            refreshOutputSummaryAndDestination();
             updateCapsuleState();
         }
     };
@@ -209,15 +271,14 @@ public class PlayerControllerFragment extends Fragment {
     private PlayerBottomSheetViewModel playerBottomSheetViewModel;
     private ListenableFuture<MediaBrowser> mediaBrowserListenableFuture;
 
-    private BaseMediaService.LocalBinder mediaServiceBinder;
-    private boolean isServiceBound = false;
-
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
         activity = (MainActivity) getActivity();
 
         bind = InnerFragmentPlayerControllerBinding.inflate(PlayerBackdrop.themedInflater(inflater), container, false);
         View view = bind.getRoot();
+
+        loadDesignColors(view.getContext());
 
         playerBottomSheetViewModel = new ViewModelProvider(requireActivity()).get(PlayerBottomSheetViewModel.class);
         ratingViewModel = new ViewModelProvider(requireActivity()).get(RatingViewModel.class);
@@ -240,12 +301,29 @@ public class PlayerControllerFragment extends Fragment {
         playerBottomSheetViewModel.getLiveLyrics().observe(getViewLifecycleOwner(), ignored -> updateLyricsAvailability());
         playerBottomSheetViewModel.getLiveLyricsList().observe(getViewLifecycleOwner(), ignored -> updateLyricsAvailability());
 
-        updatePlaybackDestinationLabel();
+        refreshOutputSummaryAndDestination();
         refreshSignalBadges();
         updateSleepTimerUI();
         updateLyricsAvailability();
 
         return view;
+    }
+
+    private void loadDesignColors(@NonNull Context context) {
+        colorSurface3 = ContextCompat.getColor(context, R.color.player_surface_3);
+        colorFrostedCapsule = ContextCompat.getColor(context, R.color.player_frosted_capsule);
+        colorHairline = ContextCompat.getColor(context, R.color.player_hairline);
+        colorIvoryOutline = ContextCompat.getColor(context, R.color.player_ivory_outline);
+        colorIvory = ContextCompat.getColor(context, R.color.player_foreground);
+        colorIvorySecondary = ContextCompat.getColor(context, R.color.player_secondary);
+        colorIvoryTertiary = ContextCompat.getColor(context, R.color.player_tertiary);
+        colorBrass = ContextCompat.getColor(context, R.color.player_brass);
+        colorBrassSubtle = ContextCompat.getColor(context, R.color.player_brass_subtle);
+        colorBrassBorder = ContextCompat.getColor(context, R.color.player_brass_border);
+        colorMoss = ContextCompat.getColor(context, R.color.player_moss);
+        colorMossSubtle = ContextCompat.getColor(context, R.color.player_moss_subtle);
+        colorMossBorder = ContextCompat.getColor(context, R.color.player_moss_border);
+        colorOnAction = ContextCompat.getColor(context, R.color.player_on_action);
     }
 
     @Override
@@ -271,12 +349,16 @@ public class PlayerControllerFragment extends Fragment {
         if (bind != null) bind.nowPlayingMediaControllerView.setPlayer(null);
         if (remotePlayer != null) remotePlayer.release();
         remotePlayer = null;
+        cachedOutputSummary = null;
+        lastSleepTimerActive = null;
         bind = null;
     }
 
     private void registerRouteObserver() {
+        Context context = getContext();
+        if (context == null) return;
         try {
-            mediaRouter = MediaRouter.getInstance(requireContext());
+            mediaRouter = MediaRouter.getInstance(context);
             MediaRouteSelector selector = new MediaRouteSelector.Builder()
                     .addControlCategory(MediaControlIntent.CATEGORY_REMOTE_PLAYBACK)
                     .addControlCategory(MediaControlIntent.CATEGORY_LIVE_AUDIO)
@@ -285,6 +367,14 @@ public class PlayerControllerFragment extends Fragment {
             mediaRouter.addCallback(selector, mediaRouterCallback, 0);
         } catch (Exception ignored) {
             mediaRouter = null;
+        }
+        try {
+            audioManager = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
+            if (audioManager != null) {
+                audioManager.registerAudioDeviceCallback(audioDeviceCallback, new Handler(Looper.getMainLooper()));
+            }
+        } catch (Exception ignored) {
+            audioManager = null;
         }
     }
 
@@ -296,11 +386,18 @@ public class PlayerControllerFragment extends Fragment {
             }
             mediaRouter = null;
         }
+        if (audioManager != null) {
+            try {
+                audioManager.unregisterAudioDeviceCallback(audioDeviceCallback);
+            } catch (Exception ignored) {
+            }
+            audioManager = null;
+        }
     }
 
     private void openSignalAndSoundSheet() {
         if (!isAdded()) return;
-        PlayerSheets.showSignalAndSound(requireActivity(), this::navigateToEqualizerFragment);
+        PlayerSheets.showSignalAndSound(requireActivity());
     }
 
     private void openOutputRouteSheet() {
@@ -308,8 +405,23 @@ public class PlayerControllerFragment extends Fragment {
         PlayerSheets.showOutputRoute(requireActivity());
     }
 
+    @NonNull
+    private PlayerSheets.OutputSummary getCachedOrResolveOutputSummary(@NonNull Context context) {
+        if (cachedOutputSummary == null) {
+            cachedOutputSummary = PlayerSheets.currentOutputSummary(context);
+        }
+        return cachedOutputSummary;
+    }
+
+    private void refreshOutputSummaryAndDestination() {
+        if (bind == null || !isAdded()) return;
+        cachedOutputSummary = PlayerSheets.currentOutputSummary(requireContext());
+        updatePlaybackDestinationLabel();
+    }
+
     private void refreshPlaybackDestination() {
-        if (bind == null || remotePlayer == null) return;
+        if (bind == null || remotePlayer == null || !isAdded()) return;
+        cachedOutputSummary = PlayerSheets.currentOutputSummary(requireContext());
         updateRemoteToggleVisibility();
         updatePlayModeButton();
         if (com.eddyizm.tempus.lan.LanRemoteSession.isActive()) {
@@ -421,14 +533,12 @@ public class PlayerControllerFragment extends Fragment {
         playerCapsuleQueueIcon = root.findViewById(R.id.player_capsule_queue_icon);
         playerCapsuleQueueText = root.findViewById(R.id.player_capsule_queue_text);
 
-        immersiveLayout = playerContextLabel != null;
-
         // Style hero play/pause button in Stylus Brass (#CFA46A) with deep charcoal glyph
         View playPauseButton = root.findViewById(R.id.exo_play_pause);
         if (playPauseButton != null) {
-            ViewCompat.setBackgroundTintList(playPauseButton, ColorStateList.valueOf(COLOR_BRASS));
+            ViewCompat.setBackgroundTintList(playPauseButton, ColorStateList.valueOf(colorBrass));
             if (playPauseButton instanceof ImageView) {
-                ImageViewCompat.setImageTintList((ImageView) playPauseButton, ColorStateList.valueOf(COLOR_ON_BRASS));
+                ImageViewCompat.setImageTintList((ImageView) playPauseButton, ColorStateList.valueOf(colorOnAction));
             }
         }
 
@@ -442,6 +552,8 @@ public class PlayerControllerFragment extends Fragment {
         }
 
         if (playerTopOutputPill != null) {
+            topPillBgDrawable = makeRoundedRect(999f, colorSurface3, 1f, colorHairline);
+            playerTopOutputPill.setBackground(topPillBgDrawable);
             PressFeedback.attach(playerTopOutputPill);
             playerTopOutputPill.setOnClickListener(v -> openOutputRouteSheet());
         }
@@ -451,20 +563,51 @@ public class PlayerControllerFragment extends Fragment {
             PressFeedback.attach(playerSignalBadgesRow);
             playerSignalBadgesRow.setOnClickListener(signalSheetClick);
         }
-        for (View badge : new View[]{playerBadgeCodec, playerBadgeRate, playerBadgeRg, playerBadgeEq}) {
-            if (badge != null) {
-                badge.setOnClickListener(signalSheetClick);
-            }
+        if (playerBadgeCodec != null) {
+            badgeCodecBgDrawable = makeRoundedRect(6f, colorSurface3, 1f, colorHairline);
+            playerBadgeCodec.setBackground(badgeCodecBgDrawable);
+            playerBadgeCodec.setOnClickListener(signalSheetClick);
+        }
+        if (playerBadgeRate != null) {
+            badgeRateBgDrawable = makeRoundedRect(6f, colorSurface3, 1f, colorHairline);
+            playerBadgeRate.setBackground(badgeRateBgDrawable);
+            playerBadgeRate.setOnClickListener(signalSheetClick);
+        }
+        if (playerBadgeRg != null) {
+            badgeRgBgDrawable = makeRoundedRect(6f, colorSurface3, 1f, colorIvoryOutline);
+            playerBadgeRg.setBackground(badgeRgBgDrawable);
+            playerBadgeRg.setOnClickListener(signalSheetClick);
+        }
+        if (playerBadgeEq != null) {
+            badgeEqBgDrawable = makeRoundedRect(6f, colorSurface3, 1f, colorHairline);
+            playerBadgeEq.setBackground(badgeEqBgDrawable);
+            playerBadgeEq.setOnClickListener(signalSheetClick);
         }
 
         if (playerCapsuleBar != null) {
-            playerCapsuleBar.setBackground(makeRoundedRect(999f, COLOR_FROSTED_CAPSULE, 1f, COLOR_HAIRLINE));
+            playerCapsuleBar.setBackground(makeRoundedRect(999f, colorFrostedCapsule, 1f, colorHairline));
+        }
+        if (playerOpenLyricsButton != null) {
+            capsuleLyricsBgDrawable = makeRoundedRect(999f, Color.TRANSPARENT, 0f, 0);
+            playerOpenLyricsButton.setBackground(capsuleLyricsBgDrawable);
+        }
+        if (playerCapsuleOutputButton != null) {
+            capsuleOutputBgDrawable = makeRoundedRect(999f, Color.TRANSPARENT, 0f, 0);
+            playerCapsuleOutputButton.setBackground(capsuleOutputBgDrawable);
+        }
+        if (playerCapsuleSoundButton != null) {
+            capsuleSoundBgDrawable = makeRoundedRect(999f, Color.TRANSPARENT, 0f, 0);
+            playerCapsuleSoundButton.setBackground(capsuleSoundBgDrawable);
+        }
+        if (playerOpenQueueButton != null) {
+            capsuleQueueBgDrawable = makeRoundedRect(999f, Color.TRANSPARENT, 0f, 0);
+            playerOpenQueueButton.setBackground(capsuleQueueBgDrawable);
         }
         if (playerCapsuleOutputDot != null) {
-            playerCapsuleOutputDot.setBackground(makeOval(COLOR_BRASS));
+            playerCapsuleOutputDot.setBackground(makeOval(colorBrass));
         }
         if (playerCapsuleSoundDot != null) {
-            playerCapsuleSoundDot.setBackground(makeOval(COLOR_BRASS));
+            playerCapsuleSoundDot.setBackground(makeOval(colorBrass));
         }
 
         checkAndSetRatingContainerVisibility();
@@ -480,6 +623,13 @@ public class PlayerControllerFragment extends Fragment {
             d.setStroke(Math.max(1, Math.round(strokeDp * density)), strokeColor);
         }
         return d;
+    }
+
+    private void updateRoundedRect(@Nullable GradientDrawable drawable, int fillColor, int strokeColor) {
+        if (drawable == null) return;
+        float density = getResources().getDisplayMetrics().density;
+        drawable.setColor(fillColor);
+        drawable.setStroke(Math.max(1, Math.round(density)), strokeColor);
     }
 
     private GradientDrawable makeOval(int fillColor) {
@@ -538,42 +688,31 @@ public class PlayerControllerFragment extends Fragment {
             playerOverflowButton.setOnClickListener(v -> {
                 PopupMenu popup = new PopupMenu(requireContext(), v);
                 popup.inflate(R.menu.player_overflow_menu);
-                if (popup.getMenu().findItem(R.id.action_show_lyrics) != null) {
-                    popup.getMenu().findItem(R.id.action_show_lyrics).setVisible(playerBottomSheetViewModel.hasLyrics());
-                }
                 View audioDetails = bind.getRoot().findViewById(R.id.player_media_quality_sector);
                 if (popup.getMenu().findItem(R.id.action_audio_details) != null && audioDetails != null) {
                     popup.getMenu().findItem(R.id.action_audio_details)
                             .setVisible(playerOutputLabel != null)
                             .setChecked(audioDetails.getVisibility() == View.VISIBLE);
                 }
-
-                if (!com.eddyizm.tempus.lan.LanDevicePicker.isOffered()
-                        && popup.getMenu().findItem(R.id.action_lan_playback) != null) {
-                    popup.getMenu().removeItem(R.id.action_lan_playback);
+                Child currentSong = playerBottomSheetViewModel.getLiveMedia().getValue();
+                if (popup.getMenu().findItem(R.id.action_rate_track) != null) {
+                    popup.getMenu().findItem(R.id.action_rate_track).setVisible(currentSong != null);
                 }
 
                 popup.setOnMenuItemClickListener(item -> {
                     int itemId = item.getItemId();
-                    if (itemId == R.id.action_signal_and_sound) {
-                        openSignalAndSoundSheet();
-                        return true;
-                    } else if (itemId == R.id.action_output_route) {
-                        openOutputRouteSheet();
-                        return true;
-                    } else if (itemId == R.id.action_track_info) {
+                    if (itemId == R.id.action_track_info) {
                         if (playerTrackInfo != null) playerTrackInfo.performClick();
+                        return true;
+                    } else if (itemId == R.id.action_add_to_playlist) {
+                        openAddToPlaylistDialog();
                         return true;
                     } else if (itemId == R.id.action_playback_speed) {
                         if (playbackSpeedButton != null) playbackSpeedButton.performClick();
                         else openSignalAndSoundSheet();
                         return true;
-                    } else if (itemId == R.id.action_sleep_timer) {
-                        if (sleepTimerButton != null) sleepTimerButton.performClick();
-                        else openSignalAndSoundSheet();
-                        return true;
-                    } else if (itemId == R.id.action_show_lyrics) {
-                        goToLyricsPage();
+                    } else if (itemId == R.id.action_rate_track) {
+                        openRatingDialog();
                         return true;
                     } else if (itemId == R.id.action_audio_details) {
                         if (audioDetails != null) {
@@ -583,15 +722,6 @@ public class PlayerControllerFragment extends Fragment {
                             if (assetRow != null) assetRow.setVisibility(show ? View.VISIBLE : View.GONE);
                         }
                         return true;
-                    } else if (itemId == R.id.action_lan_playback) {
-                        openOutputRouteSheet();
-                        return true;
-                    } else if (itemId == R.id.action_open_equalizer) {
-                        navigateToEqualizerFragment();
-                        return true;
-                    } else if (itemId == R.id.action_add_to_playlist) {
-                        openAddToPlaylistDialog();
-                        return true;
                     }
                     return false;
                 });
@@ -600,9 +730,20 @@ public class PlayerControllerFragment extends Fragment {
         }
     }
 
+    private void openRatingDialog() {
+        Child media = playerBottomSheetViewModel.getLiveMedia().getValue();
+        if (media == null || !isAdded()) return;
+        Bundle bundle = new Bundle();
+        bundle.putParcelable(Constants.TRACK_OBJECT, media);
+        RatingDialog dialog = new RatingDialog();
+        dialog.setArguments(bundle);
+        dialog.show(requireActivity().getSupportFragmentManager(), null);
+    }
+
     private void initQuickActionView() {
+        // Keep the 4-button Editorial frosted capsule permanently accessible!
         if (playerQuickActionView != null) {
-            playerQuickActionView.setVisibility(Preferences.getQuickActionVisible() ? View.VISIBLE : View.GONE);
+            playerQuickActionView.setVisibility(View.VISIBLE);
         }
 
         if (playerOpenLyricsButton != null) {
@@ -664,7 +805,7 @@ public class PlayerControllerFragment extends Fragment {
     private void updatePlaybackDestinationLabel() {
         if (bind == null || !isAdded()) return;
         Context context = requireContext();
-        PlayerSheets.OutputSummary summary = PlayerSheets.currentOutputSummary(context);
+        PlayerSheets.OutputSummary summary = getCachedOrResolveOutputSummary(context);
 
         if (playerOutputLabel != null) {
             playerOutputLabel.setText(summary.getLabel());
@@ -672,13 +813,12 @@ public class PlayerControllerFragment extends Fragment {
 
         if (playerTopOutputPill != null) {
             boolean remote = summary.isRemote();
-            playerTopOutputPill.setBackground(makeRoundedRect(
-                    999f,
-                    remote ? COLOR_BRASS_SUBTLE : COLOR_SURFACE_3,
-                    1f,
-                    remote ? COLOR_BRASS_BORDER : COLOR_HAIRLINE
-            ));
-            int contentColor = remote ? COLOR_BRASS : COLOR_IVORY;
+            updateRoundedRect(
+                    topPillBgDrawable,
+                    remote ? colorBrassSubtle : colorSurface3,
+                    remote ? colorBrassBorder : colorHairline
+            );
+            int contentColor = remote ? colorBrass : colorIvory;
             if (playerTopOutputIcon != null) {
                 playerTopOutputIcon.setImageResource(summary.getIconRes());
                 ImageViewCompat.setImageTintList(playerTopOutputIcon, ColorStateList.valueOf(contentColor));
@@ -702,7 +842,7 @@ public class PlayerControllerFragment extends Fragment {
         Bundle extras = metadata != null ? metadata.extras : null;
 
         // 1 & 2. Codec + Sample Rate / Bitrate Badges
-        String codecUpper = "";
+        String codecUpper;
         boolean transcoded = false;
         int bitDepth = 0;
         int sampleRateHz = 0;
@@ -759,22 +899,25 @@ public class PlayerControllerFragment extends Fragment {
             }
         }
 
-        boolean losslessCodec = !transcoded && isLosslessCodec(codecUpper);
-        boolean hiResAudio = !transcoded && (bitDepth >= 24 || sampleRateHz > 48000);
-        boolean brassCodecBadge = losslessCodec || hiResAudio;
+        boolean losslessCodec = !transcoded && PlayerSheets.isLosslessCodec(codecUpper);
+        boolean hiResAudio = !transcoded && PlayerSheets.isHiResAudio(bitDepth, sampleRateHz);
 
+        // Stylus Brass restraint (#19-13): Brass is reserved for Hi-Res; standard lossless uses crisp 40% ivory outline!
         if (playerBadgeCodec != null) {
             String codecDisplay = transcoded
                     ? context.getString(R.string.editorial_badge_transcoded, codecUpper)
                     : codecUpper;
             setTextIfChanged(playerBadgeCodec, codecDisplay);
-            playerBadgeCodec.setBackground(makeRoundedRect(
-                    6f,
-                    brassCodecBadge ? COLOR_BRASS_SUBTLE : COLOR_SURFACE_3,
-                    1f,
-                    brassCodecBadge ? COLOR_BRASS : COLOR_HAIRLINE
-            ));
-            playerBadgeCodec.setTextColor(brassCodecBadge ? COLOR_BRASS : COLOR_IVORY_SECONDARY);
+            if (hiResAudio) {
+                updateRoundedRect(badgeCodecBgDrawable, colorBrassSubtle, colorBrass);
+                playerBadgeCodec.setTextColor(colorBrass);
+            } else if (losslessCodec) {
+                updateRoundedRect(badgeCodecBgDrawable, colorSurface3, colorIvoryOutline);
+                playerBadgeCodec.setTextColor(colorIvory);
+            } else {
+                updateRoundedRect(badgeCodecBgDrawable, colorSurface3, colorHairline);
+                playerBadgeCodec.setTextColor(colorIvorySecondary);
+            }
             playerBadgeCodec.setVisibility(View.VISIBLE);
         }
 
@@ -793,20 +936,23 @@ public class PlayerControllerFragment extends Fragment {
 
             if (!rateLabel.isEmpty()) {
                 setTextIfChanged(playerBadgeRate, rateLabel);
-                playerBadgeRate.setBackground(makeRoundedRect(
-                        6f,
-                        hiResAudio ? COLOR_BRASS_SUBTLE : COLOR_SURFACE_3,
-                        1f,
-                        hiResAudio ? COLOR_BRASS_BORDER : COLOR_HAIRLINE
-                ));
-                playerBadgeRate.setTextColor(hiResAudio ? COLOR_BRASS : COLOR_IVORY);
+                if (hiResAudio) {
+                    updateRoundedRect(badgeRateBgDrawable, colorBrassSubtle, colorBrassBorder);
+                    playerBadgeRate.setTextColor(colorBrass);
+                } else if (losslessCodec) {
+                    updateRoundedRect(badgeRateBgDrawable, colorSurface3, colorIvoryOutline);
+                    playerBadgeRate.setTextColor(colorIvory);
+                } else {
+                    updateRoundedRect(badgeRateBgDrawable, colorSurface3, colorHairline);
+                    playerBadgeRate.setTextColor(colorIvorySecondary);
+                }
                 playerBadgeRate.setVisibility(View.VISIBLE);
             } else {
                 playerBadgeRate.setVisibility(View.GONE);
             }
         }
 
-        // 3. ReplayGain Badge
+        // 3. ReplayGain Badge (40% ivory outline + ivory text + Unicode minus dB formatting)
         if (playerBadgeRg != null) {
             String rgMode = Preferences.getReplayGainMode();
             if (rgMode == null || "disabled".equals(rgMode)) {
@@ -824,8 +970,8 @@ public class PlayerControllerFragment extends Fragment {
                     }
                 }
                 String rgText;
-                if (gainDb != null && gainDb != 0f) {
-                    rgText = context.getString(R.string.editorial_badge_rg_db, String.format(Locale.US, "%+.1f", gainDb));
+                if (gainDb != null && Math.abs(gainDb) >= 0.05f) {
+                    rgText = context.getString(R.string.editorial_badge_rg_db, PlayerSheets.formatSignedDb(gainDb, 1));
                 } else if ("track".equals(rgMode)) {
                     rgText = context.getString(R.string.editorial_badge_rg_track);
                 } else if ("album".equals(rgMode)) {
@@ -836,28 +982,27 @@ public class PlayerControllerFragment extends Fragment {
                     rgText = context.getString(R.string.editorial_badge_rg_on);
                 }
                 setTextIfChanged(playerBadgeRg, rgText);
-                playerBadgeRg.setBackground(makeRoundedRect(6f, COLOR_BRASS_SUBTLE, 1f, COLOR_BRASS_BORDER));
-                playerBadgeRg.setTextColor(COLOR_BRASS);
+                updateRoundedRect(badgeRgBgDrawable, colorSurface3, colorIvoryOutline);
+                playerBadgeRg.setTextColor(colorIvory);
                 playerBadgeRg.setVisibility(View.VISIBLE);
             }
         }
 
-        // 4. EQ Badge
+        // 4. EQ Badge (Moss for Parametric AutoEq, 40% ivory outline for Built-in/System, muted hairline when Flat)
         if (playerBadgeEq != null) {
             PlayerSheets.EqSummary eqSummary = PlayerSheets.currentEqSummary(context);
             setTextIfChanged(playerBadgeEq, eqSummary.getBadgeText());
             if (eqSummary.isActive()) {
-                boolean peq = eqSummary.isParametric();
-                playerBadgeEq.setBackground(makeRoundedRect(
-                        6f,
-                        peq ? COLOR_MOSS_SUBTLE : COLOR_BRASS_SUBTLE,
-                        1f,
-                        peq ? COLOR_MOSS_BORDER : COLOR_BRASS
-                ));
-                playerBadgeEq.setTextColor(peq ? COLOR_MOSS : COLOR_BRASS);
+                if (eqSummary.isParametric()) {
+                    updateRoundedRect(badgeEqBgDrawable, colorMossSubtle, colorMossBorder);
+                    playerBadgeEq.setTextColor(colorMoss);
+                } else {
+                    updateRoundedRect(badgeEqBgDrawable, colorSurface3, colorIvoryOutline);
+                    playerBadgeEq.setTextColor(colorIvory);
+                }
             } else {
-                playerBadgeEq.setBackground(makeRoundedRect(6f, COLOR_SURFACE_3, 1f, COLOR_HAIRLINE));
-                playerBadgeEq.setTextColor(COLOR_IVORY_MUTED);
+                updateRoundedRect(badgeEqBgDrawable, colorSurface3, colorHairline);
+                playerBadgeEq.setTextColor(colorIvoryTertiary);
             }
             playerBadgeEq.setVisibility(View.VISIBLE);
         }
@@ -869,10 +1014,10 @@ public class PlayerControllerFragment extends Fragment {
 
         // 1. Lyrics slot
         boolean lyricsActive = isLyricsPage();
-        styleCapsuleSlot(playerOpenLyricsButton, playerCapsuleLyricsIcon, playerCapsuleLyricsText, lyricsActive);
+        styleCapsuleSlot(capsuleLyricsBgDrawable, playerCapsuleLyricsIcon, playerCapsuleLyricsText, lyricsActive);
 
-        // 2. Output slot
-        PlayerSheets.OutputSummary outputSummary = PlayerSheets.currentOutputSummary(context);
+        // 2. Output slot (uses cached OutputSummary — zero AudioManager IPC on routine state changes!)
+        PlayerSheets.OutputSummary outputSummary = getCachedOrResolveOutputSummary(context);
         boolean remoteActive = outputSummary.isRemote();
         if (playerCapsuleOutputIcon != null) {
             playerCapsuleOutputIcon.setImageResource(outputSummary.getIconRes());
@@ -880,29 +1025,15 @@ public class PlayerControllerFragment extends Fragment {
         if (playerCapsuleOutputDot != null) {
             playerCapsuleOutputDot.setVisibility(remoteActive ? View.VISIBLE : View.GONE);
         }
-        styleCapsuleSlot(playerCapsuleOutputButton, playerCapsuleOutputIcon, playerCapsuleOutputText, remoteActive);
+        styleCapsuleSlot(capsuleOutputBgDrawable, playerCapsuleOutputIcon, playerCapsuleOutputText, remoteActive);
 
-        // 3. Sound slot (sleep timer countdown text or brass dot when EQ / DSP / timer active)
+        // 3. Sound slot
         boolean lanRemote = com.eddyizm.tempus.lan.LanRemoteSession.isActive();
         com.eddyizm.tempus.lan.LanRemoteState lanState = com.eddyizm.tempus.lan.LanRemoteSession.current();
         boolean timerActive = lanRemote ? lanState.getTimerActive() : SleepTimerManager.getInstance().isActive();
+        lastSleepTimerActive = timerActive;
 
-        String soundLabel = context.getString(R.string.editorial_player_capsule_sound);
-        if (timerActive) {
-            boolean eot = lanRemote ? lanState.getTimerEndOfTrack() : SleepTimerManager.getInstance().isEndOfTrack();
-            if (eot) {
-                soundLabel = "EOT";
-            } else {
-                String raw = lanRemote ? lanState.getTimerRemaining() : SleepTimerManager.getInstance().getRemainingFormatted();
-                String compact = formatCompactSleepCountdown(raw);
-                if (!compact.isEmpty()) {
-                    soundLabel = compact;
-                }
-            }
-        }
-        if (playerCapsuleSoundText != null) {
-            setTextIfChanged(playerCapsuleSoundText, soundLabel);
-        }
+        updateCapsuleSoundCountdownLabel(context, lanRemote, lanState, timerActive);
 
         PlayerSheets.EqSummary eqSummary = PlayerSheets.currentEqSummary(context);
         String rgMode = Preferences.getReplayGainMode();
@@ -915,26 +1046,50 @@ public class PlayerControllerFragment extends Fragment {
         if (playerCapsuleSoundDot != null) {
             playerCapsuleSoundDot.setVisibility(anySoundActive ? View.VISIBLE : View.GONE);
         }
-        styleCapsuleSlot(playerCapsuleSoundButton, playerCapsuleSoundIcon, playerCapsuleSoundText, timerActive || eqSummary.isActive());
+        styleCapsuleSlot(capsuleSoundBgDrawable, playerCapsuleSoundIcon, playerCapsuleSoundText, timerActive || eqSummary.isActive());
 
         // 4. Queue slot
-        styleCapsuleSlot(playerOpenQueueButton, playerCapsuleQueueIcon, playerCapsuleQueueText, queueSheetOpen);
+        styleCapsuleSlot(capsuleQueueBgDrawable, playerCapsuleQueueIcon, playerCapsuleQueueText, queueSheetOpen);
     }
 
-    private void styleCapsuleSlot(@Nullable View container, @Nullable ImageView icon, @Nullable TextView label, boolean active) {
-        int fg = active ? COLOR_BRASS : COLOR_IVORY;
+    private void updateCapsuleSoundCountdownLabel(
+            @NonNull Context context,
+            boolean lanRemote,
+            @NonNull com.eddyizm.tempus.lan.LanRemoteState lanState,
+            boolean timerActive
+    ) {
+        if (playerCapsuleSoundText == null) return;
+        String soundLabel = context.getString(R.string.editorial_player_capsule_sound);
+        if (timerActive) {
+            boolean eot = lanRemote ? lanState.getTimerEndOfTrack() : SleepTimerManager.getInstance().isEndOfTrack();
+            if (eot) {
+                soundLabel = context.getString(R.string.editorial_sleep_eot_short);
+            } else {
+                String raw = lanRemote ? lanState.getTimerRemaining() : SleepTimerManager.getInstance().getRemainingFormatted();
+                String compact = formatCompactSleepCountdown(raw);
+                if (!compact.isEmpty()) {
+                    soundLabel = compact;
+                }
+            }
+        }
+        setTextIfChanged(playerCapsuleSoundText, soundLabel);
+    }
+
+    private void styleCapsuleSlot(
+            @Nullable GradientDrawable slotBg,
+            @Nullable ImageView icon,
+            @Nullable TextView label,
+            boolean active
+    ) {
+        int fg = active ? colorBrass : colorIvory;
         if (icon != null) {
             ImageViewCompat.setImageTintList(icon, ColorStateList.valueOf(fg));
         }
         if (label != null) {
             label.setTextColor(fg);
         }
-        if (container != null) {
-            if (active) {
-                container.setBackground(makeRoundedRect(999f, COLOR_BRASS_SUBTLE, 0f, 0));
-            } else {
-                container.setBackgroundResource(android.R.color.transparent);
-            }
+        if (slotBg != null) {
+            slotBg.setColor(active ? colorBrassSubtle : Color.TRANSPARENT);
         }
     }
 
@@ -957,21 +1112,6 @@ public class PlayerControllerFragment extends Fragment {
             }
         }
         return trimmed;
-    }
-
-    private boolean isLosslessCodec(@Nullable String codecUpper) {
-        if (codecUpper == null) return false;
-        String clean = codecUpper.toUpperCase(Locale.ROOT);
-        return clean.contains("FLAC")
-                || clean.contains("ALAC")
-                || clean.contains("WAV")
-                || clean.contains("PCM")
-                || clean.contains("AIFF")
-                || clean.contains("APE")
-                || clean.contains("WV")
-                || clean.contains("DSD")
-                || clean.contains("DFF")
-                || clean.contains("DSF");
     }
 
     private void initializeBrowser() {
@@ -999,7 +1139,7 @@ public class PlayerControllerFragment extends Fragment {
                 initPlaybackSpeedButton(mediaBrowser);
                 refreshPlaybackDestination();
             } catch (Exception e) {
-                e.printStackTrace();
+                Log.e(TAG, "Error binding MediaController", e);
             }
         }, MoreExecutors.directExecutor());
     }
@@ -1033,7 +1173,7 @@ public class PlayerControllerFragment extends Fragment {
 
             @Override
             public void onDeviceInfoChanged(@NonNull androidx.media3.common.DeviceInfo deviceInfo) {
-                updatePlaybackDestinationLabel();
+                refreshOutputSummaryAndDestination();
                 refreshSignalBadges();
                 updateCapsuleState();
             }
@@ -1102,7 +1242,7 @@ public class PlayerControllerFragment extends Fragment {
                 Preferences.getTrackNumberVisible()
                         && mediaMetadata.trackNumber != null
                         && !String.valueOf(mediaMetadata.trackNumber).isEmpty()
-                                ? String.format("%02d", mediaMetadata.trackNumber) + ". "
+                                ? String.format(Locale.US, "%02d", mediaMetadata.trackNumber) + ". "
                                         + String.valueOf(mediaMetadata.title)
                                 : String.valueOf(mediaMetadata.title));
         setTextIfChanged(playerArtistNameLabel,
@@ -1184,12 +1324,10 @@ public class PlayerControllerFragment extends Fragment {
 
         if (playerMediaExtension != null) {
             playerMediaExtension.setOnClickListener(v -> toggleBitrateVisibility());
-            playerMediaExtension.setOnLongClickListener(v -> toggleQuickActionVisiblity());
         }
 
         if (playerMediaBitrate != null) {
             playerMediaBitrate.setOnClickListener(v -> toggleBitrateVisibility());
-            playerMediaBitrate.setOnLongClickListener(v -> toggleQuickActionVisiblity());
         }
 
         refreshSignalBadges();
@@ -1265,21 +1403,6 @@ public class PlayerControllerFragment extends Fragment {
         Preferences.setBitrateVisible(!Preferences.getBitrateVisible());
     }
 
-    private boolean toggleQuickActionVisiblity() {
-        if (playerQuickActionView == null || !(playerQuickActionView.getParent() instanceof ViewGroup)) return true;
-        ViewGroup parent = (ViewGroup) playerQuickActionView.getParent();
-
-        TransitionSet transition = new TransitionSet()
-                .addTransition(new Slide(Gravity.BOTTOM))
-                .addTransition(new ChangeBounds())
-                .setDuration(500)
-                .setInterpolator(new AccelerateDecelerateInterpolator());
-        TransitionManager.beginDelayedTransition(parent, transition);
-        playerQuickActionView.setVisibility(Preferences.getQuickActionVisible() ? View.GONE : View.VISIBLE);
-        Preferences.setQuickActionVisible(!Preferences.getQuickActionVisible());
-        return true;
-    }
-
     private void updateAssetLinkChips(MediaMetadata mediaMetadata) {
         if (assetLinkChipGroup == null) return;
         String mediaType = mediaMetadata.extras != null
@@ -1298,7 +1421,7 @@ public class PlayerControllerFragment extends Fragment {
         String artistId = mediaMetadata.extras != null ? mediaMetadata.extras.getString("artistId") : null;
 
         AssetLinkUtil.AssetLink songLink = bindAssetLinkChip(playerSongLinkChip, AssetLinkUtil.TYPE_SONG, songId);
-        AssetLinkUtil.AssetLink albumLink = bindAssetLinkChip(playerAlbumLinkChip, AssetLinkUtil.TYPE_ALBUM, albumId);
+        bindAssetLinkChip(playerAlbumLinkChip, AssetLinkUtil.TYPE_ALBUM, albumId);
         AssetLinkUtil.AssetLink artistLink = bindAssetLinkChip(playerArtistLinkChip, AssetLinkUtil.TYPE_ARTIST, artistId);
         bindAssetLinkView(playerMediaTitleLabel, songLink);
         bindAssetLinkView(playerArtistNameLabel, artistLink != null ? artistLink : songLink);
@@ -1433,7 +1556,7 @@ public class PlayerControllerFragment extends Fragment {
     }
 
     // -------------------------------------------------------------------------
-    // Sleep timer
+    // Sleep timer (lightweight 1Hz tick updates ONLY text — zero IPC/allocations!)
     // -------------------------------------------------------------------------
 
     private void initSleepTimerButton(MediaBrowser mediaBrowser) {
@@ -1448,7 +1571,8 @@ public class PlayerControllerFragment extends Fragment {
                             return;
                         }
                         SleepTimerManager.getInstance().startTimer(minutes);
-                        connectSleepTimerTick(mediaBrowser);
+                        connectSleepTimerTick();
+                        updateSleepTimerUI();
                     }
 
                     @Override
@@ -1468,44 +1592,66 @@ public class PlayerControllerFragment extends Fragment {
                             return;
                         }
                         SleepTimerManager.getInstance().startEndOfTrack();
-                        connectSleepTimerTick(mediaBrowser);
+                        connectSleepTimerTick();
+                        updateSleepTimerUI();
                     }
                 });
                 dialog.show(requireActivity().getSupportFragmentManager(), null);
             });
         }
 
-        connectSleepTimerTick(mediaBrowser);
+        connectSleepTimerTick();
     }
 
-    private void connectSleepTimerTick(MediaBrowser mediaBrowser) {
-        SleepTimerManager.getInstance().setTickListener(expired -> updateSleepTimerUI());
+    private void connectSleepTimerTick() {
+        SleepTimerManager.getInstance().setTickListener(expired -> updateSleepTimerTickOnly());
+    }
+
+    private void updateSleepTimerTickOnly() {
+        if (bind == null || !isAdded()) return;
+        Context context = requireContext();
+        boolean remote = com.eddyizm.tempus.lan.LanRemoteSession.isActive();
+        com.eddyizm.tempus.lan.LanRemoteState remoteState = com.eddyizm.tempus.lan.LanRemoteSession.current();
+        boolean active = remote ? remoteState.getTimerActive() : SleepTimerManager.getInstance().isActive();
+
+        if (lastSleepTimerActive == null || lastSleepTimerActive != active) {
+            updateSleepTimerUI();
+            return;
+        }
+        updateCapsuleSoundCountdownLabel(context, remote, remoteState, active);
+        updateLegacySleepTimerViews(remote, remoteState, active);
     }
 
     private void updateSleepTimerUI() {
         if (bind == null || !isAdded()) return;
         updateCapsuleState();
 
-        if (sleepTimerButton == null || sleepTimerLabel == null) return;
-
         boolean remote = com.eddyizm.tempus.lan.LanRemoteSession.isActive();
         com.eddyizm.tempus.lan.LanRemoteState remoteState = com.eddyizm.tempus.lan.LanRemoteSession.current();
         boolean active = remote ? remoteState.getTimerActive() : SleepTimerManager.getInstance().isActive();
+        updateLegacySleepTimerViews(remote, remoteState, active);
+    }
 
+    private void updateLegacySleepTimerViews(
+            boolean remote,
+            @NonNull com.eddyizm.tempus.lan.LanRemoteState remoteState,
+            boolean active
+    ) {
+        if (sleepTimerButton == null || sleepTimerLabel == null) return;
         if (active) {
             boolean isEndOfTrack = remote ? remoteState.getTimerEndOfTrack() : SleepTimerManager.getInstance().isEndOfTrack();
             String label = isEndOfTrack
                     ? getString(R.string.sleep_timer_end_of_track_label)
                     : remote ? remoteState.getTimerRemaining() : SleepTimerManager.getInstance().getRemainingFormatted();
-            sleepTimerLabel.setText(label);
+            setTextIfChanged(sleepTimerLabel, label);
             sleepTimerLabel.setVisibility(View.VISIBLE);
             if (sleepTimerContainer != null) sleepTimerContainer.setVisibility(View.GONE);
-            ImageViewCompat.setImageTintList(sleepTimerButton, ColorStateList.valueOf(COLOR_BRASS));
+            ImageViewCompat.setImageTintList(sleepTimerButton, ColorStateList.valueOf(colorBrass));
         } else {
             sleepTimerLabel.setVisibility(View.GONE);
-            sleepTimerLabel.setText("");
+            setTextIfChanged(sleepTimerLabel, "");
             if (sleepTimerContainer != null) sleepTimerContainer.setVisibility(View.GONE);
-            ImageViewCompat.setImageTintList(sleepTimerButton, ColorStateList.valueOf(COLOR_IVORY));
+            ImageViewCompat.setImageTintList(sleepTimerButton, ColorStateList.valueOf(colorIvory));
         }
     }
 
@@ -1563,13 +1709,7 @@ public class PlayerControllerFragment extends Fragment {
                     buttonFavorite.setChecked(FavoriteRegistry.resolve(FavoriteRegistry.Kind.SONG, media.getId(), media.getStarred() != null));
                     buttonFavorite.setOnClickListener(v -> playerBottomSheetViewModel.setFavorite(requireContext(), media));
                     buttonFavorite.setOnLongClickListener(v -> {
-                        Bundle bundle = new Bundle();
-                        bundle.putParcelable(Constants.TRACK_OBJECT, media);
-
-                        RatingDialog dialog = new RatingDialog();
-                        dialog.setArguments(bundle);
-                        dialog.show(requireActivity().getSupportFragmentManager(), null);
-
+                        openRatingDialog();
                         return true;
                     });
                 }
@@ -1660,28 +1800,6 @@ public class PlayerControllerFragment extends Fragment {
         }
     }
 
-    private void navigateToEqualizerFragment() {
-        if (com.eddyizm.tempus.lan.LanRemoteSession.isActive()) {
-            Toast.makeText(requireContext(), R.string.lan_receiver_audio_settings, Toast.LENGTH_LONG).show();
-            return;
-        }
-        if (Preferences.getSelectedEqualizer() == 0) {
-            Preferences.setSelectedEqualizer("1");
-            if (mediaServiceBinder != null) {
-                mediaServiceBinder.reloadEqualizer();
-            }
-        }
-        NavController navController = NavHostFragment.findNavController(this);
-        NavOptions navOptions = new NavOptions.Builder()
-                .setLaunchSingleTop(true)
-                .setPopUpTo(R.id.equalizerFragment, true)
-                .build();
-        navController.navigate(R.id.equalizerFragment, null, navOptions);
-        if (activity != null) {
-            activity.collapseBottomSheetDelayed();
-        }
-    }
-
     public void goToControllerPage() {
         if (playerMediaCoverViewPager != null) {
             playerMediaCoverViewPager.setCurrentItem(0, false);
@@ -1750,32 +1868,10 @@ public class PlayerControllerFragment extends Fragment {
                 : speed;
     }
 
-    private final ServiceConnection serviceConnection = new ServiceConnection() {
-        @Override
-        public void onServiceConnected(ComponentName name, IBinder service) {
-            mediaServiceBinder = (BaseMediaService.LocalBinder) service;
-            isServiceBound = true;
-        }
-
-        @Override
-        public void onServiceDisconnected(ComponentName name) {
-            mediaServiceBinder = null;
-            isServiceBound = false;
-        }
-    };
-
-    private void bindMediaService() {
-        Intent intent = new Intent(requireActivity(), MediaService.class);
-        intent.setAction(MediaService.ACTION_BIND_EQUALIZER);
-        requireActivity().bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE);
-        isServiceBound = true;
-    }
-
     @Override
     public void onResume() {
         super.onResume();
-        bindMediaService();
-        updatePlaybackDestinationLabel();
+        refreshOutputSummaryAndDestination();
         refreshSignalBadges();
         updateCapsuleState();
     }
@@ -1784,14 +1880,5 @@ public class PlayerControllerFragment extends Fragment {
         if (bind == null) return;
         bind.playerRemoteToggle.setVisibility(View.GONE);
         updatePlaybackDestinationLabel();
-    }
-
-    @Override
-    public void onPause() {
-        super.onPause();
-        if (isServiceBound) {
-            requireActivity().unbindService(serviceConnection);
-            isServiceBound = false;
-        }
     }
 }

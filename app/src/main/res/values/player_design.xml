@@ -6,6 +6,7 @@
     <color name="player_surface_3">#28241F</color>
     <color name="player_frosted_capsule">#CC1E1B18</color>
     <color name="player_hairline">#14FFF0DC</color>
+    <color name="player_ivory_outline">#66F2ECE3</color>
 
     <color name="player_foreground">#F2ECE3</color>
     <color name="player_secondary">#A3F2ECE3</color>
@@ -14,11 +15,20 @@
     <color name="player_brass_subtle">#1FCFA46A</color>
     <color name="player_brass_border">#80CFA46A</color>
     <color name="player_moss">#8DB596</color>
+    <color name="player_moss_subtle">#228DB596</color>
+    <color name="player_moss_border">#888DB596</color>
     <color name="player_terracotta">#D9785F</color>
 
     <color name="player_on_action">#0E0D0C</color>
     <color name="player_track">#29FFF0DC</color>
     <color name="player_control_surface">#CC1E1B18</color>
+
+    <!-- Warm Paper mini-player palette for Light Mode -->
+    <color name="player_mini_light_fg">#1D1A17</color>
+    <color name="player_mini_light_secondary">#665F56</color>
+    <color name="player_mini_light_brass">#9A7136</color>
+    <color name="player_mini_light_hairline">#CFC6B9</color>
+    <color name="player_mini_light_track">#261D1A17</color>
 
     <style name="PlayerIconButton" parent="">
         <item name="android:layout_width">44dp</item>
@@ -51,7 +61,7 @@
     </style>
 
     <style name="PlayerSongTitle" parent="InterFontFamily">
-        <item name="android:textSize">23sp</item>
+        <item name="android:textSize">20sp</item>
         <item name="android:fontFamily">sans-serif-medium</item>
         <item name="android:textStyle">bold</item>
         <item name="android:textColor">@color/player_foreground</item>
@@ -69,7 +79,7 @@
     <style name="PlayerTimeLabel" parent="">
         <item name="android:layout_width">wrap_content</item>
         <item name="android:layout_height">wrap_content</item>
-        <item name="android:textSize">12sp</item>
+        <item name="android:textSize">11sp</item>
         <item name="android:fontFeatureSettings">tnum</item>
         <item name="android:textColor">@color/player_secondary</item>
     </style>
@@ -117,13 +127,13 @@
         <item name="iconTint">@color/player_foreground</item>
         <item name="iconSize">18dp</item>
         <item name="iconPadding">6dp</item>
-        <item name="cornerRadius">20dp</item>
+        <item name="cornerRadius">999dp</item>
     </style>
 
     <string name="player_more_options">More options</string>
     <style name="PlayerAlbumShape" parent="">
         <item name="cornerFamily">rounded</item>
-        <item name="cornerSize">12dp</item>
+        <item name="cornerSize">16dp</item>
     </style>
     <string name="player_now_playing">Now Playing</string>
     <string name="player_collapse">Close player</string>

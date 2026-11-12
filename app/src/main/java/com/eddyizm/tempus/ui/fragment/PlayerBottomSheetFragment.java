@@ -1,11 +1,16 @@
 package com.eddyizm.tempus.ui.fragment;
 
 import android.content.ComponentName;
+import android.content.Context;
 import android.content.res.ColorStateList;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
+import android.media.AudioDeviceCallback;
+import android.media.AudioDeviceInfo;
+import android.media.AudioManager;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.Looper;
 import android.text.TextUtils;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -16,6 +21,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.OptIn;
 import androidx.appcompat.widget.TooltipCompat;
+import androidx.core.content.ContextCompat;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowCompat;
@@ -67,16 +73,26 @@ import java.util.stream.IntStream;
 
 @OptIn(markerClass = UnstableApi.class)
 public class PlayerBottomSheetFragment extends Fragment {
-    private static final int MINI_COLOR_BRASS = 0xFFCFA46A;
-    private static final int MINI_COLOR_SECONDARY = 0xA3F2ECE3;
-
     private FragmentPlayerBottomSheetBinding bind;
     private boolean remoteVisible = false;
+
+    private int colorDarkFg;
+    private int colorDarkSecondary;
+    private int colorDarkBrass;
+    private int colorDarkHairline;
+    private int colorDarkTrack;
+
+    private int colorLightFg;
+    private int colorLightSecondary;
+    private int colorLightBrass;
+    private int colorLightHairline;
+    private int colorLightTrack;
+
     private final android.content.SharedPreferences.OnSharedPreferenceChangeListener prefsListener = (prefs, key) -> {
         if (bind == null || !isAdded()) return;
         if (Preferences.LAN_REMOTE_ENABLED.equals(key)) {
             renderRemote(com.eddyizm.tempus.lan.LanRemoteSession.current());
-        } else {
+        } else if (key == null || Preferences.UPNP_ENABLED.equals(key)) {
             refreshMiniOutputButton();
         }
     };
@@ -97,6 +113,7 @@ public class PlayerBottomSheetFragment extends Fragment {
     private final PlayerMotion.Listener schemeListener = this::tintMiniPlayer;
 
     @Nullable private MediaRouter mediaRouter;
+    @Nullable private AudioManager audioManager;
     private final MediaRouter.Callback mediaRouterCallback = new MediaRouter.Callback() {
         @Override
         public void onRouteSelected(@NonNull MediaRouter router, @NonNull MediaRouter.RouteInfo route, int reason) {
@@ -114,11 +131,25 @@ public class PlayerBottomSheetFragment extends Fragment {
         }
     };
 
+    private final AudioDeviceCallback audioDeviceCallback = new AudioDeviceCallback() {
+        @Override
+        public void onAudioDevicesAdded(AudioDeviceInfo[] addedDevices) {
+            refreshMiniOutputButton();
+        }
+
+        @Override
+        public void onAudioDevicesRemoved(AudioDeviceInfo[] removedDevices) {
+            refreshMiniOutputButton();
+        }
+    };
+
     @Nullable
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
         bind = FragmentPlayerBottomSheetBinding.inflate(inflater, container, false);
         View view = bind.getRoot();
+        loadMiniPlayerColors(view.getContext());
+
         boolean expanded = ((MainActivity) requireActivity()).isBottomSheetExpanded();
         PlayerMotion.setSheetExpanded(expanded);
         bind.playerBodyLayout.getRoot().setVisibility(expanded ? View.VISIBLE : View.INVISIBLE);
@@ -145,6 +176,20 @@ public class PlayerBottomSheetFragment extends Fragment {
         }
 
         return view;
+    }
+
+    private void loadMiniPlayerColors(@NonNull Context context) {
+        colorDarkFg = ContextCompat.getColor(context, R.color.player_foreground);
+        colorDarkSecondary = ContextCompat.getColor(context, R.color.player_secondary);
+        colorDarkBrass = ContextCompat.getColor(context, R.color.player_brass);
+        colorDarkHairline = ContextCompat.getColor(context, R.color.player_hairline);
+        colorDarkTrack = ContextCompat.getColor(context, R.color.player_track);
+
+        colorLightFg = ContextCompat.getColor(context, R.color.player_mini_light_fg);
+        colorLightSecondary = ContextCompat.getColor(context, R.color.player_mini_light_secondary);
+        colorLightBrass = ContextCompat.getColor(context, R.color.player_mini_light_brass);
+        colorLightHairline = ContextCompat.getColor(context, R.color.player_mini_light_hairline);
+        colorLightTrack = ContextCompat.getColor(context, R.color.player_mini_light_track);
     }
 
     @Override
@@ -186,8 +231,10 @@ public class PlayerBottomSheetFragment extends Fragment {
     }
 
     private void registerRouteObserver() {
+        Context context = getContext();
+        if (context == null) return;
         try {
-            mediaRouter = MediaRouter.getInstance(requireContext());
+            mediaRouter = MediaRouter.getInstance(context);
             MediaRouteSelector selector = new MediaRouteSelector.Builder()
                     .addControlCategory(MediaControlIntent.CATEGORY_REMOTE_PLAYBACK)
                     .addControlCategory(MediaControlIntent.CATEGORY_LIVE_AUDIO)
@@ -196,6 +243,14 @@ public class PlayerBottomSheetFragment extends Fragment {
             mediaRouter.addCallback(selector, mediaRouterCallback, 0);
         } catch (Exception ignored) {
             mediaRouter = null;
+        }
+        try {
+            audioManager = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
+            if (audioManager != null) {
+                audioManager.registerAudioDeviceCallback(audioDeviceCallback, new Handler(Looper.getMainLooper()));
+            }
+        } catch (Exception ignored) {
+            audioManager = null;
         }
     }
 
@@ -206,6 +261,13 @@ public class PlayerBottomSheetFragment extends Fragment {
             } catch (Exception ignored) {
             }
             mediaRouter = null;
+        }
+        if (audioManager != null) {
+            try {
+                audioManager.unregisterAudioDeviceCallback(audioDeviceCallback);
+            } catch (Exception ignored) {
+            }
+            audioManager = null;
         }
     }
 
@@ -223,6 +285,10 @@ public class PlayerBottomSheetFragment extends Fragment {
 
     private void refreshMiniOutputButton() {
         if (bind == null || !isAdded()) return;
+        boolean night = isNightMode();
+        int activeBrass = night ? colorDarkBrass : colorLightBrass;
+        int inactiveSecondary = night ? colorDarkSecondary : colorLightSecondary;
+
         PlayerSheets.OutputSummary summary = PlayerSheets.currentOutputSummary(requireContext());
         ImageView button = bind.playerHeaderLayout.playerHeaderRemoteButton;
         button.setVisibility(View.VISIBLE);
@@ -230,7 +296,7 @@ public class PlayerBottomSheetFragment extends Fragment {
         button.setImageResource(summary.getIconRes());
         ImageViewCompat.setImageTintList(
                 button,
-                ColorStateList.valueOf(summary.isRemote() ? MINI_COLOR_BRASS : MINI_COLOR_SECONDARY)
+                ColorStateList.valueOf(summary.isRemote() ? activeBrass : inactiveSecondary)
         );
         String desc = summary.isRemote()
                 ? summary.getLabel()
@@ -291,11 +357,33 @@ public class PlayerBottomSheetFragment extends Fragment {
 
     private void tintMiniPlayer() {
         if (bind == null) return;
+        boolean night = isNightMode();
         CoverScheme scheme = PlayerMotion.getScheme();
         Drawable bg = bind.playerHeaderLayout.miniPlayerCard.getBackground();
         if (bg instanceof GradientDrawable) {
-            // Mutate solid fill only so mini_player_surface.xml's 1dp #14FFF0DC hairline border is preserved!
-            ((GradientDrawable) bg.mutate()).setColor(scheme.getMiniDark());
+            GradientDrawable gd = (GradientDrawable) bg.mutate();
+            gd.setColor(night ? scheme.getMiniDark() : scheme.getMiniLight());
+            int strokePx = Math.max(1, Math.round(getResources().getDisplayMetrics().density));
+            gd.setStroke(strokePx, night ? colorDarkHairline : colorLightHairline);
+        }
+
+        int fg = night ? colorDarkFg : colorLightFg;
+        int secondary = night ? colorDarkSecondary : colorLightSecondary;
+        int brass = night ? colorDarkBrass : colorLightBrass;
+        int track = night ? colorDarkTrack : colorLightTrack;
+
+        bind.playerHeaderLayout.playerHeaderMediaTitleLabel.setTextColor(fg);
+        bind.playerHeaderLayout.playerHeaderMediaArtistLabel.setTextColor(secondary);
+        ViewCompat.setBackgroundTintList(bind.playerHeaderLayout.playerHeaderButton, ColorStateList.valueOf(brass));
+        ImageViewCompat.setImageTintList(bind.playerHeaderLayout.playerHeaderNextMediaButton, ColorStateList.valueOf(fg));
+        ImageViewCompat.setImageTintList(bind.playerHeaderLayout.playerHeaderRewindMediaButton, ColorStateList.valueOf(fg));
+        ImageViewCompat.setImageTintList(bind.playerHeaderLayout.playerHeaderFastForwardMediaButton, ColorStateList.valueOf(fg));
+        ImageViewCompat.setImageTintList(bind.playerHeaderLayout.playerHeaderBookmarkMediaButton, ColorStateList.valueOf(fg));
+        bind.playerHeaderLayout.playerHeaderSeekBar.setProgressTintList(ColorStateList.valueOf(brass));
+        bind.playerHeaderLayout.playerHeaderSeekBar.setProgressBackgroundTintList(ColorStateList.valueOf(track));
+
+        if (isAdded()) {
+            refreshMiniOutputButton();
         }
     }
 
@@ -724,7 +812,7 @@ public class PlayerBottomSheetFragment extends Fragment {
     }
 
     private void defineProgressBarHandler(MediaBrowser mediaBrowser) {
-        progressBarHandler = new Handler();
+        progressBarHandler = new Handler(Looper.getMainLooper());
         progressBarRunnable = () -> {
             setProgress(mediaBrowser);
             progressBarHandler.postDelayed(progressBarRunnable, 1000);
@@ -732,10 +820,10 @@ public class PlayerBottomSheetFragment extends Fragment {
     }
 
     private void runProgressBarHandler(boolean isPlaying) {
+        if (progressBarHandler == null) return;
+        progressBarHandler.removeCallbacks(progressBarRunnable);
         if (isPlaying) {
             progressBarHandler.postDelayed(progressBarRunnable, 1000);
-        } else {
-            progressBarHandler.removeCallbacks(progressBarRunnable);
         }
     }
 
@@ -770,7 +858,7 @@ public class PlayerBottomSheetFragment extends Fragment {
                 return true;
             });
 
-            new Handler().postDelayed(() -> {
+            new Handler(Looper.getMainLooper()).postDelayed(() -> {
                 if (bind != null)
                     bind.playerHeaderLayout.playerHeaderBookmarkMediaButton.setVisibility(View.GONE);
             }, Preferences.getSyncCountdownTimer() * 1000L);

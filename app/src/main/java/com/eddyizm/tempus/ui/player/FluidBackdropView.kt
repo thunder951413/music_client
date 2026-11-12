@@ -1,30 +1,49 @@
 package com.eddyizm.tempus.ui.player
 
+import android.animation.Animator
+import android.animation.AnimatorListenerAdapter
 import android.animation.ValueAnimator
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapShader
 import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.RectF
 import android.graphics.RuntimeShader
+import android.graphics.Shader
 import android.util.AttributeSet
 import android.view.View
 import android.view.animation.PathInterpolator
 import androidx.core.graphics.ColorUtils
+import androidx.core.graphics.createBitmap
+import java.util.Random
 
 /**
- * Low-power Static Aura backdrop for the Editorial Warm Dark ("唱片店夜色") full-screen player.
+ * True low-power Static Aura backdrop for the Editorial Warm Dark ("唱片店夜色") full-screen player.
  *
- * Draws a soft, static radial cover mesh over a `#0E0D0C` warm charcoal base with a subtle ~3%
- * static film-grain texture in AGSL. There is NO advancing time uniform and NO Choreographer loop:
- * [invalidate] runs only during the 600ms crossfade when [PlayerMotion.scheme] changes, then sits
- * completely idle at 0fps.
+ * - **Lazy AGSL**: [RuntimeShader] is compiled lazily on first draw rather than during XML inflate.
+ * - **1/4-Resolution Aura Cache**: Radial cover mesh is rendered into a 1/4-width × 1/4-height
+ *   offscreen [Bitmap] ONLY when colors change (during the 600ms crossfade or immediate snap) or
+ *   view bounds change. Once settled, window redraws triggered by progress bars, lyrics, or vinyl
+ *   blit the cached bitmap with **0 AGSL shader invocations**.
+ * - **Tiled 64×64 Static Film Grain**: Uses a reusable 64×64 [BitmapShader] (`REPEAT`) instead of
+ *   per-pixel `sin` trig in AGSL, avoiding Mali FP16 precision artifacts and GPU ALU work.
  */
 class FluidBackdropView @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,
 ) : View(context, attrs), PlayerMotion.Listener {
 
-    private val shader = RuntimeShader(SHADER)
-    private val paint = Paint().apply { shader = this@FluidBackdropView.shader }
+    private var auraShader: RuntimeShader? = null
+    private val shaderPaint = Paint()
+    private val blitPaint = Paint(Paint.FILTER_BITMAP_FLAG)
+    private val grainPaint = Paint().apply { shader = sharedGrainShader }
+    private val dstRect = RectF()
+
+    private var cachedAuraBitmap: Bitmap? = null
+    private var cachedAuraCanvas: Canvas? = null
+    private var cacheDirty: Boolean = true
 
     private var from = PlayerMotion.scheme.blobs.toIntArray()
     private var to = from.copyOf()
@@ -39,6 +58,7 @@ class FluidBackdropView @JvmOverloads constructor(
             target.copyInto(from)
             target.copyInto(to)
             target.copyInto(current)
+            cacheDirty = true
         }
         invalidate()
     }
@@ -48,6 +68,12 @@ class FluidBackdropView @JvmOverloads constructor(
         colorAnimator?.cancel()
         colorAnimator = null
         super.onDetachedFromWindow()
+    }
+
+    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+        super.onSizeChanged(w, h, oldw, oldh)
+        dstRect.set(0f, 0f, w.toFloat(), h.toFloat())
+        cacheDirty = true
     }
 
     override fun onPlayerMotionChanged() {
@@ -63,6 +89,7 @@ class FluidBackdropView @JvmOverloads constructor(
         to = target.copyOf()
         if (!PlayerMotion.motionEnabled || !isAttachedToWindow || !isShown) {
             target.copyInto(current)
+            cacheDirty = true
             invalidate()
             return
         }
@@ -74,26 +101,86 @@ class FluidBackdropView @JvmOverloads constructor(
                 for (i in current.indices) {
                     current[i] = ColorUtils.blendARGB(from[i], to[i], fraction)
                 }
+                cacheDirty = true
                 invalidate()
             }
+            addListener(object : AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: Animator) {
+                    to.copyInto(current)
+                    cacheDirty = true
+                    invalidate()
+                }
+            })
             start()
         }
     }
 
+    private fun ensureCachedAura(viewWidth: Int, viewHeight: Int): Bitmap? {
+        if (viewWidth <= 0 || viewHeight <= 0) return null
+        val targetW = (viewWidth / CACHE_DIVISOR).coerceAtLeast(16)
+        val targetH = (viewHeight / CACHE_DIVISOR).coerceAtLeast(16)
+
+        var bitmap = cachedAuraBitmap
+        if (bitmap == null || bitmap.width != targetW || bitmap.height != targetH) {
+            bitmap?.recycle()
+            bitmap = createBitmap(targetW, targetH)
+            cachedAuraBitmap = bitmap
+            cachedAuraCanvas = Canvas(bitmap)
+            cacheDirty = true
+        }
+
+        if (cacheDirty) {
+            val shader = auraShader ?: RuntimeShader(SHADER).also {
+                auraShader = it
+                shaderPaint.shader = it
+            }
+            shader.setFloatUniform("size", targetW.toFloat(), targetH.toFloat())
+            shader.setColorUniform("c0", current[0])
+            shader.setColorUniform("c1", current[1])
+            shader.setColorUniform("c2", current[2])
+            shader.setColorUniform("c3", current[3])
+            cachedAuraCanvas?.drawRect(0f, 0f, targetW.toFloat(), targetH.toFloat(), shaderPaint)
+            cacheDirty = false
+        }
+        return bitmap
+    }
+
     override fun onDraw(canvas: Canvas) {
-        val w = width.toFloat().coerceAtLeast(1f)
-        val h = height.toFloat().coerceAtLeast(1f)
-        shader.setFloatUniform("size", w, h)
-        shader.setColorUniform("c0", current[0])
-        shader.setColorUniform("c1", current[1])
-        shader.setColorUniform("c2", current[2])
-        shader.setColorUniform("c3", current[3])
-        canvas.drawPaint(paint)
+        val w = width
+        val h = height
+        if (w <= 0 || h <= 0) return
+        dstRect.set(0f, 0f, w.toFloat(), h.toFloat())
+
+        val auraBitmap = ensureCachedAura(w, h)
+        if (auraBitmap != null) {
+            canvas.drawBitmap(auraBitmap, null, dstRect, blitPaint)
+        } else {
+            canvas.drawColor(BASE_COLOR)
+        }
+        // Subtle ~3% tiled 64×64 static film grain over the smooth bilinear-upscaled aura
+        canvas.drawRect(dstRect, grainPaint)
     }
 
     private companion object {
         const val COLOR_FADE_MS = 600L
+        const val CACHE_DIVISOR = 4
+        const val GRAIN_TILE_PX = 64
+        const val BASE_COLOR = 0xFF0E0D0C.toInt()
         val FADE_INTERPOLATOR = PathInterpolator(0.2f, 0f, 0f, 1f)
+
+        val sharedGrainShader: BitmapShader by lazy(LazyThreadSafetyMode.PUBLICATION) {
+            val pixels = IntArray(GRAIN_TILE_PX * GRAIN_TILE_PX)
+            val rng = Random(0x54454D50L)
+            for (i in pixels.indices) {
+                // ~3% amplitude neutral warm grain alternating subtly light/dark alpha
+                val signed = rng.nextInt(17) - 8 // -8..+8 out of 255 (~3.1%)
+                val alpha = kotlin.math.abs(signed)
+                val rgb = if (signed >= 0) 0xFFF2ECE3.toInt() else 0xFF000000.toInt()
+                pixels[i] = Color.argb(alpha, Color.red(rgb), Color.green(rgb), Color.blue(rgb))
+            }
+            val bmp = Bitmap.createBitmap(pixels, GRAIN_TILE_PX, GRAIN_TILE_PX, Bitmap.Config.ARGB_8888)
+            BitmapShader(bmp, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
+        }
 
         val SHADER = """
             uniform float2 size;
@@ -111,8 +198,6 @@ class FluidBackdropView @JvmOverloads constructor(
                 float2 uv = coord / size;
                 half3 base = half3(0.0549, 0.0510, 0.0471); // #0E0D0C warm charcoal
 
-                // Static, organic radial cover aura concentrated behind the vinyl sleeve,
-                // settling calmly into #0E0D0C around the transport and bottom capsule.
                 float g0 = radialGlow(uv, float2(0.32, 0.24), float2(0.56, 0.42));
                 float g1 = radialGlow(uv, float2(0.72, 0.30), float2(0.52, 0.38));
                 float g2 = radialGlow(uv, float2(0.46, 0.50), float2(0.62, 0.44));
@@ -125,11 +210,6 @@ class FluidBackdropView @JvmOverloads constructor(
                 auraMask *= 1.0 - smoothstep(0.52, 0.98, uv.y) * 0.72;
 
                 half3 color = mix(base, mesh, half(auraMask));
-
-                // Subtle ~3% static film-grain texture (no time uniform) to eliminate gradient banding.
-                float grain = fract(sin(dot(coord, float2(12.9898, 78.233))) * 43758.5453);
-                color += half((grain - 0.5) * 0.03);
-
                 return half4(clamp(color, half3(0.0), half3(1.0)), 1.0);
             }
         """.trimIndent()

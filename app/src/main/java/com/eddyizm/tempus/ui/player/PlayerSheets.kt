@@ -7,6 +7,8 @@ import android.content.ServiceConnection
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.database.Cursor
+import android.media.AudioAttributes
+import android.media.AudioDeviceCallback
 import android.media.AudioDeviceInfo
 import android.media.AudioManager
 import android.net.Uri
@@ -70,7 +72,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
@@ -78,6 +82,7 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -91,22 +96,25 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.edit
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.Observer
 import androidx.media3.common.DeviceInfo
 import androidx.media3.common.Format
+import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.common.Tracks
@@ -115,10 +123,13 @@ import androidx.media3.session.MediaBrowser
 import androidx.media3.session.SessionToken
 import androidx.mediarouter.media.MediaRouteSelector
 import androidx.mediarouter.media.MediaRouter
+import androidx.navigation.NavOptions
+import androidx.navigation.fragment.NavHostFragment
 import com.eddyizm.tempus.App
 import com.eddyizm.tempus.R
 import com.eddyizm.tempus.equalizer.Biquad
 import com.eddyizm.tempus.equalizer.EqualizerManager
+import com.eddyizm.tempus.equalizer.ParametricFilter
 import com.eddyizm.tempus.equalizer.ParametricProfile
 import com.eddyizm.tempus.lan.LanDiagnostics
 import com.eddyizm.tempus.lan.LanPlaybackActivity
@@ -128,6 +139,7 @@ import com.eddyizm.tempus.lan.LanRemoteState
 import com.eddyizm.tempus.lan.LanWire
 import com.eddyizm.tempus.service.BaseMediaService
 import com.eddyizm.tempus.service.MediaService
+import com.eddyizm.tempus.ui.activity.MainActivity
 import com.eddyizm.tempus.ui.queue.rememberAppColorScheme
 import com.eddyizm.tempus.upnp.UpnpRouteProvider
 import com.eddyizm.tempus.util.DownloadUtil
@@ -143,12 +155,16 @@ import java.util.Locale
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
+import kotlin.math.exp
+import kotlin.math.hypot
 import kotlin.math.ln
 import kotlin.math.log10
-import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.math.sin
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 // Editorial Warm Dark ("唱片店夜色") tokens for Player Bottom Sheets
 private val SheetBg = Color(0xFF1E1B18)          // surface-2
@@ -166,7 +182,29 @@ private val MossGreen = Color(0xFF8DB596)
 private val MossFill = Color(0x228DB596)
 private val Terracotta = Color(0xFFD9785F)
 
+private const val UNICODE_MINUS = "\u2212"
+private const val DISCOVERY_SCAN_TIMEOUT_MS = 8_000L
+
 private val TabularStyle = TextStyle(fontFeatureSettings = "tnum")
+
+private val SIGNAL_SHEET_PREF_KEYS = setOf(
+    "selected_equalizer",
+    "equalizer_enabled",
+    "equalizer_band_levels",
+    "parametric_eq_profile",
+    "parametric_eq_name",
+    "replay_gain_mode",
+    "loudness_preamp",
+    "playback_speed",
+    "skip_silence",
+    Preferences.LAN_REMOTE_ENABLED,
+    Preferences.UPNP_ENABLED,
+)
+
+private val OUTPUT_SHEET_PREF_KEYS = setOf(
+    Preferences.LAN_REMOTE_ENABLED,
+    Preferences.UPNP_ENABLED,
+)
 
 private data class BuiltinPreset(val id: String, val labelRes: Int, val levelsMilliBel: ShortArray)
 
@@ -180,7 +218,7 @@ private val BUILTIN_PRESETS = listOf(
 /**
  * Entry points and state summaries for Tempus's two Editorial Warm Dark player bottom sheets:
  * 1. [SignalAndSoundSheet] (5-node signal chain, interactive EQ curve, ReplayGain, speed, sleep timer)
- * 2. [OutputRouteSheet] (Local DAC/BT, LAN Tempus with Ed25519/TLS badge, UPnP/DLNA, cross-flavor Cast)
+ * 2. [OutputRouteSheet] (Local DAC/BT, LAN Tempus with Ed25519 verified shield, UPnP/DLNA, Cast)
  */
 object PlayerSheets {
 
@@ -201,23 +239,47 @@ object PlayerSheets {
     )
 
     @JvmStatic
-    fun showSignalAndSound(activity: FragmentActivity, onOpenFullEqualizer: Runnable? = null) {
+    fun showSignalAndSound(activity: FragmentActivity) {
         if (activity.isFinishing || activity.isDestroyed) return
-        PlayerSheetHostFragment.present(
-            activity = activity,
-            mode = PlayerSheetHostFragment.MODE_SIGNAL,
-            onOpenFullEqualizer = onOpenFullEqualizer,
-        )
+        PlayerSheetHostFragment.present(activity, PlayerSheetHostFragment.MODE_SIGNAL)
     }
 
     @JvmStatic
     fun showOutputRoute(activity: FragmentActivity) {
         if (activity.isFinishing || activity.isDestroyed) return
-        PlayerSheetHostFragment.present(
-            activity = activity,
-            mode = PlayerSheetHostFragment.MODE_OUTPUT,
-            onOpenFullEqualizer = null,
-        )
+        PlayerSheetHostFragment.present(activity, PlayerSheetHostFragment.MODE_OUTPUT)
+    }
+
+    @JvmStatic
+    fun isLosslessCodec(codecUpper: String?): Boolean {
+        if (codecUpper.isNullOrBlank()) return false
+        val clean = codecUpper.uppercase(Locale.ROOT)
+        return clean.contains("FLAC") ||
+            clean.contains("ALAC") ||
+            clean.contains("WAV") ||
+            clean.contains("PCM") ||
+            clean.contains("AIFF") ||
+            clean.contains("APE") ||
+            clean.contains("WV") ||
+            clean.contains("DSD") ||
+            clean.contains("DFF") ||
+            clean.contains("DSF")
+    }
+
+    @JvmStatic
+    fun isHiResAudio(bitDepth: Int, sampleRateHz: Int): Boolean =
+        bitDepth > 16 || sampleRateHz > 48_000
+
+    /** Formats signed dB values with typographic Unicode minus (`−4.2 dB` / `+3.0 dB` / `0 dB`). */
+    @JvmStatic
+    @JvmOverloads
+    fun formatSignedDb(gainDb: Float, decimals: Int = 1): String {
+        val threshold = if (decimals <= 0) 0.5f else 0.05f
+        if (abs(gainDb) < threshold) return "0 dB"
+        val pattern = if (decimals <= 0) "%.0f" else "%.${decimals}f"
+        val mag = String.format(Locale.US, pattern, abs(gainDb))
+        val sign = if (gainDb < 0f) UNICODE_MINUS else "+"
+        return "$sign$mag dB"
     }
 
     @JvmStatic
@@ -237,7 +299,10 @@ object PlayerSheets {
             )
         }
         val selectedRoute = runCatching { MediaRouter.getInstance(context).selectedRoute }.getOrNull()
-        if (selectedRoute != null && !selectedRoute.isDefault && selectedRoute.playbackType == MediaRouter.RouteInfo.PLAYBACK_TYPE_REMOTE) {
+        if (selectedRoute != null &&
+            !selectedRoute.isDefault &&
+            selectedRoute.playbackType == MediaRouter.RouteInfo.PLAYBACK_TYPE_REMOTE
+        ) {
             val isUpnp = selectedRoute.supportsControlCategory(UpnpRouteProvider.CATEGORY_UPNP)
             return OutputSummary(
                 label = selectedRoute.name.ifBlank { context.getString(R.string.player_remote_output) },
@@ -306,34 +371,35 @@ object PlayerSheets {
         }
     }
 
+    /**
+     * Queries Android 14+ active media routing (`getAudioDevicesForAttributes`) first so simultaneous
+     * peripherals (e.g. wired dongle + paired Bluetooth) reflect the true active audio sink.
+     */
     internal fun describeLocalAudioDevice(context: Context): String {
         val am = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
             ?: return context.getString(R.string.editorial_output_local_speaker)
-        val outputs = runCatching { am.getDevices(AudioManager.GET_DEVICES_OUTPUTS) }.getOrNull().orEmpty()
-        // Prefer external peripherals over the built-in speaker
-        val external = outputs.firstOrNull { dev ->
-            dev.type == AudioDeviceInfo.TYPE_USB_HEADSET ||
-                dev.type == AudioDeviceInfo.TYPE_USB_DEVICE ||
-                dev.type == AudioDeviceInfo.TYPE_USB_ACCESSORY ||
-                dev.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
-                dev.type == AudioDeviceInfo.TYPE_BLE_HEADSET ||
-                dev.type == AudioDeviceInfo.TYPE_BLE_SPEAKER ||
-                dev.type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES ||
-                dev.type == AudioDeviceInfo.TYPE_WIRED_HEADSET ||
-                dev.type == AudioDeviceInfo.TYPE_LINE_ANALOG ||
-                dev.type == AudioDeviceInfo.TYPE_LINE_DIGITAL
-        }
-        return when (external?.type) {
+        val mediaAttrs = AudioAttributes.Builder()
+            .setUsage(AudioAttributes.USAGE_MEDIA)
+            .build()
+        val routed = runCatching { am.getAudioDevicesForAttributes(mediaAttrs) }.getOrNull().orEmpty()
+        val activeSink = routed.firstOrNull { isExternalSink(it) } ?: routed.firstOrNull()
+        val candidate = activeSink ?: runCatching { am.getDevices(AudioManager.GET_DEVICES_OUTPUTS) }
+            .getOrNull()
+            .orEmpty()
+            .firstOrNull { isExternalSink(it) }
+
+        return when (candidate?.type) {
             AudioDeviceInfo.TYPE_USB_HEADSET,
             AudioDeviceInfo.TYPE_USB_DEVICE,
             AudioDeviceInfo.TYPE_USB_ACCESSORY -> {
-                val prod = external.productName?.toString()?.takeIf { it.isNotBlank() && it != Build.MODEL }
+                val prod = candidate.productName?.toString()?.takeIf { it.isNotBlank() && it != Build.MODEL }
                 prod ?: context.getString(R.string.editorial_output_local_usb)
             }
             AudioDeviceInfo.TYPE_BLUETOOTH_A2DP,
             AudioDeviceInfo.TYPE_BLE_HEADSET,
-            AudioDeviceInfo.TYPE_BLE_SPEAKER -> {
-                val prod = external.productName?.toString()?.takeIf { it.isNotBlank() && it != Build.MODEL }
+            AudioDeviceInfo.TYPE_BLE_SPEAKER,
+            AudioDeviceInfo.TYPE_BLE_BROADCAST -> {
+                val prod = candidate.productName?.toString()?.takeIf { it.isNotBlank() && it != Build.MODEL }
                 prod ?: context.getString(R.string.editorial_output_local_bt)
             }
             AudioDeviceInfo.TYPE_WIRED_HEADPHONES,
@@ -344,24 +410,50 @@ object PlayerSheets {
         }
     }
 
-    /**
-     * Cross-flavor reflection check for Chromecast: returns a [MediaRouteSelector] on `tempus` when
-     * Google Play Services + CastContext are initialized, or `null` on `degoogled` (zero Cast imports).
-     */
-    internal fun resolveCastRouteSelector(context: Context): MediaRouteSelector? {
-        if (Flavors.routeButtonIsOnlyForUpnp(context)) return null
-        return runCatching {
-            val castCtxClass = Class.forName("com.google.android.gms.cast.framework.CastContext")
-            val getShared = castCtxClass.getMethod("getSharedInstance", Context::class.java)
-            val castCtx = getShared.invoke(null, context.applicationContext) ?: return null
-            val getMergedSelector = castCtxClass.getMethod("getMergedSelector")
-            getMergedSelector.invoke(castCtx) as? MediaRouteSelector
-        }.getOrNull()
+    private fun isExternalSink(dev: AudioDeviceInfo): Boolean =
+        dev.type == AudioDeviceInfo.TYPE_USB_HEADSET ||
+            dev.type == AudioDeviceInfo.TYPE_USB_DEVICE ||
+            dev.type == AudioDeviceInfo.TYPE_USB_ACCESSORY ||
+            dev.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
+            dev.type == AudioDeviceInfo.TYPE_BLE_HEADSET ||
+            dev.type == AudioDeviceInfo.TYPE_BLE_SPEAKER ||
+            dev.type == AudioDeviceInfo.TYPE_BLE_BROADCAST ||
+            dev.type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES ||
+            dev.type == AudioDeviceInfo.TYPE_WIRED_HEADSET ||
+            dev.type == AudioDeviceInfo.TYPE_LINE_ANALOG ||
+            dev.type == AudioDeviceInfo.TYPE_LINE_DIGITAL
+
+    @OptIn(UnstableApi::class)
+    internal fun openFullEqualizerFromActivity(
+        activity: FragmentActivity?,
+        binder: BaseMediaService.LocalBinder?,
+    ) {
+        val hostActivity = activity ?: return
+        if (hostActivity.isFinishing || hostActivity.isDestroyed) return
+        if (LanRemoteSession.isActive()) {
+            Toast.makeText(hostActivity, R.string.lan_receiver_audio_settings, Toast.LENGTH_LONG).show()
+            return
+        }
+        if (Preferences.getSelectedEqualizer() == 0) {
+            Preferences.setSelectedEqualizer("1")
+            binder?.reloadEqualizer()
+        }
+        val mainActivity = hostActivity as? MainActivity
+        val navController = mainActivity?.navController
+            ?: (hostActivity.supportFragmentManager.findFragmentById(R.id.nav_host_fragment) as? NavHostFragment)
+                ?.navController
+        if (navController != null) {
+            val navOptions = NavOptions.Builder()
+                .setLaunchSingleTop(true)
+                .setPopUpTo(R.id.equalizerFragment, true)
+                .build()
+            runCatching { navController.navigate(R.id.equalizerFragment, null, navOptions) }
+        }
+        mainActivity?.collapseBottomSheetDelayed()
     }
 
-    /** Headless fragment hosting Compose [ModalBottomSheet] without nested-dialog conflicts. */
+    /** Headless fragment hosting Compose [ModalBottomSheet] with zero retained external references. */
     class PlayerSheetHostFragment : Fragment() {
-        var onOpenFullEqualizer: Runnable? = null
         private var pendingUriCallback: ((Uri?) -> Unit)? = null
         private lateinit var openDocumentLauncher: ActivityResultLauncher<Array<String>>
 
@@ -374,25 +466,31 @@ object PlayerSheets {
             }
         }
 
+        @OptIn(UnstableApi::class)
         override fun onCreateView(
             inflater: LayoutInflater,
             container: ViewGroup?,
             savedInstanceState: Bundle?
         ): View {
-            val mode = arguments?.getInt(ARG_MODE, MODE_SIGNAL) ?: MODE_SIGNAL
+            val initialMode = arguments?.getInt(ARG_MODE, MODE_SIGNAL) ?: MODE_SIGNAL
             return ComposeView(requireContext()).apply {
                 setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
                 setContent {
+                    var activeMode by remember(initialMode) { mutableIntStateOf(initialMode) }
                     MaterialTheme(colorScheme = rememberAppColorScheme()) {
-                        if (mode == MODE_OUTPUT) {
+                        if (activeMode == MODE_OUTPUT) {
                             OutputRouteSheet(onDismiss = { dismissHost() })
                         } else {
                             SignalAndSoundSheet(
                                 onDismiss = { dismissHost() },
-                                onOpenFullEqualizer = {
-                                    val action = onOpenFullEqualizer
+                                onSwitchToOutputSheet = {
+                                    arguments?.putInt(ARG_MODE, MODE_OUTPUT)
+                                    activeMode = MODE_OUTPUT
+                                },
+                                onOpenFullEqualizer = { binder ->
+                                    val act = activity
                                     dismissHost()
-                                    action?.run()
+                                    openFullEqualizerFromActivity(act, binder)
                                 },
                                 onPickAutoEqDocument = { callback ->
                                     pendingUriCallback = callback
@@ -417,18 +515,13 @@ object PlayerSheets {
             const val MODE_SIGNAL = 1
             const val MODE_OUTPUT = 2
 
-            fun present(
-                activity: FragmentActivity,
-                mode: Int,
-                onOpenFullEqualizer: Runnable?
-            ) {
+            fun present(activity: FragmentActivity, mode: Int) {
                 val fm = activity.supportFragmentManager
                 fm.findFragmentByTag(HOST_TAG)?.let { existing ->
                     fm.beginTransaction().remove(existing).commitAllowingStateLoss()
                 }
                 val host = PlayerSheetHostFragment().apply {
                     arguments = Bundle().apply { putInt(ARG_MODE, mode) }
-                    this.onOpenFullEqualizer = onOpenFullEqualizer
                 }
                 fm.beginTransaction()
                     .add(android.R.id.content, host, HOST_TAG)
@@ -447,17 +540,23 @@ object PlayerSheets {
 @Composable
 fun SignalAndSoundSheet(
     onDismiss: () -> Unit,
-    onOpenFullEqualizer: () -> Unit,
+    onSwitchToOutputSheet: () -> Unit = {},
+    onOpenFullEqualizer: (BaseMediaService.LocalBinder?) -> Unit = {},
     onPickAutoEqDocument: ((Uri?) -> Unit) -> Unit = {},
 ) {
-    val context = LocalContext.current
+    val appContext = LocalContext.current.applicationContext
     val scope = rememberCoroutineScope()
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val scrollState = rememberScrollState()
 
-    fun dismissSmoothly() {
+    var eqSectionY by remember { mutableIntStateOf(0) }
+    var rgSectionY by remember { mutableIntStateOf(0) }
+
+    fun dismissSmoothly(afterHide: () -> Unit = {}) {
         scope.launch {
             runCatching { sheetState.hide() }
             onDismiss()
+            afterHide()
         }
     }
 
@@ -466,8 +565,7 @@ fun SignalAndSoundSheet(
     var browser by remember { mutableStateOf<MediaBrowser?>(null) }
     var mediaTick by remember { mutableIntStateOf(0) }
 
-    DisposableEffect(context) {
-        val appCtx = context.applicationContext
+    DisposableEffect(appContext) {
         var bound = false
         val conn = object : ServiceConnection {
             override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
@@ -480,15 +578,15 @@ fun SignalAndSoundSheet(
             }
         }
         runCatching {
-            val intent = Intent(appCtx, MediaService::class.java).apply {
+            val intent = Intent(appContext, MediaService::class.java).apply {
                 action = BaseMediaService.ACTION_BIND_EQUALIZER
             }
-            bound = appCtx.bindService(intent, conn, Context.BIND_AUTO_CREATE)
+            bound = appContext.bindService(intent, conn, Context.BIND_AUTO_CREATE)
         }
 
         val browserFuture = MediaBrowser.Builder(
-            appCtx,
-            SessionToken(appCtx, ComponentName(appCtx, MediaService::class.java))
+            appContext,
+            SessionToken(appContext, ComponentName(appContext, MediaService::class.java))
         ).buildAsync()
         val playerListener = object : Player.Listener {
             override fun onTracksChanged(tracks: Tracks) {
@@ -512,20 +610,22 @@ fun SignalAndSoundSheet(
             browser?.removeListener(playerListener)
             MediaBrowser.releaseFuture(browserFuture)
             if (bound) {
-                runCatching { appCtx.unbindService(conn) }
+                runCatching { appContext.unbindService(conn) }
             }
         }
     }
 
-    // Observe Preferences, LAN state, and SleepTimer ticks
+    // Observe filtered Preferences + LAN state (no idle 1Hz poller when sleep timer is off!)
     var prefTick by remember { mutableIntStateOf(0) }
     var lanState by remember { mutableStateOf(LanRemoteSession.current()) }
     var sleepTick by remember { mutableIntStateOf(0) }
 
     DisposableEffect(Unit) {
         val prefs = App.getInstance().preferences
-        val prefListener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
-            prefTick++
+        val prefListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+            if (key == null || key in SIGNAL_SHEET_PREF_KEYS) {
+                prefTick++
+            }
         }
         prefs.registerOnSharedPreferenceChangeListener(prefListener)
 
@@ -534,31 +634,32 @@ fun SignalAndSoundSheet(
         }
         LanRemoteSession.state().observeForever(lanObserver)
 
-        val mainHandler = Handler(Looper.getMainLooper())
-        val sleepPoller = object : Runnable {
-            override fun run() {
-                sleepTick++
-                mainHandler.postDelayed(this, 1000L)
-            }
-        }
-        mainHandler.postDelayed(sleepPoller, 1000L)
-
         onDispose {
             prefs.unregisterOnSharedPreferenceChangeListener(prefListener)
             LanRemoteSession.state().removeObserver(lanObserver)
-            mainHandler.removeCallbacks(sleepPoller)
         }
     }
 
-    // Read live EQ state
+    val sleepMgr = SleepTimerManager.getInstance()
+    val timerActive = remember(sleepTick, lanState) {
+        if (lanState.active) lanState.timerActive else sleepMgr.isActive
+    }
+    LaunchedEffect(timerActive) {
+        while (timerActive) {
+            delay(1_000L)
+            sleepTick++
+        }
+    }
+
+    // Live EQ state — decoupled from prefTick during active drag so pointer gestures never reset!
+    var isDraggingEq by remember { mutableStateOf(false) }
     val eqManager: EqualizerManager? = remember(serviceBinder, prefTick) {
         serviceBinder?.getEqualizerManager()
     }
-    var selectedEq by remember(prefTick) { mutableIntStateOf(Preferences.getSelectedEqualizer()) }
-    var eqEnabled by remember(prefTick) { mutableStateOf(Preferences.isEqualizerEnabled()) }
-    var peqRaw by remember(prefTick) { mutableStateOf(Preferences.getParametricEqProfile()) }
-    var peqName by remember(prefTick) { mutableStateOf(Preferences.getParametricEqName()) }
-    val peqProfile = remember(peqRaw) { peqRaw?.let { ParametricProfile.parse(it) } }
+    var selectedEq by remember { mutableIntStateOf(Preferences.getSelectedEqualizer()) }
+    var eqEnabled by remember { mutableStateOf(Preferences.isEqualizerEnabled()) }
+    var peqRaw by remember { mutableStateOf(Preferences.getParametricEqProfile()) }
+    var peqName by remember { mutableStateOf(Preferences.getParametricEqName()) }
 
     val bandCount = remember(eqManager) {
         val n = eqManager?.getNumberOfBands()?.toInt() ?: 0
@@ -582,7 +683,7 @@ fun SignalAndSoundSheet(
         }
     }
 
-    val bandLevelsDb = remember(prefTick, eqManager, bandCount) {
+    val bandLevelsDb = remember(eqManager, bandCount) {
         val saved = Preferences.getEqualizerBandLevels(bandCount.toShort())
         mutableStateListOf<Float>().apply {
             for (i in 0 until bandCount) {
@@ -592,38 +693,72 @@ fun SignalAndSoundSheet(
         }
     }
 
-    // AutoEq file picker handler
+    var peqPreampDb by remember { mutableDoubleStateOf(0.0) }
+    val peqFilters = remember { mutableStateListOf<ParametricFilter>() }
+
+    LaunchedEffect(prefTick, eqManager, bandCount) {
+        if (isDraggingEq) return@LaunchedEffect
+        selectedEq = Preferences.getSelectedEqualizer()
+        eqEnabled = Preferences.isEqualizerEnabled()
+        val latestRaw = Preferences.getParametricEqProfile()
+        peqRaw = latestRaw
+        peqName = Preferences.getParametricEqName()
+
+        val saved = Preferences.getEqualizerBandLevels(bandCount.toShort())
+        if (bandLevelsDb.size != bandCount) {
+            bandLevelsDb.clear()
+            for (i in 0 until bandCount) {
+                val mb = saved.getOrNull(i) ?: eqManager?.getBandLevel(i.toShort()) ?: 0
+                bandLevelsDb.add((mb / 100f).coerceIn(minBandDb, maxBandDb))
+            }
+        } else {
+            for (i in 0 until bandCount) {
+                val mb = saved.getOrNull(i) ?: eqManager?.getBandLevel(i.toShort()) ?: 0
+                bandLevelsDb[i] = (mb / 100f).coerceIn(minBandDb, maxBandDb)
+            }
+        }
+
+        val parsed = latestRaw?.let { ParametricProfile.parse(it) }
+        peqFilters.clear()
+        if (parsed != null) {
+            peqPreampDb = parsed.preampDb
+            peqFilters.addAll(parsed.filters)
+        } else {
+            peqPreampDb = 0.0
+        }
+    }
+
+    val hasParametricProfile = peqFilters.isNotEmpty()
+    val defaultAutoEqLabel = stringResource(R.string.editorial_badge_eq_autoeq)
+
+    // Non-blocking IO AutoEq file import
     val handleAutoEqUri: (Uri?) -> Unit = { uri: Uri? ->
         if (uri != null) {
-            val rawText = runCatching {
-                context.contentResolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }
-            }.getOrNull()
-            val parsed = rawText?.let { ParametricProfile.parse(it) }
-            if (parsed == null) {
-                Toast.makeText(context, R.string.editorial_eq_import_failed, Toast.LENGTH_LONG).show()
-            } else {
-                val displayName = resolveDocumentName(context, uri)
-                    ?.removeSuffix(".txt")
-                    ?.takeIf { it.isNotBlank() }
-                    ?: context.getString(R.string.editorial_badge_eq_autoeq)
-                Preferences.setParametricEqProfile(rawText, displayName)
-                Preferences.setSelectedEqualizer("3")
-                Preferences.setEqualizerEnabled(true)
-                selectedEq = 3
-                eqEnabled = true
-                peqRaw = rawText
-                peqName = displayName
-                serviceBinder?.reloadEqualizer()
-                Toast.makeText(
-                    context,
-                    context.getString(R.string.editorial_eq_import_success, displayName),
-                    Toast.LENGTH_SHORT
-                ).show()
+            scope.launch {
+                val outcome = withContext(Dispatchers.IO) {
+                    readAutoEqImport(appContext, uri)
+                }
+                if (outcome == null) {
+                    Toast.makeText(appContext, R.string.editorial_eq_import_failed, Toast.LENGTH_LONG).show()
+                } else {
+                    Preferences.setParametricEqProfile(outcome.rawText, outcome.displayName)
+                    Preferences.setSelectedEqualizer("3")
+                    Preferences.setEqualizerEnabled(true)
+                    selectedEq = 3
+                    eqEnabled = true
+                    peqRaw = outcome.rawText
+                    peqName = outcome.displayName
+                    peqPreampDb = outcome.profile.preampDb
+                    peqFilters.clear()
+                    peqFilters.addAll(outcome.profile.filters)
+                    serviceBinder?.reloadEqualizer()
+                    showAutoEqImportSuccessToast(appContext, outcome.displayName)
+                }
             }
         }
     }
 
-    // Read ReplayGain, Speed, SkipSilence, SleepTimer
+    // Read ReplayGain, Speed, SkipSilence
     var rgMode by remember(prefTick) {
         mutableStateOf(Preferences.getReplayGainMode() ?: "disabled")
     }
@@ -637,27 +772,21 @@ fun SignalAndSoundSheet(
         mutableStateOf(Preferences.isSkipSilenceMode())
     }
 
-    // Build 5-node signal chain labels from live state
+    // Build honest 5-node signal chain labels from live state
     val sourceNodeInfo = remember(browser, lanState, mediaTick) {
-        resolveSourceSignalNode(context, browser, lanState)
+        resolveSourceSignalNode(appContext, browser, lanState)
     }
     val outputSummary = remember(lanState, mediaTick, prefTick) {
-        PlayerSheets.currentOutputSummary(context)
+        PlayerSheets.currentOutputSummary(appContext)
     }
-    val decoderLabel = remember(outputSummary.isRemote, sourceNodeInfo.first) {
-        if (outputSummary.isRemote) {
-            context.getString(R.string.editorial_signal_val_remote_decode)
-        } else if (DownloadUtil.useExtensionRenderers()) {
-            "FFmpeg"
-        } else {
-            "MediaCodec"
-        }
+    val decoderLabel = remember(outputSummary.isRemote, browser, mediaTick) {
+        resolveDecoderSignalLabel(appContext, browser, outputSummary.isRemote)
     }
     val rgNodeLabel = remember(rgMode, preampDb, browser, mediaTick) {
-        resolveReplayGainShortLabel(context, rgMode, browser?.mediaMetadata?.extras)
+        resolveReplayGainShortLabel(appContext, rgMode, browser?.mediaMetadata?.extras)
     }
     val eqSummary = remember(selectedEq, eqEnabled, peqRaw, peqName, prefTick) {
-        PlayerSheets.currentEqSummary(context)
+        PlayerSheets.currentEqSummary(appContext)
     }
 
     val navBottomPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
@@ -673,7 +802,7 @@ fun SignalAndSoundSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(scrollState)
                 .padding(horizontal = 20.dp)
                 .padding(bottom = navBottomPadding + 24.dp),
             verticalArrangement = Arrangement.spacedBy(18.dp)
@@ -689,11 +818,11 @@ fun SignalAndSoundSheet(
                 Text(
                     text = stringResource(R.string.editorial_signal_sheet_subtitle),
                     color = IvorySecondary,
-                    fontSize = 12.sp,
+                    fontSize = 13.sp,
                 )
             }
 
-            // 1. 5-Node Horizontal Signal Chain
+            // 1. Clickable 5-Node Horizontal Signal Chain with 1.dp Stylus Brass connectors
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -706,7 +835,7 @@ fun SignalAndSoundSheet(
                 Text(
                     text = stringResource(R.string.editorial_signal_chain_header),
                     color = IvoryTertiary,
-                    fontSize = 10.sp,
+                    fontSize = 11.sp,
                     fontWeight = FontWeight.SemiBold,
                     letterSpacing = 1.1.sp,
                 )
@@ -719,57 +848,75 @@ fun SignalAndSoundSheet(
                 ) {
                     SignalChainNode(
                         stage = stringResource(R.string.editorial_signal_node_source),
-                        value = sourceNodeInfo.first,
-                        subValue = sourceNodeInfo.second,
-                        accent = if (sourceNodeInfo.third) StylusBrass else Ivory,
-                        highlighted = sourceNodeInfo.third,
+                        value = sourceNodeInfo.codec,
+                        subValue = sourceNodeInfo.rateDetail,
+                        accent = if (sourceNodeInfo.isHiRes) StylusBrass else Ivory,
+                        highlighted = sourceNodeInfo.isHiRes || sourceNodeInfo.isLossless,
+                        brassBorder = sourceNodeInfo.isHiRes,
+                        onClick = { scope.launch { scrollState.animateScrollTo(0) } },
                     )
-                    SignalArrow()
+                    SignalConnector(active = true)
                     SignalChainNode(
                         stage = stringResource(R.string.editorial_signal_node_decoder),
                         value = decoderLabel,
-                        subValue = if (outputSummary.isRemote) "Bit-Stream" else "PCM",
-                        accent = if (decoderLabel == "FFmpeg") StylusBrass else Ivory,
-                        highlighted = decoderLabel == "FFmpeg",
+                        subValue = null,
+                        accent = Ivory,
+                        highlighted = decoderLabel == "FFmpeg" || decoderLabel == "PCM",
+                        brassBorder = false,
+                        onClick = { scope.launch { scrollState.animateScrollTo(0) } },
                     )
-                    SignalArrow()
                     val rgActive = rgMode != "disabled"
+                    SignalConnector(active = rgActive)
                     SignalChainNode(
                         stage = stringResource(R.string.editorial_signal_node_rg),
                         value = rgNodeLabel,
                         subValue = if (rgActive && preampDb != 0f) {
-                            String.format(Locale.US, "%+.0f dB", preampDb)
+                            PlayerSheets.formatSignedDb(preampDb, decimals = 0)
                         } else null,
-                        accent = if (rgActive) StylusBrass else IvorySecondary,
+                        accent = if (rgActive) Ivory else IvorySecondary,
                         highlighted = rgActive,
+                        brassBorder = false,
+                        onClick = { scope.launch { scrollState.animateScrollTo(rgSectionY) } },
                     )
-                    SignalArrow()
+                    SignalConnector(active = eqSummary.isActive)
                     SignalChainNode(
                         stage = stringResource(R.string.editorial_signal_node_eq),
                         value = eqSummary.nodeText,
-                        subValue = if (eqSummary.isParametric) "PEQ 64-bit" else null,
-                        accent = if (eqSummary.isActive) StylusBrass else IvorySecondary,
+                        subValue = null,
+                        accent = when {
+                            eqSummary.isParametric && eqSummary.isActive -> MossGreen
+                            eqSummary.isActive -> StylusBrass
+                            else -> IvorySecondary
+                        },
                         highlighted = eqSummary.isActive,
+                        brassBorder = eqSummary.isActive && !eqSummary.isParametric,
+                        onClick = { scope.launch { scrollState.animateScrollTo(eqSectionY) } },
                     )
-                    SignalArrow()
+                    SignalConnector(active = outputSummary.isRemote)
                     SignalChainNode(
                         stage = stringResource(R.string.editorial_signal_node_output),
                         value = outputSummary.label,
-                        subValue = outputSummary.detail.takeIf { it.isNotBlank() }?.take(12),
-                        accent = if (outputSummary.isRemote) MossGreen else Ivory,
+                        subValue = outputSummary.detail.takeIf { it.isNotBlank() }?.take(14),
+                        accent = if (outputSummary.isRemote) StylusBrass else Ivory,
                         highlighted = outputSummary.isRemote,
+                        brassBorder = outputSummary.isRemote,
+                        onClick = onSwitchToOutputSheet,
                     )
                 }
             }
 
-            // 2. Interactive EQ Curve & Presets
-            val isEqSwitchOn = (selectedEq == 3 && peqProfile != null) ||
+            // 2. Interactive EQ Curve & Presets (Built-in 5-Band + Draggable Parametric AutoEq)
+            val isEqSwitchOn = (selectedEq == 3 && hasParametricProfile) ||
                 (selectedEq == 1 && eqEnabled) ||
                 (selectedEq == 2 && eqEnabled)
+            val isParametricMode = selectedEq == 3 && hasParametricProfile
 
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .onGloballyPositioned { coords ->
+                        eqSectionY = coords.positionInParent().y.roundToInt()
+                    }
                     .clip(RoundedCornerShape(16.dp))
                     .background(CardBg)
                     .border(1.dp, Hairline, RoundedCornerShape(16.dp))
@@ -788,11 +935,11 @@ fun SignalAndSoundSheet(
                             fontSize = 15.sp,
                             fontWeight = FontWeight.SemiBold,
                         )
-                        val sub = if (selectedEq == 3 && peqProfile != null) {
+                        val sub = if (isParametricMode) {
                             stringResource(
-                                R.string.editorial_eq_autoeq_summary,
-                                peqProfile.filters.size,
-                                String.format(Locale.US, "%+.1f", peqProfile.preampDb)
+                                R.string.editorial_eq_drag_autoeq_hint,
+                                peqFilters.size,
+                                PlayerSheets.formatSignedDb(peqPreampDb.toFloat(), decimals = 1)
                             )
                         } else {
                             stringResource(R.string.editorial_eq_drag_hint)
@@ -808,7 +955,7 @@ fun SignalAndSoundSheet(
                         checked = isEqSwitchOn,
                         onCheckedChange = { turnOn ->
                             if (turnOn) {
-                                if (peqProfile != null && selectedEq == 0) {
+                                if (hasParametricProfile && selectedEq == 0) {
                                     Preferences.setSelectedEqualizer("3")
                                     selectedEq = 3
                                 } else if (selectedEq == 0) {
@@ -834,34 +981,67 @@ fun SignalAndSoundSheet(
                     )
                 }
 
-                // Frequency Response Canvas
+                // Frequency Response Canvas (60fps in-memory drag, commit-once on release)
                 EqFrequencyResponseCanvas(
                     isActive = isEqSwitchOn,
-                    parametricProfile = if (selectedEq == 3) peqProfile else null,
+                    isParametricMode = isParametricMode,
+                    peqPreampDb = peqPreampDb,
+                    peqFilters = peqFilters,
                     bandLevelsDb = bandLevelsDb,
                     bandFreqsHz = bandFreqsHz,
-                    minDb = minBandDb,
-                    maxDb = maxBandDb,
-                    onBandDragged = { bandIdx, newDb ->
+                    minDb = if (isParametricMode) -18f else minBandDb,
+                    maxDb = if (isParametricMode) 18f else maxBandDb,
+                    onDragStateChanged = { dragging -> isDraggingEq = dragging },
+                    onBuiltinBandPreview = { bandIdx, newDb ->
                         if (bandIdx in bandLevelsDb.indices) {
                             val clamped = newDb.coerceIn(minBandDb, maxBandDb)
                             bandLevelsDb[bandIdx] = clamped
                             if (selectedEq != 1) {
-                                Preferences.setSelectedEqualizer("1")
                                 selectedEq = 1
-                                serviceBinder?.reloadEqualizer()
                             }
                             if (!eqEnabled) {
-                                Preferences.setEqualizerEnabled(true)
                                 eqEnabled = true
                                 eqManager?.setEnabled(true)
                             }
                             val milliBel = (clamped * 100f).roundToInt().toShort()
                             eqManager?.setBandLevel(bandIdx.toShort(), milliBel)
-                            val toSave = ShortArray(bandLevelsDb.size) { i ->
-                                (bandLevelsDb[i] * 100f).roundToInt().toShort()
+                        }
+                    },
+                    onBuiltinBandCommit = {
+                        val toSave = ShortArray(bandLevelsDb.size) { i ->
+                            (bandLevelsDb[i] * 100f).roundToInt().toShort()
+                        }
+                        Preferences.setEqualizerBandLevels(toSave)
+                        if (Preferences.getSelectedEqualizer() != 1) {
+                            Preferences.setSelectedEqualizer("1")
+                            serviceBinder?.reloadEqualizer()
+                        }
+                        if (!Preferences.isEqualizerEnabled()) {
+                            Preferences.setEqualizerEnabled(true)
+                        }
+                    },
+                    onParametricFilterPreview = { filterIdx, newCurveDb ->
+                        if (filterIdx in peqFilters.indices) {
+                            val current = peqFilters[filterIdx]
+                            val newGain = (newCurveDb.toDouble() - peqPreampDb)
+                                .coerceIn(-ParametricProfile.MAX_GAIN_DB, ParametricProfile.MAX_GAIN_DB)
+                            val roundedGain = (newGain * 10.0).roundToInt() / 10.0
+                            peqFilters[filterIdx] = current.copy(gainDb = roundedGain)
+                        }
+                    },
+                    onParametricFilterCommit = {
+                        if (peqFilters.isNotEmpty()) {
+                            val updatedText = ParametricProfile(peqPreampDb, peqFilters.toList()).toText()
+                            val cleanName = (peqName ?: defaultAutoEqLabel).removeSuffix(".txt")
+                            peqRaw = updatedText
+                            Preferences.setParametricEqProfile(updatedText, cleanName)
+                            if (Preferences.getSelectedEqualizer() != 3) {
+                                Preferences.setSelectedEqualizer("3")
+                                selectedEq = 3
                             }
-                            Preferences.setEqualizerBandLevels(toSave)
+                            Preferences.setEqualizerEnabled(true)
+                            eqEnabled = true
+                            serviceBinder?.reloadEqualizer()
                         }
                     }
                 )
@@ -887,12 +1067,11 @@ fun SignalAndSoundSheet(
                             }
                         )
                     }
-                    if (peqProfile != null) {
-                        val chipTitle = (peqName ?: context.getString(R.string.editorial_badge_eq_autoeq))
-                            .removeSuffix(".txt")
+                    if (hasParametricProfile) {
+                        val chipTitle = (peqName ?: defaultAutoEqLabel).removeSuffix(".txt")
                         item {
                             EditorialChip(
-                                label = "AutoEq · $chipTitle",
+                                label = stringResource(R.string.editorial_eq_autoeq_chip, chipTitle),
                                 selected = selectedEq == 3,
                                 onClick = {
                                     Preferences.setSelectedEqualizer("3")
@@ -950,7 +1129,7 @@ fun SignalAndSoundSheet(
                     ) {
                         Text(
                             text = stringResource(R.string.editorial_eq_import_autoeq),
-                            fontSize = 12.sp,
+                            fontSize = 13.sp,
                             fontWeight = FontWeight.Medium,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
@@ -958,12 +1137,8 @@ fun SignalAndSoundSheet(
                     }
                     Surface(
                         onClick = {
-                            if (Preferences.getSelectedEqualizer() == 0) {
-                                Preferences.setSelectedEqualizer("1")
-                                serviceBinder?.reloadEqualizer()
-                            }
-                            dismissSmoothly()
-                            onOpenFullEqualizer()
+                            val binderRef = serviceBinder
+                            dismissSmoothly { onOpenFullEqualizer(binderRef) }
                         },
                         modifier = Modifier.weight(1.25f),
                         shape = RoundedCornerShape(999.dp),
@@ -985,7 +1160,7 @@ fun SignalAndSoundSheet(
                             Text(
                                 text = stringResource(R.string.editorial_eq_open_full),
                                 color = Ivory,
-                                fontSize = 12.sp,
+                                fontSize = 13.sp,
                                 fontWeight = FontWeight.Medium,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
@@ -999,6 +1174,9 @@ fun SignalAndSoundSheet(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .onGloballyPositioned { coords ->
+                        rgSectionY = coords.positionInParent().y.roundToInt()
+                    }
                     .clip(RoundedCornerShape(16.dp))
                     .background(CardBg)
                     .border(1.dp, Hairline, RoundedCornerShape(16.dp))
@@ -1026,9 +1204,9 @@ fun SignalAndSoundSheet(
                         Surface(
                             onClick = {
                                 rgMode = modeKey
-                                App.getInstance().preferences.edit()
-                                    .putString("replay_gain_mode", modeKey)
-                                    .apply()
+                                App.getInstance().preferences.edit {
+                                    putString("replay_gain_mode", modeKey)
+                                }
                                 val livePlayer = serviceBinder?.getPlayer()
                                 if (modeKey == "disabled") {
                                     ReplayGainUtil.getAudioProcessor().clearPendingGain()
@@ -1050,7 +1228,7 @@ fun SignalAndSoundSheet(
                                 Text(
                                     text = stringResource(labelRes),
                                     color = if (active) StylusBrass else IvorySecondary,
-                                    fontSize = 12.sp,
+                                    fontSize = 13.sp,
                                     fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
                                 )
                             }
@@ -1068,12 +1246,12 @@ fun SignalAndSoundSheet(
                         Text(
                             text = stringResource(R.string.editorial_rg_preamp_label),
                             color = IvorySecondary,
-                            fontSize = 12.sp,
+                            fontSize = 13.sp,
                         )
                         Text(
-                            text = String.format(Locale.US, "%+.0f dB", preampDb),
+                            text = PlayerSheets.formatSignedDb(preampDb, decimals = 0),
                             color = if (preampDb != 0f) StylusBrass else IvorySecondary,
-                            fontSize = 12.sp,
+                            fontSize = 13.sp,
                             fontWeight = FontWeight.Medium,
                             style = TabularStyle,
                         )
@@ -1110,7 +1288,6 @@ fun SignalAndSoundSheet(
                     .padding(14.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                // Playback Speed
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -1123,9 +1300,9 @@ fun SignalAndSoundSheet(
                         fontWeight = FontWeight.SemiBold,
                     )
                     Text(
-                        text = String.format(Locale.US, "%.2fx", playbackSpeed).replace(".00x", ".0x").replace("25x", "25x"),
+                        text = String.format(Locale.US, "%.2fx", playbackSpeed).replace(".00x", ".0x"),
                         color = if (abs(playbackSpeed - 1f) > 0.01f) StylusBrass else IvorySecondary,
-                        fontSize = 12.sp,
+                        fontSize = 13.sp,
                         fontWeight = FontWeight.Medium,
                         style = TabularStyle,
                     )
@@ -1167,7 +1344,7 @@ fun SignalAndSoundSheet(
                                 Text(
                                     text = label,
                                     color = if (active) StylusBrass else IvorySecondary,
-                                    fontSize = 12.sp,
+                                    fontSize = 13.sp,
                                     fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
                                     style = TabularStyle,
                                 )
@@ -1188,7 +1365,7 @@ fun SignalAndSoundSheet(
                         Text(
                             text = stringResource(R.string.editorial_skip_silence_title),
                             color = Ivory,
-                            fontSize = 14.sp,
+                            fontSize = 15.sp,
                             fontWeight = FontWeight.Medium,
                         )
                         Text(
@@ -1212,10 +1389,6 @@ fun SignalAndSoundSheet(
                 HorizontalDivider(color = Hairline)
 
                 // Sleep Timer Quick Pills
-                val sleepMgr = SleepTimerManager.getInstance()
-                val timerActive = remember(sleepTick, lanState) {
-                    if (lanState.active) lanState.timerActive else sleepMgr.isActive
-                }
                 val timerIsEot = remember(sleepTick, lanState) {
                     if (lanState.active) lanState.timerEndOfTrack else sleepMgr.isEndOfTrack
                 }
@@ -1231,7 +1404,7 @@ fun SignalAndSoundSheet(
                     Text(
                         text = stringResource(R.string.editorial_sleep_section_title),
                         color = Ivory,
-                        fontSize = 14.sp,
+                        fontSize = 15.sp,
                         fontWeight = FontWeight.Medium,
                     )
                     if (timerActive) {
@@ -1243,7 +1416,7 @@ fun SignalAndSoundSheet(
                         Text(
                             text = badgeText,
                             color = StylusBrass,
-                            fontSize = 12.sp,
+                            fontSize = 13.sp,
                             fontWeight = FontWeight.SemiBold,
                             style = TabularStyle,
                         )
@@ -1311,16 +1484,20 @@ private fun SignalChainNode(
     subValue: String?,
     accent: Color,
     highlighted: Boolean,
+    brassBorder: Boolean,
+    onClick: () -> Unit,
 ) {
+    val borderColor = when {
+        brassBorder -> StylusBrassBorder
+        highlighted -> IvoryTertiary
+        else -> Hairline
+    }
     Column(
         modifier = Modifier
             .clip(RoundedCornerShape(10.dp))
             .background(if (highlighted) DeepBg else PillBg.copy(alpha = 0.65f))
-            .border(
-                width = 1.dp,
-                color = if (highlighted) accent.copy(alpha = 0.65f) else Hairline,
-                shape = RoundedCornerShape(10.dp)
-            )
+            .border(width = 1.dp, color = borderColor, shape = RoundedCornerShape(10.dp))
+            .clickable(onClick = onClick)
             .padding(horizontal = 10.dp, vertical = 7.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(2.dp)
@@ -1328,13 +1505,13 @@ private fun SignalChainNode(
         Text(
             text = stage,
             color = IvoryTertiary,
-            fontSize = 10.sp,
+            fontSize = 11.sp,
             maxLines = 1,
         )
         Text(
             text = value,
             color = accent,
-            fontSize = 12.sp,
+            fontSize = 13.sp,
             fontWeight = FontWeight.SemiBold,
             maxLines = 1,
             style = TabularStyle,
@@ -1343,7 +1520,7 @@ private fun SignalChainNode(
             Text(
                 text = subValue,
                 color = IvorySecondary,
-                fontSize = 9.sp,
+                fontSize = 11.sp,
                 maxLines = 1,
                 style = TabularStyle,
             )
@@ -1351,77 +1528,157 @@ private fun SignalChainNode(
     }
 }
 
+/** Crisp 1.dp Stylus Brass signal-flow connector line between audio stages. */
 @Composable
-private fun SignalArrow() {
-    Text(
-        text = "→",
-        color = IvoryTertiary,
-        fontSize = 12.sp,
-        fontFamily = FontFamily.Monospace,
+private fun SignalConnector(active: Boolean) {
+    Box(
+        modifier = Modifier
+            .width(12.dp)
+            .height(1.dp)
+            .background(if (active) StylusBrass.copy(alpha = 0.65f) else Hairline)
     )
 }
 
 @Composable
 private fun EqFrequencyResponseCanvas(
     isActive: Boolean,
-    parametricProfile: ParametricProfile?,
+    isParametricMode: Boolean,
+    peqPreampDb: Double,
+    peqFilters: List<ParametricFilter>,
     bandLevelsDb: List<Float>,
     bandFreqsHz: IntArray,
     minDb: Float,
     maxDb: Float,
-    onBandDragged: (Int, Float) -> Unit,
+    onDragStateChanged: (Boolean) -> Unit,
+    onBuiltinBandPreview: (Int, Float) -> Unit,
+    onBuiltinBandCommit: () -> Unit,
+    onParametricFilterPreview: (Int, Float) -> Unit,
+    onParametricFilterCommit: () -> Unit,
 ) {
-    val curveColor = if (isActive) StylusBrass else IvoryTertiary
-    val isInteractiveBands = parametricProfile == null && bandLevelsDb.isNotEmpty()
-    var activeDragBand by remember { mutableIntStateOf(-1) }
+    val curveColor = when {
+        !isActive -> IvoryTertiary
+        isParametricMode -> MossGreen
+        else -> StylusBrass
+    }
+    var activeDragIndex by remember { mutableIntStateOf(-1) }
+
+    val latestIsParametric by rememberUpdatedState(isParametricMode)
+    val latestPeqPreamp by rememberUpdatedState(peqPreampDb)
+    val latestPeqFilters by rememberUpdatedState(peqFilters)
+    val latestBands by rememberUpdatedState(bandLevelsDb)
+    val latestDragState by rememberUpdatedState(onDragStateChanged)
+    val latestBuiltinPreview by rememberUpdatedState(onBuiltinBandPreview)
+    val latestBuiltinCommit by rememberUpdatedState(onBuiltinBandCommit)
+    val latestParametricPreview by rememberUpdatedState(onParametricFilterPreview)
+    val latestParametricCommit by rememberUpdatedState(onParametricFilterCommit)
+
+    val handleCount = if (isParametricMode) peqFilters.size else bandLevelsDb.size
 
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(152.dp)
-                .clip(RoundedCornerShape(12.dp))
+                .clip(RoundedCornerShape(16.dp))
                 .background(DeepBg)
-                .border(1.dp, Hairline, RoundedCornerShape(12.dp))
-                .pointerInput(isInteractiveBands, bandLevelsDb.size, minDb, maxDb) {
-                    if (!isInteractiveBands) return@pointerInput
+                .border(1.dp, Hairline, RoundedCornerShape(16.dp))
+                .pointerInput(isParametricMode, handleCount, minDb, maxDb) {
+                    if (handleCount <= 0) return@pointerInput
                     detectTapGestures { offset ->
-                        val count = bandLevelsDb.size
-                        if (count == 0 || size.width <= 0 || size.height <= 0) return@detectTapGestures
+                        if (size.width <= 0 || size.height <= 0) return@detectTapGestures
                         val padX = 20.dp.toPx()
                         val padY = 16.dp.toPx()
                         val usableW = (size.width - padX * 2f).coerceAtLeast(1f)
                         val usableH = (size.height - padY * 2f).coerceAtLeast(1f)
-                        val stepX = if (count > 1) usableW / (count - 1) else 0f
-                        val idx = ((offset.x - padX) / stepX.coerceAtLeast(1f)).roundToInt().coerceIn(0, count - 1)
                         val normY = ((offset.y - padY) / usableH).coerceIn(0f, 1f)
-                        val db = maxDb - normY * (maxDb - minDb)
-                        onBandDragged(idx, db)
+                        val targetDb = maxDb - normY * (maxDb - minDb)
+
+                        if (latestIsParametric) {
+                            val idx = findNearestParametricHandle(
+                                offset = offset,
+                                padX = padX,
+                                padY = padY,
+                                usableW = usableW,
+                                usableH = usableH,
+                                minDb = minDb,
+                                maxDb = maxDb,
+                                preampDb = latestPeqPreamp,
+                                filters = latestPeqFilters,
+                            )
+                            if (idx >= 0) {
+                                latestParametricPreview(idx, targetDb)
+                                latestParametricCommit()
+                            }
+                        } else {
+                            val count = latestBands.size
+                            if (count > 0) {
+                                val stepX = if (count > 1) usableW / (count - 1) else 1f
+                                val idx = ((offset.x - padX) / stepX).roundToInt().coerceIn(0, count - 1)
+                                latestBuiltinPreview(idx, targetDb)
+                                latestBuiltinCommit()
+                            }
+                        }
                     }
                 }
-                .pointerInput(isInteractiveBands, bandLevelsDb.size, minDb, maxDb) {
-                    if (!isInteractiveBands) return@pointerInput
+                .pointerInput(isParametricMode, handleCount, minDb, maxDb) {
+                    if (handleCount <= 0) return@pointerInput
                     detectDragGestures(
                         onDragStart = { start ->
-                            val count = bandLevelsDb.size
-                            if (count > 0 && size.width > 0) {
-                                val padX = 20.dp.toPx()
-                                val usableW = (size.width - padX * 2f).coerceAtLeast(1f)
+                            if (size.width <= 0 || size.height <= 0) return@detectDragGestures
+                            val padX = 20.dp.toPx()
+                            val padY = 16.dp.toPx()
+                            val usableW = (size.width - padX * 2f).coerceAtLeast(1f)
+                            val usableH = (size.height - padY * 2f).coerceAtLeast(1f)
+                            activeDragIndex = if (latestIsParametric) {
+                                findNearestParametricHandle(
+                                    offset = start,
+                                    padX = padX,
+                                    padY = padY,
+                                    usableW = usableW,
+                                    usableH = usableH,
+                                    minDb = minDb,
+                                    maxDb = maxDb,
+                                    preampDb = latestPeqPreamp,
+                                    filters = latestPeqFilters,
+                                )
+                            } else {
+                                val count = latestBands.size
                                 val stepX = if (count > 1) usableW / (count - 1) else 1f
-                                activeDragBand = ((start.x - padX) / stepX).roundToInt().coerceIn(0, count - 1)
+                                ((start.x - padX) / stepX).roundToInt().coerceIn(0, (count - 1).coerceAtLeast(0))
+                            }
+                            if (activeDragIndex >= 0) {
+                                latestDragState(true)
                             }
                         },
-                        onDragEnd = { activeDragBand = -1 },
-                        onDragCancel = { activeDragBand = -1 },
+                        onDragEnd = {
+                            val finished = activeDragIndex >= 0
+                            activeDragIndex = -1
+                            latestDragState(false)
+                            if (finished) {
+                                if (latestIsParametric) latestParametricCommit() else latestBuiltinCommit()
+                            }
+                        },
+                        onDragCancel = {
+                            val finished = activeDragIndex >= 0
+                            activeDragIndex = -1
+                            latestDragState(false)
+                            if (finished) {
+                                if (latestIsParametric) latestParametricCommit() else latestBuiltinCommit()
+                            }
+                        },
                         onDrag = { change, _ ->
                             change.consume()
-                            val idx = activeDragBand
+                            val idx = activeDragIndex
                             if (idx >= 0 && size.height > 0) {
                                 val padY = 16.dp.toPx()
                                 val usableH = (size.height - padY * 2f).coerceAtLeast(1f)
                                 val normY = ((change.position.y - padY) / usableH).coerceIn(0f, 1f)
-                                val db = maxDb - normY * (maxDb - minDb)
-                                onBandDragged(idx, db)
+                                val targetDb = maxDb - normY * (maxDb - minDb)
+                                if (latestIsParametric) {
+                                    latestParametricPreview(idx, targetDb)
+                                } else {
+                                    latestBuiltinPreview(idx, targetDb)
+                                }
                             }
                         }
                     )
@@ -1435,7 +1692,6 @@ private fun EqFrequencyResponseCanvas(
                 val zeroY = padY + h * (maxDb / (maxDb - minDb))
 
                 val dash = PathEffect.dashPathEffect(floatArrayOf(6f, 6f), 0f)
-                // Grid lines: +12, 0, -12 dB
                 drawLine(Hairline, Offset(padX, padY), Offset(padX + w, padY), strokeWidth = 1f, pathEffect = dash)
                 drawLine(
                     IvoryTertiary.copy(alpha = 0.35f),
@@ -1452,10 +1708,9 @@ private fun EqFrequencyResponseCanvas(
                     return padY + ratio * h
                 }
 
-                if (parametricProfile != null && isActive) {
-                    // Exact biquad cascade magnitude response across 20 Hz..20 kHz
+                if (isParametricMode && isActive) {
                     val sampleRate = 48_000
-                    val biquads = parametricProfile.filters
+                    val biquads = peqFilters
                         .filter { it.fc < 0.45 * sampleRate }
                         .map { Biquad.of(it, sampleRate) }
                     val samples = 96
@@ -1464,20 +1719,20 @@ private fun EqFrequencyResponseCanvas(
                     val points = ArrayList<Offset>(samples)
                     for (i in 0 until samples) {
                         val t = i.toFloat() / (samples - 1)
-                        val freq = kotlin.math.exp(logMin + t * (logMax - logMin))
+                        val freq = exp(logMin + t * (logMax - logMin))
                         val w0 = 2.0 * PI * freq / sampleRate
                         val cos1 = cos(w0)
                         val sin1 = sin(w0)
                         val cos2 = cos(2.0 * w0)
                         val sin2 = sin(2.0 * w0)
-                        var totalDb = parametricProfile.preampDb
+                        var totalDb = peqPreampDb
                         for (bq in biquads) {
                             val numRe = bq.b0 + bq.b1 * cos1 + bq.b2 * cos2
                             val numIm = -(bq.b1 * sin1 + bq.b2 * sin2)
                             val denRe = 1.0 + bq.a1 * cos1 + bq.a2 * cos2
                             val denIm = -(bq.a1 * sin1 + bq.a2 * sin2)
-                            val magSq = ((numRe * numRe + numIm * numIm) / (denRe * denRe + denIm * denIm).coerceAtLeast(1e-12))
-                                .coerceAtLeast(1e-12)
+                            val magSq = ((numRe * numRe + numIm * numIm) /
+                                (denRe * denRe + denIm * denIm).coerceAtLeast(1e-12)).coerceAtLeast(1e-12)
                             totalDb += 10.0 * log10(magSq)
                         }
                         points.add(Offset(padX + t * w, dbToY(totalDb.toFloat())))
@@ -1498,7 +1753,7 @@ private fun EqFrequencyResponseCanvas(
                     drawPath(
                         path = fillPath,
                         brush = Brush.verticalGradient(
-                            colors = listOf(StylusBrass.copy(alpha = 0.28f), Color.Transparent),
+                            colors = listOf(MossGreen.copy(alpha = 0.24f), Color.Transparent),
                             startY = padY,
                             endY = padY + h
                         )
@@ -1509,12 +1764,20 @@ private fun EqFrequencyResponseCanvas(
                         style = Stroke(width = 2.4.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
                     )
 
-                    // Draw filter center dots
-                    for (f in parametricProfile.filters) {
+                    peqFilters.forEachIndexed { idx, f ->
                         val normX = ((ln(f.fc.coerceIn(20.0, 20_000.0)) - logMin) / (logMax - logMin)).toFloat()
-                        val dotX = padX + normX * w
-                        val dotY = dbToY((parametricProfile.preampDb + f.gainDb).toFloat())
-                        drawCircle(StylusBrass, radius = 3.2.dp.toPx(), center = Offset(dotX, dotY))
+                        val pt = Offset(padX + normX * w, dbToY((peqPreampDb + f.gainDb).toFloat()))
+                        val selectedHandle = idx == activeDragIndex
+                        drawCircle(
+                            color = DeepBg,
+                            radius = (if (selectedHandle) 7.dp else 5.dp).toPx(),
+                            center = pt
+                        )
+                        drawCircle(
+                            color = if (selectedHandle) StylusBrass else MossGreen,
+                            radius = (if (selectedHandle) 5.5.dp else 3.6.dp).toPx(),
+                            center = pt
+                        )
                     }
                 } else {
                     val count = bandLevelsDb.size.coerceAtLeast(2)
@@ -1554,7 +1817,7 @@ private fun EqFrequencyResponseCanvas(
                         style = Stroke(width = 2.4.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
                     )
                     pts.forEachIndexed { idx, pt ->
-                        val selectedHandle = idx == activeDragBand
+                        val selectedHandle = idx == activeDragIndex
                         drawCircle(
                             color = DeepBg,
                             radius = (if (selectedHandle) 7.dp else 5.5.dp).toPx(),
@@ -1577,9 +1840,9 @@ private fun EqFrequencyResponseCanvas(
                 .padding(horizontal = 10.dp),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            if (parametricProfile != null && isActive) {
+            if (isParametricMode && isActive) {
                 listOf("20Hz", "100Hz", "1kHz", "6kHz", "20kHz").forEach { lbl ->
-                    Text(lbl, color = IvoryTertiary, fontSize = 10.sp, style = TabularStyle)
+                    Text(lbl, color = IvoryTertiary, fontSize = 11.sp, style = TabularStyle)
                 }
             } else {
                 bandFreqsHz.forEachIndexed { idx, freq ->
@@ -1589,17 +1852,52 @@ private fun EqFrequencyResponseCanvas(
                         "${freq}Hz"
                     }
                     val dbVal = if (isActive) bandLevelsDb.getOrElse(idx) { 0f }.roundToInt() else 0
-                    val dbText = if (dbVal > 0) "+$dbVal" else "$dbVal"
+                    val dbText = when {
+                        dbVal > 0 -> "+$dbVal"
+                        dbVal < 0 -> "$UNICODE_MINUS${abs(dbVal)}"
+                        else -> "0"
+                    }
                     Text(
                         text = "$freqText ($dbText)",
                         color = IvoryTertiary,
-                        fontSize = 10.sp,
+                        fontSize = 11.sp,
                         style = TabularStyle,
                     )
                 }
             }
         }
     }
+}
+
+private fun findNearestParametricHandle(
+    offset: Offset,
+    padX: Float,
+    padY: Float,
+    usableW: Float,
+    usableH: Float,
+    minDb: Float,
+    maxDb: Float,
+    preampDb: Double,
+    filters: List<ParametricFilter>,
+): Int {
+    if (filters.isEmpty()) return -1
+    val logMin = ln(20.0)
+    val logMax = ln(20_000.0)
+    var bestIdx = 0
+    var bestScore = Float.MAX_VALUE
+    filters.forEachIndexed { idx, f ->
+        val normX = ((ln(f.fc.coerceIn(20.0, 20_000.0)) - logMin) / (logMax - logMin)).toFloat()
+        val hx = padX + normX * usableW
+        val clampedDb = (preampDb + f.gainDb).toFloat().coerceIn(minDb, maxDb)
+        val hy = padY + ((maxDb - clampedDb) / (maxDb - minDb)) * usableH
+        // Weight horizontal distance higher so vertically dragging a node tracks the intended frequency band
+        val score = hypot((offset.x - hx) * 1.6f, (offset.y - hy) * 0.65f)
+        if (score < bestScore) {
+            bestScore = score
+            bestIdx = idx
+        }
+    }
+    return bestIdx
 }
 
 // ============================================================================
@@ -1613,18 +1911,22 @@ fun OutputRouteSheet(
     onDismiss: () -> Unit,
 ) {
     val context = LocalContext.current
+    val appContext = context.applicationContext
     val activity = context as? FragmentActivity
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     var prefTick by remember { mutableIntStateOf(0) }
+    var audioDeviceTick by remember { mutableIntStateOf(0) }
     var lanEnabled by remember(prefTick) { mutableStateOf(Preferences.isLanRemoteEnabled()) }
     var upnpEnabled by remember(prefTick) { mutableStateOf(Preferences.isUpnpEnabled()) }
     var lanState by remember { mutableStateOf(LanRemoteSession.current()) }
 
-    DisposableEffect(Unit) {
+    DisposableEffect(appContext) {
         val prefs = App.getInstance().preferences
-        val prefListener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
-            prefTick++
+        val prefListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+            if (key == null || key in OUTPUT_SHEET_PREF_KEYS) {
+                prefTick++
+            }
         }
         prefs.registerOnSharedPreferenceChangeListener(prefListener)
 
@@ -1633,23 +1935,37 @@ fun OutputRouteSheet(
         }
         LanRemoteSession.state().observeForever(lanObserver)
 
+        val am = appContext.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+        val devCallback = object : AudioDeviceCallback() {
+            override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>?) {
+                audioDeviceTick++
+            }
+
+            override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>?) {
+                audioDeviceTick++
+            }
+        }
+        am?.registerAudioDeviceCallback(devCallback, Handler(Looper.getMainLooper()))
+
         onDispose {
             prefs.unregisterOnSharedPreferenceChangeListener(prefListener)
             LanRemoteSession.state().removeObserver(lanObserver)
+            am?.unregisterAudioDeviceCallback(devCallback)
         }
     }
 
-    // Live NSD Discovery for Tempus LAN (_tempus-lan._tcp.) while sheet is open & LAN enabled
+    // Live NSD Discovery for Tempus LAN (_tempus-lan._tcp.) with 8s empty-network timeout
     val lanPeers = remember { mutableStateMapOf<String, NsdServiceInfo>() }
     var lanScanning by remember { mutableStateOf(false) }
+    var lanScanTimedOut by remember { mutableStateOf(false) }
     var lanResolvingName by remember { mutableStateOf<String?>(null) }
 
-    val hasPairedReceivers = remember(prefTick, lanState) {
-        runCatching {
-            LanReceiverService.prefs(context.applicationContext)
-                .getStringSet("receivers", emptySet())
-                ?.isNotEmpty() == true
-        }.getOrDefault(false)
+    LaunchedEffect(lanEnabled) {
+        lanScanTimedOut = false
+        if (lanEnabled) {
+            delay(DISCOVERY_SCAN_TIMEOUT_MS)
+            lanScanTimedOut = true
+        }
     }
 
     DisposableEffect(lanEnabled) {
@@ -1659,15 +1975,15 @@ fun OutputRouteSheet(
             return@DisposableEffect onDispose { }
         }
         if (Build.VERSION.SDK_INT >= 37 &&
-            context.checkSelfPermission("android.permission.ACCESS_LOCAL_NETWORK") != PackageManager.PERMISSION_GRANTED
+            appContext.checkSelfPermission("android.permission.ACCESS_LOCAL_NETWORK") != PackageManager.PERMISSION_GRANTED
         ) {
             lanScanning = false
             return@DisposableEffect onDispose { }
         }
-        val nsd = context.getSystemService(Context.NSD_SERVICE) as? NsdManager
+        val nsd = appContext.getSystemService(Context.NSD_SERVICE) as? NsdManager
             ?: return@DisposableEffect onDispose { }
         val main = Handler(Looper.getMainLooper())
-        val ownReceiverName = runCatching { LanReceiverService.name(context.applicationContext) }.getOrNull()
+        val ownReceiverName = runCatching { LanReceiverService.name(appContext) }.getOrNull()
         val discoveryListener = object : NsdManager.DiscoveryListener {
             override fun onDiscoveryStarted(regType: String) {
                 main.post { lanScanning = true }
@@ -1706,13 +2022,22 @@ fun OutputRouteSheet(
         }
     }
 
-    // Live MediaRouter discovery for UPnP / DLNA + Chromecast (cross-flavor safe!)
-    val castAvailable = remember(context) { !Flavors.routeButtonIsOnlyForUpnp(context) }
-    val castSelector = remember(context, castAvailable) {
-        if (castAvailable) PlayerSheets.resolveCastRouteSelector(context) else null
+    // Live MediaRouter discovery for UPnP / DLNA + Chromecast via cross-flavor Flavors helper (zero reflection!)
+    var upnpScanTimedOut by remember { mutableStateOf(false) }
+    LaunchedEffect(upnpEnabled) {
+        upnpScanTimedOut = false
+        if (upnpEnabled) {
+            delay(DISCOVERY_SCAN_TIMEOUT_MS)
+            upnpScanTimedOut = true
+        }
+    }
+
+    val castAvailable = remember(appContext) { !Flavors.routeButtonIsOnlyForUpnp(appContext) }
+    val castSelector = remember(appContext, castAvailable) {
+        if (castAvailable) Flavors.castRouteSelector(appContext) else null
     }
     var routeRevision by remember { mutableIntStateOf(0) }
-    val mediaRouter = remember(context) { MediaRouter.getInstance(context) }
+    val mediaRouter = remember(appContext) { MediaRouter.getInstance(appContext) }
 
     DisposableEffect(mediaRouter, upnpEnabled, castSelector) {
         val builder = MediaRouteSelector.Builder()
@@ -1759,14 +2084,13 @@ fun OutputRouteSheet(
         }
     }
 
-    // MediaBrowser for UPnP remote volume (UpnpPlayer exposes device volume via MediaSession)
+    // MediaBrowser for UPnP remote volume
     var browser by remember { mutableStateOf<MediaBrowser?>(null) }
     var browserVolumeTick by remember { mutableIntStateOf(0) }
-    DisposableEffect(context) {
-        val appCtx = context.applicationContext
+    DisposableEffect(appContext) {
         val future = MediaBrowser.Builder(
-            appCtx,
-            SessionToken(appCtx, ComponentName(appCtx, MediaService::class.java))
+            appContext,
+            SessionToken(appContext, ComponentName(appContext, MediaService::class.java))
         ).buildAsync()
         val listener = object : Player.Listener {
             override fun onDeviceVolumeChanged(volume: Int, muted: Boolean) {
@@ -1818,8 +2142,8 @@ fun OutputRouteSheet(
     val isMediaRouteRemote = !selectedMediaRoute.isDefault &&
         selectedMediaRoute.playbackType == MediaRouter.RouteInfo.PLAYBACK_TYPE_REMOTE
     val isLocalActive = !lanState.active && !isMediaRouteRemote
-    val localHardwareDesc = remember(routeRevision) {
-        PlayerSheets.describeLocalAudioDevice(context)
+    val localHardwareDesc = remember(routeRevision, audioDeviceTick) {
+        PlayerSheets.describeLocalAudioDevice(appContext)
     }
 
     val navBottomPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
@@ -1850,7 +2174,7 @@ fun OutputRouteSheet(
                 Text(
                     text = stringResource(R.string.editorial_output_sheet_subtitle),
                     color = IvorySecondary,
-                    fontSize = 12.sp,
+                    fontSize = 13.sp,
                 )
             }
 
@@ -1885,15 +2209,15 @@ fun OutputRouteSheet(
                     Text(
                         text = stringResource(R.string.editorial_output_lan_pair_manage),
                         color = StylusBrass,
-                        fontSize = 12.sp,
+                        fontSize = 13.sp,
                         fontWeight = FontWeight.Medium,
                         modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
+                            .clip(RoundedCornerShape(6.dp))
                             .clickable {
                                 if (!Preferences.isLanRemoteEnabled()) {
-                                    App.getInstance().preferences.edit()
-                                        .putBoolean(Preferences.LAN_REMOTE_ENABLED, true)
-                                        .apply()
+                                    App.getInstance().preferences.edit {
+                                        putBoolean(Preferences.LAN_REMOTE_ENABLED, true)
+                                    }
                                 }
                                 activity?.startActivity(Intent(activity, LanPlaybackActivity::class.java))
                                 onDismiss()
@@ -1908,15 +2232,15 @@ fun OutputRouteSheet(
                     description = stringResource(R.string.editorial_output_lan_disabled_desc),
                     actionLabel = stringResource(R.string.editorial_output_lan_enable_action),
                     onEnable = {
-                        App.getInstance().preferences.edit()
-                            .putBoolean(Preferences.LAN_REMOTE_ENABLED, true)
-                            .apply()
+                        App.getInstance().preferences.edit {
+                            putBoolean(Preferences.LAN_REMOTE_ENABLED, true)
+                        }
                         lanEnabled = true
                     }
                 )
             } else {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    // Active LAN session card (shown even if NSD hasn't re-reported it yet)
+                    // Active LAN session card: show Ed25519 Verified ONLY when live TLS peer verification succeeded!
                     if (lanState.active) {
                         val statusSub = when {
                             lanState.error != 0 -> stringResource(lanState.error)
@@ -1928,7 +2252,7 @@ fun OutputRouteSheet(
                             title = lanState.name.ifBlank { stringResource(R.string.player_remote_output) },
                             subtitle = statusSub,
                             selected = true,
-                            verifiedShieldText = if (lanState.connected || hasPairedReceivers) {
+                            verifiedShieldText = if (lanState.connected) {
                                 stringResource(R.string.editorial_output_lan_verified)
                             } else null,
                             trailingActionText = stringResource(R.string.editorial_output_lan_disconnect),
@@ -1937,10 +2261,11 @@ fun OutputRouteSheet(
                         )
                     }
 
-                    // Discovered LAN peers excluding the currently active session name
+                    // Discovered LAN peers: unauthenticated NSD broadcasts carry NO Ed25519 shield!
                     val extraPeers = lanPeers.values.filter { peer ->
                         !lanState.active || peer.serviceName != lanState.name
                     }
+                    val discoveredSubtitle = stringResource(R.string.editorial_output_lan_discovered_subtitle)
                     extraPeers.forEach { serviceInfo ->
                         val isResolvingThis = lanResolvingName == serviceInfo.serviceName
                         RouteSelectableCard(
@@ -1949,15 +2274,13 @@ fun OutputRouteSheet(
                             subtitle = if (isResolvingThis) {
                                 stringResource(R.string.editorial_output_lan_connecting)
                             } else {
-                                "Tempus LAN · TLS 1.3"
+                                discoveredSubtitle
                             },
                             selected = false,
-                            verifiedShieldText = if (hasPairedReceivers) {
-                                stringResource(R.string.editorial_output_lan_verified)
-                            } else null,
+                            verifiedShieldText = null,
                             onClick = {
                                 if (lanResolvingName != null) return@RouteSelectableCard
-                                val nsd = context.getSystemService(Context.NSD_SERVICE) as? NsdManager
+                                val nsd = appContext.getSystemService(Context.NSD_SERVICE) as? NsdManager
                                     ?: return@RouteSelectableCard
                                 val main = Handler(Looper.getMainLooper())
                                 lanResolvingName = serviceInfo.serviceName
@@ -1970,21 +2293,21 @@ fun OutputRouteSheet(
                                         override fun onResolveFailed(failedInfo: NsdServiceInfo, errorCode: Int) {
                                             main.post {
                                                 lanResolvingName = null
-                                                Toast.makeText(context, R.string.lan_connection_error, Toast.LENGTH_SHORT).show()
+                                                Toast.makeText(appContext, R.string.lan_connection_error, Toast.LENGTH_SHORT).show()
                                             }
                                         }
 
                                         override fun onServiceResolved(resolved: NsdServiceInfo) {
                                             main.post {
                                                 lanResolvingName = null
-                                                LanRemoteSession.connect(context.applicationContext, resolved)
+                                                LanRemoteSession.connect(appContext, resolved)
                                             }
                                         }
                                     })
                                 } catch (e: Exception) {
                                     lanResolvingName = null
                                     LanDiagnostics.record("OutputRouteSheet could not resolve LAN device", e)
-                                    Toast.makeText(context, R.string.lan_connection_error, Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(appContext, R.string.lan_connection_error, Toast.LENGTH_SHORT).show()
                                 }
                             }
                         )
@@ -1992,7 +2315,7 @@ fun OutputRouteSheet(
 
                     if (!lanState.active && extraPeers.isEmpty()) {
                         ScanningOrEmptyHint(
-                            scanning = lanScanning,
+                            scanning = lanScanning && !lanScanTimedOut,
                             scanningText = stringResource(R.string.editorial_output_lan_searching),
                             emptyText = stringResource(R.string.editorial_output_lan_empty),
                         )
@@ -2007,26 +2330,27 @@ fun OutputRouteSheet(
                     description = stringResource(R.string.editorial_output_upnp_disabled_desc),
                     actionLabel = stringResource(R.string.editorial_output_upnp_enable_action),
                     onEnable = {
-                        App.getInstance().preferences.edit()
-                            .putBoolean(Preferences.UPNP_ENABLED, true)
-                            .apply()
+                        App.getInstance().preferences.edit {
+                            putBoolean(Preferences.UPNP_ENABLED, true)
+                        }
                         upnpEnabled = true
                     }
                 )
             } else if (upnpRoutes.isEmpty()) {
                 ScanningOrEmptyHint(
-                    scanning = true,
+                    scanning = !upnpScanTimedOut,
                     scanningText = stringResource(R.string.editorial_output_upnp_searching),
                     emptyText = stringResource(R.string.editorial_output_upnp_empty),
                 )
             } else {
+                val upnpDefaultSubtitle = stringResource(R.string.editorial_output_upnp_default_subtitle)
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     upnpRoutes.forEach { route ->
                         val isSelected = selectedMediaRoute.id == route.id && !lanState.active
                         RouteSelectableCard(
                             iconRes = R.drawable.ic_lan_remote,
                             title = route.name,
-                            subtitle = route.description?.takeIf { it.isNotBlank() } ?: "UPnP / DLNA AVTransport",
+                            subtitle = route.description?.takeIf { it.isNotBlank() } ?: upnpDefaultSubtitle,
                             selected = isSelected,
                             badgeText = if (isSelected) stringResource(R.string.editorial_output_active_tag) else null,
                             badgeColor = MossGreen,
@@ -2051,7 +2375,7 @@ fun OutputRouteSheet(
                 }
             }
 
-            // 4. CHROMECAST (Shown ONLY on tempus flavor when Google Play Services is available)
+            // 4. CHROMECAST (Shown ONLY on tempus flavor when Google Play Services + CastContext are available)
             if (castAvailable && castSelector != null) {
                 RouteGroupHeader(stringResource(R.string.editorial_output_group_cast))
                 if (castRoutes.isEmpty()) {
@@ -2061,13 +2385,14 @@ fun OutputRouteSheet(
                         emptyText = stringResource(R.string.editorial_output_cast_empty),
                     )
                 } else {
+                    val castDefaultSubtitle = stringResource(R.string.editorial_output_cast_default_subtitle)
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         castRoutes.forEach { route ->
                             val isSelected = selectedMediaRoute.id == route.id && !lanState.active
                             RouteSelectableCard(
                                 iconRes = R.drawable.ic_speaker,
                                 title = route.name,
-                                subtitle = route.description?.takeIf { it.isNotBlank() } ?: "Google Cast",
+                                subtitle = route.description?.takeIf { it.isNotBlank() } ?: castDefaultSubtitle,
                                 selected = isSelected,
                                 badgeText = if (isSelected) stringResource(R.string.editorial_output_active_tag) else null,
                                 badgeColor = StylusBrass,
@@ -2136,7 +2461,7 @@ fun OutputRouteSheet(
                         Text(
                             text = "$pct%",
                             color = StylusBrass,
-                            fontSize = 12.sp,
+                            fontSize = 13.sp,
                             fontWeight = FontWeight.SemiBold,
                             style = TabularStyle,
                         )
@@ -2210,7 +2535,7 @@ private fun resolveRemoteVolumeModel(
 }
 
 // ============================================================================
-// SHARED EDITORIAL WARM DARK COMPOSABLES & HELPERS
+// SHARED EDITORIAL WARM DARK COMPOSABLES & NON-COMPOSABLE HELPERS
 // ============================================================================
 
 @Composable
@@ -2246,7 +2571,7 @@ private fun EditorialChip(
         Text(
             text = label,
             color = if (selected) StylusBrass else IvorySecondary,
-            fontSize = 12.sp,
+            fontSize = 13.sp,
             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
             modifier = Modifier.padding(horizontal = 13.dp, vertical = 7.dp),
             maxLines = 1,
@@ -2319,7 +2644,7 @@ private fun RouteSelectableCard(
                     Text(
                         text = title,
                         color = if (selected) StylusBrass else Ivory,
-                        fontSize = 14.sp,
+                        fontSize = 15.sp,
                         fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -2335,9 +2660,9 @@ private fun RouteSelectableCard(
                             horizontalArrangement = Arrangement.spacedBy(3.dp)
                         ) {
                             Text(
-                                text = "🛡 $verifiedShieldText",
+                                text = verifiedShieldText,
                                 color = MossGreen,
-                                fontSize = 10.sp,
+                                fontSize = 11.sp,
                                 fontWeight = FontWeight.Medium,
                             )
                         }
@@ -2347,7 +2672,7 @@ private fun RouteSelectableCard(
                     Text(
                         text = subtitle,
                         color = IvorySecondary,
-                        fontSize = 12.sp,
+                        fontSize = 13.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -2399,7 +2724,7 @@ private fun InlineFeatureEnableCard(
         Text(
             text = description,
             color = IvorySecondary,
-            fontSize = 12.sp,
+            fontSize = 13.sp,
         )
         Surface(
             onClick = onEnable,
@@ -2410,7 +2735,7 @@ private fun InlineFeatureEnableCard(
             Text(
                 text = actionLabel,
                 color = StylusBrass,
-                fontSize = 12.sp,
+                fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
             )
@@ -2443,13 +2768,13 @@ private fun ScanningOrEmptyHint(
             Text(
                 text = scanningText,
                 color = IvorySecondary,
-                fontSize = 12.sp,
+                fontSize = 13.sp,
             )
         } else {
             Text(
                 text = emptyText,
                 color = IvoryTertiary,
-                fontSize = 12.sp,
+                fontSize = 13.sp,
             )
         }
     }
@@ -2474,24 +2799,74 @@ private fun editorialSliderColors() = SliderDefaults.colors(
     inactiveTickColor = Color.Transparent,
 )
 
+private data class SourceSignalNodeInfo(
+    val codec: String,
+    val rateDetail: String?,
+    val isLossless: Boolean,
+    val isHiRes: Boolean,
+)
+
+private data class AutoEqImportResult(
+    val rawText: String,
+    val displayName: String,
+    val profile: ParametricProfile,
+)
+
+private fun readAutoEqImport(appContext: Context, uri: Uri): AutoEqImportResult? {
+    val rawText = runCatching {
+        appContext.contentResolver.openInputStream(uri)
+            ?.bufferedReader(Charsets.UTF_8)
+            ?.use { it.readText() }
+    }.getOrNull() ?: return null
+    val parsed = ParametricProfile.parse(rawText) ?: return null
+    val displayName = resolveDocumentName(appContext, uri)
+        ?.removeSuffix(".txt")
+        ?.takeIf { it.isNotBlank() }
+        ?: appContext.getString(R.string.editorial_badge_eq_autoeq)
+    return AutoEqImportResult(rawText = rawText, displayName = displayName, profile = parsed)
+}
+
+private fun showAutoEqImportSuccessToast(appContext: Context, displayName: String) {
+    Toast.makeText(
+        appContext,
+        appContext.getString(R.string.editorial_eq_import_success, displayName),
+        Toast.LENGTH_SHORT
+    ).show()
+}
+
+@OptIn(UnstableApi::class)
+private fun resolveDecoderSignalLabel(
+    appContext: Context,
+    browser: MediaBrowser?,
+    isRemoteOutput: Boolean,
+): String {
+    if (isRemoteOutput) {
+        return appContext.getString(R.string.editorial_signal_val_remote_decode)
+    }
+    if (browser?.currentMediaItem == null) return "—"
+    val format = MusicUtil.getCurrentAudioFormat(browser)
+    if (format?.sampleMimeType == MimeTypes.AUDIO_RAW) return "PCM"
+    return if (DownloadUtil.useExtensionRenderers()) "FFmpeg" else "MediaCodec"
+}
+
 @OptIn(UnstableApi::class)
 private fun resolveSourceSignalNode(
-    context: Context,
+    appContext: Context,
     browser: MediaBrowser?,
     lanState: LanRemoteState,
-): Triple<String, String?, Boolean> {
+): SourceSignalNodeInfo {
     if (lanState.active) {
         val song = LanRemoteSession.currentSong()
         val ext = song.suffix?.uppercase(Locale.ROOT)?.takeIf { it.isNotBlank() } ?: "STREAM"
         val br = song.bitrate?.takeIf { it > 0 }?.let { "$it kbps" }
-        val lossless = isLosslessCodec(ext)
-        return Triple(ext, br, lossless)
+        val lossless = PlayerSheets.isLosslessCodec(ext)
+        return SourceSignalNodeInfo(codec = ext, rateDetail = br, isLossless = lossless, isHiRes = false)
     }
     val extras = browser?.mediaMetadata?.extras
     val format: Format? = MusicUtil.getCurrentAudioFormat(browser)
     val mimeLabel = format?.sampleMimeType?.let { MusicUtil.audioFormatLabel(it) }?.takeIf { it.isNotBlank() }
     val rawSuffix = extras?.getString("suffix")?.takeIf { it.isNotBlank() }
-    val codec = (mimeLabel ?: rawSuffix ?: context.getString(R.string.player_unknown_format)).uppercase(Locale.ROOT)
+    val codec = (mimeLabel ?: rawSuffix ?: appContext.getString(R.string.player_unknown_format)).uppercase(Locale.ROOT)
 
     val bitDepth = extras?.getInt("bitDepth", 0) ?: 0
     val sampleRateHz = extras?.getInt("samplingRate", 0)?.takeIf { it > 0 }
@@ -2513,43 +2888,30 @@ private fun resolveSourceSignalNode(
         bitrateKbps > 0 -> "${bitrateKbps}kbps"
         else -> null
     }
-    val lossless = isLosslessCodec(codec) || bitDepth >= 24 || sampleRateHz > 48_000
-    return Triple(codec, detail, lossless)
+    val lossless = PlayerSheets.isLosslessCodec(codec)
+    val hiRes = PlayerSheets.isHiResAudio(bitDepth, sampleRateHz)
+    return SourceSignalNodeInfo(codec = codec, rateDetail = detail, isLossless = lossless, isHiRes = hiRes)
 }
 
 private fun resolveReplayGainShortLabel(
-    context: Context,
+    appContext: Context,
     rgMode: String,
     extras: Bundle?,
 ): String {
-    if (rgMode == "disabled") return context.getString(R.string.editorial_signal_val_off)
+    if (rgMode == "disabled") return appContext.getString(R.string.editorial_signal_val_off)
     val info = ReplayGainBundleUtil.fromBundle(extras)
     val gainVal = when (rgMode) {
         "album" -> info?.albumGain ?: info?.trackGain ?: info?.fallbackGain
         else -> info?.trackGain ?: info?.albumGain ?: info?.fallbackGain
     }
     if (gainVal != null && gainVal != 0f) {
-        return String.format(Locale.US, "%+.1f dB", gainVal)
+        return PlayerSheets.formatSignedDb(gainVal, decimals = 1)
     }
     return when (rgMode) {
-        "track" -> context.getString(R.string.editorial_rg_mode_track)
-        "album" -> context.getString(R.string.editorial_rg_mode_album)
-        else -> context.getString(R.string.editorial_rg_mode_auto)
+        "track" -> appContext.getString(R.string.editorial_rg_mode_track)
+        "album" -> appContext.getString(R.string.editorial_rg_mode_album)
+        else -> appContext.getString(R.string.editorial_rg_mode_auto)
     }
-}
-
-internal fun isLosslessCodec(codecUpper: String): Boolean {
-    val clean = codecUpper.uppercase(Locale.ROOT)
-    return clean.contains("FLAC") ||
-        clean.contains("ALAC") ||
-        clean.contains("WAV") ||
-        clean.contains("PCM") ||
-        clean.contains("AIFF") ||
-        clean.contains("APE") ||
-        clean.contains("WV") ||
-        clean.contains("DSD") ||
-        clean.contains("DFF") ||
-        clean.contains("DSF")
 }
 
 private fun resolveDocumentName(context: Context, uri: Uri): String? {

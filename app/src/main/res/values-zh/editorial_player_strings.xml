@@ -17,12 +17,13 @@
     <string name="editorial_badge_rg_track">RG 单曲</string>
     <string name="editorial_badge_rg_album">RG 专辑</string>
     <string name="editorial_badge_rg_auto">RG 智能</string>
-    <string name="editorial_badge_rg_db">RG %1$s dB</string>
+    <string name="editorial_badge_rg_db">RG %1$s</string>
     <string name="editorial_badge_transcoded">%1$s · 转码</string>
 
-    <!-- Overflow shortcuts -->
+    <!-- Accessibility & overflow labels -->
     <string name="editorial_menu_signal_and_sound">信号链与音效</string>
     <string name="editorial_menu_output_route">音频输出路由</string>
+    <string name="editorial_menu_rate_track">歌曲评分</string>
 
     <!-- Sheet A: Signal & Sound -->
     <string name="editorial_signal_sheet_title">信号链与声学调校</string>
@@ -43,13 +44,13 @@
     <string name="editorial_eq_preset_bass">低频下潜</string>
     <string name="editorial_eq_preset_classical">古典厅堂</string>
     <string name="editorial_eq_preset_live">现场声场</string>
-    <string name="editorial_eq_preset_custom">自定义 5 段</string>
+    <string name="editorial_eq_autoeq_chip">AutoEq · %1$s</string>
     <string name="editorial_eq_import_autoeq">导入 AutoEq (.txt)</string>
     <string name="editorial_eq_open_full">打开完整均衡器 / AutoEq 导入</string>
     <string name="editorial_eq_import_success">已加载 AutoEq 配置：%1$s</string>
     <string name="editorial_eq_import_failed">无法解析参数均衡文件（请使用 AutoEq ParametricEQ.txt 格式）</string>
     <string name="editorial_eq_drag_hint">在曲线上上下拖动频段节点可实时调节内置均衡</string>
-    <string name="editorial_eq_autoeq_summary">参数化 %1$d 段滤波 · 预放 %2$s dB</string>
+    <string name="editorial_eq_drag_autoeq_hint">拖动曲线上的滤波节点可微调 AutoEq（%1$d 段 · 预放 %2$s）</string>
 
     <string name="editorial_rg_section_title">ReplayGain 响度均衡</string>
     <string name="editorial_rg_mode_off">关闭</string>
@@ -69,6 +70,7 @@
     <string name="editorial_sleep_45m">45分</string>
     <string name="editorial_sleep_60m">60分</string>
     <string name="editorial_sleep_eot">播完当前曲</string>
+    <string name="editorial_sleep_eot_short">播完停</string>
     <string name="editorial_sleep_active_countdown">剩余 %1$s</string>
 
     <!-- Sheet B: Output Route -->
@@ -85,7 +87,8 @@
     <string name="editorial_output_lan_disabled_desc">通过局域网发现其他 Tempus 客户端，双向投送队列与无损遥控播放。</string>
     <string name="editorial_output_lan_enable_action">启用局域网遥控</string>
     <string name="editorial_output_lan_searching">正在扫描同一 Wi-Fi 下的 Tempus 设备…</string>
-    <string name="editorial_output_lan_empty">暂未发现同一局域网下的其他 Tempus 接收端</string>
+    <string name="editorial_output_lan_empty">当前网络未发现其他 Tempus 接收端</string>
+    <string name="editorial_output_lan_discovered_subtitle">Tempus 局域网接收端</string>
     <string name="editorial_output_lan_verified">Ed25519 已验证</string>
     <string name="editorial_output_lan_pair_manage">配对管理</string>
     <string name="editorial_output_lan_disconnect">断开</string>
@@ -96,10 +99,12 @@
     <string name="editorial_output_upnp_disabled_desc">扫描局域网 UPnP / DLNA 数播、音响与无损渲染器。</string>
     <string name="editorial_output_upnp_enable_action">启用 UPnP / DLNA</string>
     <string name="editorial_output_upnp_searching">正在搜索 UPnP / DLNA 渲染器…</string>
-    <string name="editorial_output_upnp_empty">暂未发现 UPnP / DLNA 渲染器</string>
+    <string name="editorial_output_upnp_empty">当前网络未发现 UPnP / DLNA 渲染器</string>
+    <string name="editorial_output_upnp_default_subtitle">UPnP / DLNA 媒体渲染器</string>
 
     <string name="editorial_output_group_cast">Chromecast</string>
-    <string name="editorial_output_cast_empty">当前网络未发现可用 Chromecast 设备</string>
+    <string name="editorial_output_cast_empty">当前网络未发现可用 Cast 音频设备</string>
+    <string name="editorial_output_cast_default_subtitle">Cast 音频接收端</string>
 
     <string name="editorial_output_remote_volume">远端音量</string>
 </resources>

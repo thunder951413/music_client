@@ -3,7 +3,9 @@ package com.eddyizm.tempus.util;
 import android.content.Context;
 import android.view.Menu;
 
+import androidx.annotation.Nullable;
 import androidx.core.content.ContextCompat;
+import androidx.mediarouter.media.MediaRouteSelector;
 
 import com.eddyizm.tempus.R;
 import com.google.android.gms.cast.framework.CastButtonFactory;
@@ -25,5 +27,18 @@ public class Flavors {
     /** The button still offers Cast with UPnP turned off, unless Play services are missing and Cast never started. */
     public static boolean routeButtonIsOnlyForUpnp(Context context) {
         return GoogleApiAvailability.getInstance().isGooglePlayServicesAvailable(context) != ConnectionResult.SUCCESS;
+    }
+
+    @Nullable
+    public static MediaRouteSelector castRouteSelector(Context context) {
+        if (GoogleApiAvailability.getInstance().isGooglePlayServicesAvailable(context) != ConnectionResult.SUCCESS) {
+            return null;
+        }
+        try {
+            CastContext shared = CastContext.getSharedInstance();
+            return shared != null ? shared.getMergedSelector() : null;
+        } catch (Exception ignored) {
+            return null;
+        }
     }
 }

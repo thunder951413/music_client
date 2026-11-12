@@ -17,12 +17,13 @@
     <string name="editorial_badge_rg_track">RG Track</string>
     <string name="editorial_badge_rg_album">RG Album</string>
     <string name="editorial_badge_rg_auto">RG Smart</string>
-    <string name="editorial_badge_rg_db">RG %1$s dB</string>
+    <string name="editorial_badge_rg_db">RG %1$s</string>
     <string name="editorial_badge_transcoded">%1$s · Transcode</string>
 
-    <!-- Overflow shortcuts -->
+    <!-- Accessibility & overflow labels -->
     <string name="editorial_menu_signal_and_sound">Signal &amp; Sound</string>
     <string name="editorial_menu_output_route">Audio Output</string>
+    <string name="editorial_menu_rate_track">Rate Track</string>
 
     <!-- Sheet A: Signal & Sound -->
     <string name="editorial_signal_sheet_title">Signal Chain &amp; Sound</string>
@@ -43,13 +44,13 @@
     <string name="editorial_eq_preset_bass">Warm Bass</string>
     <string name="editorial_eq_preset_classical">Classical</string>
     <string name="editorial_eq_preset_live">Live Stage</string>
-    <string name="editorial_eq_preset_custom">Custom 5-Band</string>
+    <string name="editorial_eq_autoeq_chip">AutoEq · %1$s</string>
     <string name="editorial_eq_import_autoeq">Import AutoEq (.txt)</string>
     <string name="editorial_eq_open_full">Open Full Equalizer / AutoEq</string>
     <string name="editorial_eq_import_success">Loaded AutoEq profile: %1$s</string>
     <string name="editorial_eq_import_failed">Invalid Parametric EQ file (check AutoEq ParametricEQ.txt format)</string>
     <string name="editorial_eq_drag_hint">Drag band nodes on the curve to sculpt built-in EQ</string>
-    <string name="editorial_eq_autoeq_summary">Parametric %1$d-band filter · Preamp %2$s dB</string>
+    <string name="editorial_eq_drag_autoeq_hint">Drag filter nodes on the curve to fine-tune AutoEq (%1$d bands · Preamp %2$s)</string>
 
     <string name="editorial_rg_section_title">ReplayGain Loudness</string>
     <string name="editorial_rg_mode_off">Off</string>
@@ -69,6 +70,7 @@
     <string name="editorial_sleep_45m">45m</string>
     <string name="editorial_sleep_60m">60m</string>
     <string name="editorial_sleep_eot">End of Track</string>
+    <string name="editorial_sleep_eot_short">End</string>
     <string name="editorial_sleep_active_countdown">Remaining %1$s</string>
 
     <!-- Sheet B: Output Route -->
@@ -85,7 +87,8 @@
     <string name="editorial_output_lan_disabled_desc">Control and cast bit-perfect queues to another Tempus device on your Wi-Fi.</string>
     <string name="editorial_output_lan_enable_action">Enable LAN Remote</string>
     <string name="editorial_output_lan_searching">Scanning _tempus-lan._tcp on local Wi-Fi…</string>
-    <string name="editorial_output_lan_empty">No other Tempus receivers found on this network yet</string>
+    <string name="editorial_output_lan_empty">No other Tempus receivers found on this network</string>
+    <string name="editorial_output_lan_discovered_subtitle">Tempus LAN Receiver</string>
     <string name="editorial_output_lan_verified">Ed25519 Verified</string>
     <string name="editorial_output_lan_pair_manage">Manage Pairing</string>
     <string name="editorial_output_lan_disconnect">Disconnect</string>
@@ -96,10 +99,12 @@
     <string name="editorial_output_upnp_disabled_desc">Discover lossless UPnP / DLNA network streamers on Wi-Fi.</string>
     <string name="editorial_output_upnp_enable_action">Enable UPnP / DLNA</string>
     <string name="editorial_output_upnp_searching">Scanning SSDP media renderers…</string>
-    <string name="editorial_output_upnp_empty">No UPnP / DLNA renderers discovered yet</string>
+    <string name="editorial_output_upnp_empty">No UPnP / DLNA renderers discovered on this network</string>
+    <string name="editorial_output_upnp_default_subtitle">UPnP / DLNA Media Renderer</string>
 
     <string name="editorial_output_group_cast">CHROMECAST</string>
-    <string name="editorial_output_cast_empty">No Chromecast devices found on this network</string>
+    <string name="editorial_output_cast_empty">No Cast audio devices found on this network</string>
+    <string name="editorial_output_cast_default_subtitle">Cast Audio Receiver</string>
 
     <string name="editorial_output_remote_volume">Remote Volume</string>
 </resources>

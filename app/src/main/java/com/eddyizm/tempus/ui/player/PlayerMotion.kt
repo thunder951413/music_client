@@ -1,10 +1,16 @@
 package com.eddyizm.tempus.ui.player
 
 import android.animation.ValueAnimator
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.os.PowerManager
+import com.eddyizm.tempus.App
 import java.util.concurrent.CopyOnWriteArraySet
 
 /**
- * Shared playback, visibility, and cover-scheme signals for the immersive player's views.
+ * Shared playback, visibility, power-save, and cover-scheme signals for the immersive player's views.
  *
  * All calls are main-thread only.
  */
@@ -15,6 +21,12 @@ object PlayerMotion {
 
     private val listeners = CopyOnWriteArraySet<Listener>()
 
+    @Volatile
+    private var powerSaveMode: Boolean = false
+
+    @Volatile
+    private var powerObserverRegistered: Boolean = false
+
     @JvmStatic
     var isPlaying: Boolean = false
         private set
@@ -23,12 +35,19 @@ object PlayerMotion {
     var scheme: CoverScheme = CoverScheme.FALLBACK
         private set
 
-    /** False when the system "remove animations" setting is on; animated views then stay still. */
+    /**
+     * False when system animations are disabled OR Battery Saver (`isPowerSaveMode`) is active;
+     * vinyl rotation and aura crossfades then stay completely still.
+     */
     @JvmStatic
     val motionEnabled: Boolean
-        get() = ValueAnimator.areAnimatorsEnabled()
+        get() {
+            ensurePowerSaveObserver()
+            val animatorsOn = runCatching { ValueAnimator.areAnimatorsEnabled() }.getOrDefault(false)
+            return animatorsOn && !powerSaveMode
+        }
 
-    /** True while the cover flies between mini and full player; the disc then hides its label. */
+    /** True while the cover flies between mini and full player; the sleeve hides while in flight. */
     @JvmStatic
     var coverInFlight: Boolean = false
         private set
@@ -38,10 +57,34 @@ object PlayerMotion {
     var sheetExpanded: Boolean = false
         private set
 
-    /** True while the lyrics page is covering the vinyl artwork pager. */
+    /** True while the lyrics page or queue sheet is covering the vinyl artwork pager. */
     @JvmStatic
     var lyricsShowing: Boolean = false
         private set
+
+    private fun ensurePowerSaveObserver() {
+        if (powerObserverRegistered) return
+        runCatching {
+            val app = App.getInstance() ?: return
+            val pm = app.getSystemService(Context.POWER_SERVICE) as? PowerManager ?: return
+            powerSaveMode = pm.isPowerSaveMode
+            val receiver = object : BroadcastReceiver() {
+                override fun onReceive(context: Context?, intent: Intent?) {
+                    val next = pm.isPowerSaveMode
+                    if (powerSaveMode != next) {
+                        powerSaveMode = next
+                        notifyListeners()
+                    }
+                }
+            }
+            app.registerReceiver(
+                receiver,
+                IntentFilter(PowerManager.ACTION_POWER_SAVE_MODE_CHANGED),
+                Context.RECEIVER_NOT_EXPORTED
+            )
+            powerObserverRegistered = true
+        }
+    }
 
     @JvmStatic
     fun setCoverInFlight(flying: Boolean) {
@@ -80,6 +123,7 @@ object PlayerMotion {
 
     @JvmStatic
     fun addListener(listener: Listener) {
+        ensurePowerSaveObserver()
         listeners.add(listener)
     }
 
