@@ -47,13 +47,16 @@ public class CustomGlideRequest {
     }
 
     public static RequestOptions createRequestOptions(Context context, String item, ResourceType type) {
+        int radiusDp = (type == ResourceType.Podcast && Preferences.isCornerRoundingEnabled())
+                ? 10
+                : CustomGlideRequest.CORNER_RADIUS;
         return new RequestOptions()
                 .placeholder(new ColorDrawable(SurfaceColors.SURFACE_5.getColor(context)))
                 .fallback(getPlaceholder(context, type))
                 .error(getPlaceholder(context, type))
                 .diskCacheStrategy(DEFAULT_DISK_CACHE_STRATEGY)
                 .signature(new ObjectKey(item != null ? item : 0))
-                .transform(new CenterCrop(), new RoundedCorners(Math.max(1, Math.round(CustomGlideRequest.CORNER_RADIUS * context.getResources().getDisplayMetrics().density))));
+                .transform(new CenterCrop(), new RoundedCorners(Math.max(1, Math.round(radiusDp * context.getResources().getDisplayMetrics().density))));
     }
 
     @Nullable

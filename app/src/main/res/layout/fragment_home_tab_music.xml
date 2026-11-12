@@ -310,15 +310,16 @@
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:gravity="center_vertical"
                 android:orientation="horizontal"
-                android:paddingStart="8dp"
-                android:paddingTop="16dp"
-                android:paddingEnd="8dp"
+                android:paddingStart="12dp"
+                android:paddingTop="18dp"
+                android:paddingEnd="12dp"
                 android:paddingBottom="8dp">
 
                 <TextView
                     android:id="@+id/discovery_text_view_refreshable"
-                    style="@style/TitleLarge"
+                    style="@style/LibrarySectionTitle"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
@@ -328,7 +329,7 @@
 
                 <TextView
                     android:id="@+id/discovery_text_view_clickable"
-                    style="@style/TitleMedium"
+                    style="@style/LibrarySectionAction"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:paddingStart="8dp"
@@ -342,7 +343,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:clipToPadding="false"
-                android:paddingTop="8dp"
+                android:paddingTop="4dp"
                 android:paddingBottom="8dp" />
         </LinearLayout>
 
@@ -355,7 +356,7 @@
             android:visibility="gone">
 
             <TextView
-                style="@style/TitleLarge"
+                style="@style/LibrarySectionTitle"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:paddingStart="20dp"
@@ -386,18 +387,19 @@
 
             <TextView
                 android:id="@+id/similar_tracks_pre_text_view"
-                style="@style/TitleMedium"
+                style="@style/LibrarySectionEyebrow"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:paddingStart="20dp"
                 android:paddingTop="18dp"
                 android:paddingEnd="20dp"
+                android:paddingBottom="2dp"
                 android:text="@string/home_subtitle_made_for_you"
                 android:textAllCaps="true" />
 
             <TextView
                 android:id="@+id/similar_tracks_text_view_refreshable"
-                style="@style/TitleLarge"
+                style="@style/LibrarySectionTitle"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:paddingStart="20dp"
@@ -428,18 +430,19 @@
 
             <TextView
                 android:id="@+id/most_streamed_song_pre_text_view"
-                style="@style/TitleMedium"
+                style="@style/LibrarySectionEyebrow"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:paddingStart="20dp"
                 android:paddingTop="18dp"
                 android:paddingEnd="20dp"
+                android:paddingBottom="2dp"
                 android:text="@string/home_subtitle_best_of"
                 android:textAllCaps="true" />
 
             <TextView
                 android:id="@+id/best_of_artist_text_view_refreshable"
-                style="@style/TitleLarge"
+                style="@style/LibrarySectionTitle"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:paddingStart="20dp"
@@ -470,33 +473,33 @@
 
             <TextView
                 android:id="@+id/radio_artist_text_view_refreshable"
-                style="@style/TitleLarge"
+                style="@style/LibrarySectionTitle"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:paddingStart="16dp"
-                android:paddingTop="16dp"
-                android:paddingEnd="16dp"
+                android:paddingStart="20dp"
+                android:paddingTop="18dp"
+                android:paddingEnd="20dp"
                 android:text="@string/home_title_radio_station" />
 
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/radio_artist_recycler_view"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:layout_marginBottom="8dp"
+                android:layout_marginTop="6dp"
+                android:layout_marginBottom="6dp"
                 android:clipToPadding="false"
-                android:paddingStart="16dp"
-                android:paddingTop="8dp"
-                android:paddingEnd="8dp"
+                android:paddingStart="20dp"
+                android:paddingTop="4dp"
+                android:paddingEnd="12dp"
                 android:paddingBottom="8dp" />
         </LinearLayout>
 
         <View
             android:id="@+id/after_radio_artist_divider"
             style="@style/Divider"
-            android:layout_marginStart="16dp"
+            android:layout_marginStart="20dp"
             android:layout_marginTop="16dp"
-            android:layout_marginEnd="16dp"
+            android:layout_marginEnd="20dp"
             android:layout_marginBottom="8dp"
             android:visibility="gone"
             tools:visibility="visible" />
@@ -512,32 +515,33 @@
 
             <TextView
                 android:id="@+id/grid_tracks_pre_text_view"
-                style="@style/TitleMedium"
+                style="@style/LibrarySectionEyebrow"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:paddingStart="16dp"
-                android:paddingTop="16dp"
-                android:paddingEnd="16dp"
+                android:paddingStart="20dp"
+                android:paddingTop="18dp"
+                android:paddingEnd="20dp"
+                android:paddingBottom="2dp"
                 android:text="@string/home_title_last_week"
                 android:textAllCaps="true" />
 
             <TextView
                 android:id="@+id/grid_tracks_text_view"
-                style="@style/TitleLarge"
+                style="@style/LibrarySectionTitle"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:paddingStart="16dp"
-                android:paddingEnd="16dp"
+                android:paddingStart="20dp"
+                android:paddingEnd="20dp"
                 android:text="@string/home_title_top_songs" />
 
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/top_songs_recycler_view"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:layout_marginBottom="8dp"
+                android:layout_marginTop="6dp"
+                android:layout_marginBottom="6dp"
                 android:clipToPadding="false"
-                android:paddingTop="8dp"
+                android:paddingTop="4dp"
                 android:paddingBottom="8dp" />
 
         </LinearLayout>
@@ -545,9 +549,9 @@
         <View
             android:id="@+id/after_grid_divider"
             style="@style/Divider"
-            android:layout_marginStart="16dp"
+            android:layout_marginStart="20dp"
             android:layout_marginTop="16dp"
-            android:layout_marginEnd="16dp"
+            android:layout_marginEnd="20dp"
             android:layout_marginBottom="8dp"
             android:visibility="gone"
             tools:visibility="visible" />
@@ -565,15 +569,16 @@
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:gravity="center_vertical"
                 android:orientation="horizontal"
-                android:paddingStart="8dp"
-                android:paddingTop="16dp"
-                android:paddingEnd="8dp"
+                android:paddingStart="12dp"
+                android:paddingTop="18dp"
+                android:paddingEnd="12dp"
                 android:paddingBottom="8dp">
 
                 <TextView
                     android:id="@+id/starred_tracks_text_view_refreshable"
-                    style="@style/TitleLarge"
+                    style="@style/LibrarySectionTitle"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
@@ -583,7 +588,7 @@
 
                 <TextView
                     android:id="@+id/starred_tracks_text_view_clickable"
-                    style="@style/TitleMedium"
+                    style="@style/LibrarySectionAction"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:paddingStart="8dp"
@@ -595,10 +600,10 @@
                 android:id="@+id/starred_tracks_recycler_view"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:layout_marginBottom="8dp"
+                android:layout_marginTop="4dp"
+                android:layout_marginBottom="6dp"
                 android:clipToPadding="false"
-                android:paddingTop="8dp"
+                android:paddingTop="4dp"
                 android:paddingBottom="8dp" />
         </LinearLayout>
 
@@ -615,15 +620,16 @@
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:gravity="center_vertical"
                 android:orientation="horizontal"
-                android:paddingStart="8dp"
-                android:paddingTop="16dp"
-                android:paddingEnd="8dp"
+                android:paddingStart="12dp"
+                android:paddingTop="18dp"
+                android:paddingEnd="12dp"
                 android:paddingBottom="8dp">
 
                 <TextView
                     android:id="@+id/starred_albums_text_view_refreshable"
-                    style="@style/TitleLarge"
+                    style="@style/LibrarySectionTitle"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
@@ -633,7 +639,7 @@
 
                 <TextView
                     android:id="@+id/starred_albums_text_view_clickable"
-                    style="@style/TitleMedium"
+                    style="@style/LibrarySectionAction"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:paddingStart="8dp"
@@ -645,10 +651,10 @@
                 android:id="@+id/starred_albums_recycler_view"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:layout_marginBottom="8dp"
+                android:layout_marginTop="4dp"
+                android:layout_marginBottom="6dp"
                 android:clipToPadding="false"
-                android:paddingTop="8dp"
+                android:paddingTop="4dp"
                 android:paddingBottom="8dp" />
         </LinearLayout>
 
@@ -665,15 +671,16 @@
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:gravity="center_vertical"
                 android:orientation="horizontal"
-                android:paddingStart="8dp"
-                android:paddingTop="16dp"
-                android:paddingEnd="8dp"
+                android:paddingStart="12dp"
+                android:paddingTop="18dp"
+                android:paddingEnd="12dp"
                 android:paddingBottom="8dp">
 
                 <TextView
                     android:id="@+id/starred_artists_text_view_refreshable"
-                    style="@style/TitleLarge"
+                    style="@style/LibrarySectionTitle"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
@@ -683,7 +690,7 @@
 
                 <TextView
                     android:id="@+id/starred_artists_text_view_clickable"
-                    style="@style/TitleMedium"
+                    style="@style/LibrarySectionAction"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:paddingStart="8dp"
@@ -695,19 +702,19 @@
                 android:id="@+id/starred_artists_recycler_view"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:layout_marginBottom="8dp"
+                android:layout_marginTop="4dp"
+                android:layout_marginBottom="6dp"
                 android:clipToPadding="false"
-                android:paddingTop="8dp"
+                android:paddingTop="4dp"
                 android:paddingBottom="8dp" />
         </LinearLayout>
 
         <View
             android:id="@+id/after_favorites_divider"
             style="@style/Divider"
-            android:layout_marginStart="16dp"
+            android:layout_marginStart="20dp"
             android:layout_marginTop="16dp"
-            android:layout_marginEnd="16dp"
+            android:layout_marginEnd="20dp"
             android:layout_marginBottom="8dp"
             android:visibility="gone"
             tools:visibility="visible" />
@@ -722,22 +729,22 @@
 
             <!--  New releases  -->
             <TextView
-                style="@style/TitleLarge"
+                style="@style/LibrarySectionTitle"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:paddingStart="16dp"
-                android:paddingTop="16dp"
-                android:paddingEnd="16dp"
+                android:paddingStart="20dp"
+                android:paddingTop="18dp"
+                android:paddingEnd="20dp"
                 android:text="@string/home_title_new_releases" />
 
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/new_releases_recycler_view"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:layout_marginTop="8dp"
-                android:layout_marginBottom="8dp"
+                android:layout_marginTop="6dp"
+                android:layout_marginBottom="6dp"
                 android:clipToPadding="false"
-                android:paddingTop="8dp"
+                android:paddingTop="4dp"
                 android:paddingBottom="8dp" />
         </LinearLayout>
 
@@ -752,32 +759,32 @@
 
             <!--  Label and button  -->
             <TextView
-                style="@style/TitleLarge"
+                style="@style/LibrarySectionTitle"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:paddingStart="16dp"
-                android:paddingTop="16dp"
-                android:paddingEnd="16dp"
+                android:paddingStart="20dp"
+                android:paddingTop="18dp"
+                android:paddingEnd="20dp"
                 android:text="@string/home_title_flashback" />
 
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/years_recycler_view"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:layout_marginBottom="8dp"
+                android:layout_marginTop="6dp"
+                android:layout_marginBottom="6dp"
                 android:clipToPadding="false"
-                android:paddingStart="16dp"
-                android:paddingTop="8dp"
-                android:paddingEnd="8dp"
+                android:paddingStart="20dp"
+                android:paddingTop="4dp"
+                android:paddingEnd="12dp"
                 android:paddingBottom="8dp" />
         </LinearLayout>
 
         <View
             style="@style/Divider"
-            android:layout_marginStart="16dp"
+            android:layout_marginStart="20dp"
             android:layout_marginTop="16dp"
-            android:layout_marginEnd="16dp"
+            android:layout_marginEnd="20dp"
             android:layout_marginBottom="8dp"
             android:visibility="gone"
             tools:visibility="visible" />
@@ -794,15 +801,16 @@
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:gravity="center_vertical"
                 android:orientation="horizontal"
-                android:paddingStart="8dp"
-                android:paddingTop="16dp"
-                android:paddingEnd="8dp"
+                android:paddingStart="12dp"
+                android:paddingTop="18dp"
+                android:paddingEnd="12dp"
                 android:paddingBottom="8dp">
 
                 <TextView
                     android:id="@+id/most_played_albums_text_view_refreshable"
-                    style="@style/TitleLarge"
+                    style="@style/LibrarySectionTitle"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
@@ -812,7 +820,7 @@
 
                 <TextView
                     android:id="@+id/most_played_albums_text_view_clickable"
-                    style="@style/TitleMedium"
+                    style="@style/LibrarySectionAction"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:paddingStart="8dp"
@@ -824,12 +832,12 @@
                 android:id="@+id/most_played_albums_recycler_view"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:layout_marginBottom="8dp"
+                android:layout_marginTop="4dp"
+                android:layout_marginBottom="6dp"
                 android:clipToPadding="false"
-                android:paddingStart="16dp"
-                android:paddingTop="8dp"
-                android:paddingEnd="8dp"
+                android:paddingStart="20dp"
+                android:paddingTop="4dp"
+                android:paddingEnd="12dp"
                 android:paddingBottom="8dp" />
         </LinearLayout>
 
@@ -846,15 +854,16 @@
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:gravity="center_vertical"
                 android:orientation="horizontal"
-                android:paddingStart="8dp"
-                android:paddingTop="16dp"
-                android:paddingEnd="8dp"
+                android:paddingStart="12dp"
+                android:paddingTop="18dp"
+                android:paddingEnd="12dp"
                 android:paddingBottom="8dp">
 
                 <TextView
                     android:id="@+id/recently_played_albums_text_view_refreshable"
-                    style="@style/TitleLarge"
+                    style="@style/LibrarySectionTitle"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
@@ -865,7 +874,7 @@
 
                 <TextView
                     android:id="@+id/recently_played_albums_text_view_clickable"
-                    style="@style/TitleMedium"
+                    style="@style/LibrarySectionAction"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:paddingStart="8dp"
@@ -878,12 +887,12 @@
                 android:id="@+id/recently_played_albums_recycler_view"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:layout_marginBottom="8dp"
+                android:layout_marginTop="4dp"
+                android:layout_marginBottom="6dp"
                 android:clipToPadding="false"
-                android:paddingStart="16dp"
-                android:paddingTop="8dp"
-                android:paddingEnd="8dp"
+                android:paddingStart="20dp"
+                android:paddingTop="4dp"
+                android:paddingEnd="12dp"
                 android:paddingBottom="8dp" />
         </LinearLayout>
 
@@ -899,15 +908,16 @@
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:gravity="center_vertical"
                 android:orientation="horizontal"
-                android:paddingStart="8dp"
-                android:paddingTop="16dp"
-                android:paddingEnd="8dp"
+                android:paddingStart="12dp"
+                android:paddingTop="18dp"
+                android:paddingEnd="12dp"
                 android:paddingBottom="8dp">
 
                 <TextView
                     android:id="@+id/recently_added_albums_text_view_refreshable"
-                    style="@style/TitleLarge"
+                    style="@style/LibrarySectionTitle"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
@@ -918,7 +928,7 @@
 
                 <TextView
                     android:id="@+id/recently_added_albums_text_view_clickable"
-                    style="@style/TitleMedium"
+                    style="@style/LibrarySectionAction"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:paddingStart="8dp"
@@ -931,12 +941,12 @@
                 android:id="@+id/recently_added_albums_recycler_view"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:layout_marginBottom="8dp"
+                android:layout_marginTop="4dp"
+                android:layout_marginBottom="6dp"
                 android:clipToPadding="false"
-                android:paddingStart="16dp"
-                android:paddingTop="8dp"
-                android:paddingEnd="8dp"
+                android:paddingStart="20dp"
+                android:paddingTop="4dp"
+                android:paddingEnd="12dp"
                 android:paddingBottom="8dp" />
         </LinearLayout>
 
@@ -949,44 +959,45 @@
             android:visibility="gone"
             tools:visibility="visible">
 
-                <!--  Label and button  -->
+            <!--  Label and button  -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:gravity="center_vertical"
                 android:orientation="horizontal"
-                android:paddingStart="8dp"
-                android:paddingTop="16dp"
-                android:paddingEnd="8dp"
+                android:paddingStart="12dp"
+                android:paddingTop="18dp"
+                android:paddingEnd="12dp"
                 android:paddingBottom="8dp">
 
-            <TextView
-                android:id="@+id/pinned_playlists_text_view"
-                style="@style/TitleLarge"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:paddingStart="8dp"
-                android:paddingEnd="8dp"
-                android:text="@string/home_title_pinned_playlists" />
+                <TextView
+                    android:id="@+id/pinned_playlists_text_view"
+                    style="@style/LibrarySectionTitle"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:paddingStart="8dp"
+                    android:paddingEnd="8dp"
+                    android:text="@string/home_title_pinned_playlists" />
 
-            <TextView
-                android:id="@+id/playlist_catalogue_text_view_clickable"
-                style="@style/TitleMedium"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:paddingStart="8dp"
-                android:paddingEnd="8dp"
-                android:text="@string/library_title_playlist_see_all_button" />
-                </LinearLayout>
+                <TextView
+                    android:id="@+id/playlist_catalogue_text_view_clickable"
+                    style="@style/LibrarySectionAction"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:paddingStart="8dp"
+                    android:paddingEnd="8dp"
+                    android:text="@string/library_title_playlist_see_all_button" />
+            </LinearLayout>
 
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/pinned_playlists_recycler_view"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:layout_marginBottom="8dp"
+                android:layout_marginTop="4dp"
+                android:layout_marginBottom="6dp"
                 android:clipToPadding="false"
-                android:paddingTop="8dp"
+                android:paddingTop="4dp"
                 android:paddingBottom="8dp" />
         </LinearLayout>
 
@@ -1001,12 +1012,12 @@
 
             <TextView
                 android:id="@+id/shares_text_view_refreshable"
-                style="@style/TitleLarge"
+                style="@style/LibrarySectionTitle"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:paddingStart="16dp"
-                android:paddingTop="16dp"
-                android:paddingEnd="16dp"
+                android:paddingStart="20dp"
+                android:paddingTop="18dp"
+                android:paddingEnd="20dp"
                 android:text="@string/home_title_shares" />
 
             <androidx.recyclerview.widget.RecyclerView

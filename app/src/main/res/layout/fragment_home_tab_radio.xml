@@ -20,21 +20,21 @@
         android:textAllCaps="false"
         android:textColor="?attr/colorPrimary"
         android:textStyle="bold"
+        android:visibility="gone"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
     <TextView
         android:id="@+id/internet_radio_station_title_text_view"
-        style="@style/TitleLarge"
+        style="@style/LibrarySectionTitle"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:paddingStart="20dp"
-        android:paddingTop="2dp"
+        android:paddingTop="6dp"
         android:paddingEnd="20dp"
         android:paddingBottom="6dp"
         android:text="@string/home_title_internet_radio_station"
-        android:textSize="18sp"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/internet_radio_station_pre_text_view" />

@@ -1,8 +1,11 @@
 package com.eddyizm.tempus.ui.adapter;
 
+import android.graphics.Outline;
 import android.os.Bundle;
 import android.view.LayoutInflater;
+import android.view.View;
 import android.view.ViewGroup;
+import android.view.ViewOutlineProvider;
 
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
@@ -69,6 +72,15 @@ public class PodcastChannelHorizontalAdapter extends RecyclerView.Adapter<Podcas
             super(item.getRoot());
 
             this.item = item;
+
+            final float radiusPx = 10f * item.getRoot().getResources().getDisplayMetrics().density;
+            item.podcastChannelCoverImageView.setOutlineProvider(new ViewOutlineProvider() {
+                @Override
+                public void getOutline(View view, Outline outline) {
+                    outline.setRoundRect(0, 0, view.getWidth(), view.getHeight(), radiusPx);
+                }
+            });
+            item.podcastChannelCoverImageView.setClipToOutline(true);
 
             item.podcastChannelTitleTextView.setSelected(true);
             item.podcastChannelDescriptionTextView.setSelected(true);

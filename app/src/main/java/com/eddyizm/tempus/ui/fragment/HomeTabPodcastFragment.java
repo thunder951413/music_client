@@ -104,12 +104,15 @@ public class HomeTabPodcastFragment extends Fragment implements ClickCallback, P
         });
 
         bind.podcastChannelsTextViewClickable.setOnClickListener(v -> activity.navController.navigate(R.id.podcastChannelCatalogueFragment));
-        bind.podcastRefresh.setOnClickListener(v -> {
-            com.eddyizm.tempus.podcast.LocalPodcastStore.getInstance().refreshAll(true);
-            podcastViewModel.refreshPodcastChannels(getViewLifecycleOwner());
-            podcastViewModel.refreshNewestPodcastEpisodes(getViewLifecycleOwner());
-        });
+        bind.podcastRefresh.setOnClickListener(v -> triggerRefresh());
         bind.hideSectionButton.setOnClickListener(v -> Preferences.setPodcastSectionHidden());
+    }
+
+    public void triggerRefresh() {
+        com.eddyizm.tempus.podcast.LocalPodcastStore.getInstance().refreshAll(true);
+        if (!isAdded() || getView() == null || podcastViewModel == null) return;
+        podcastViewModel.refreshPodcastChannels(getViewLifecycleOwner());
+        podcastViewModel.refreshNewestPodcastEpisodes(getViewLifecycleOwner());
     }
 
     private void initPodcastView() {

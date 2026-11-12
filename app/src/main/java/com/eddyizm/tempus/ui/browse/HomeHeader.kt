@@ -790,7 +790,7 @@ private fun DailyMixHeroCard(
         Column(
             modifier = Modifier
                 .align(Alignment.BottomStart)
-                .padding(start = 18.dp, bottom = 16.dp, end = 76.dp),
+                .padding(start = 16.dp, bottom = 14.dp, end = 70.dp),
         ) {
             Text(
                 text = stringResource(R.string.home_daily_title),
@@ -803,9 +803,10 @@ private fun DailyMixHeroCard(
             Text(
                 text = statusText,
                 modifier = Modifier.padding(top = 2.dp),
-                fontSize = 13.sp,
+                fontSize = 12.sp,
+                lineHeight = 15.sp,
                 color = colors.textSecondary,
-                maxLines = 1,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
                 style = LocalTextStyle.current.tnum(),
             )
@@ -894,8 +895,8 @@ private fun PersonalRoamHeroCard(
         Canvas(
             modifier = Modifier
                 .align(Alignment.TopEnd)
-                .size(124.dp)
-                .offset(x = 26.dp, y = (-20).dp),
+                .size(92.dp)
+                .offset(x = 34.dp, y = (-14).dp),
         ) {
             val center = Offset(size.width / 2f, size.height / 2f)
             val discRadius = size.minDimension * 0.48f

@@ -9,4 +9,5 @@
     <string name="editorial_listen_add_radio">＋ 添加电台</string>
     <string name="editorial_podcast_resume_remaining">断点续播 · 剩余 %1$s</string>
     <string name="editorial_podcast_resume_at">续播至 %1$s</string>
+    <string name="la_button_advanced_editor">打开服务器高级配置</string>
 </resources>

@@ -279,9 +279,18 @@ public class LibraryFragment extends Fragment implements ClickCallback {
             if (playlists == null) {
                 if (bind != null) bind.libraryPlaylistSector.setVisibility(View.GONE);
             } else {
+                java.util.List<com.eddyizm.tempus.subsonic.models.Playlist> curated = new java.util.ArrayList<>();
+                for (com.eddyizm.tempus.subsonic.models.Playlist p : playlists) {
+                    if (!com.eddyizm.tempus.collection.CollectionName.isDailyMixPlaylist(p.getName(), p.getComment())) {
+                        curated.add(p);
+                    }
+                }
+                java.util.List<com.eddyizm.tempus.subsonic.models.Playlist> shelfSource =
+                        curated.isEmpty() ? playlists : curated;
+
                 if (bind != null) {
                     bind.libraryPlaylistSector.setVisibility(!playlists.isEmpty() ? View.VISIBLE : View.GONE);
-                    if (playlists.size() > 5) {
+                    if (playlists.size() > 5 || curated.size() != playlists.size()) {
                         bind.playlistCatalogueTextViewClickable.setText(
                                 getString(R.string.editorial_library_see_all_count, playlists.size())
                         );
@@ -292,7 +301,7 @@ public class LibraryFragment extends Fragment implements ClickCallback {
                     }
                 }
 
-                playlistHorizontalAdapter.setItems(playlists.subList(0, Math.min(5, playlists.size())));
+                playlistHorizontalAdapter.setItems(shelfSource.subList(0, Math.min(5, shelfSource.size())));
             }
             updateEmptyState();
         });

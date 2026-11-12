@@ -43,28 +43,28 @@
 
     <!-- Home Continue Listening & Library Roam (Single Home) -->
     <string name="editorial_home_roam_section">Library Roam</string>
-    <string name="editorial_roam_unheard_sub">Zero-play tracks</string>
-    <string name="editorial_roam_frequent_sub">Top played albums</string>
+    <string name="editorial_roam_unheard_sub">Unheard tracks</string>
+    <string name="editorial_roam_frequent_sub">Top albums</string>
     <string name="editorial_roam_frequent_count">%1$d+ top albums</string>
-    <string name="editorial_roam_newest_sub">Newly synced albums</string>
-    <string name="editorial_roam_newest_count">%1$d+ recent albums</string>
-    <string name="editorial_roam_random_sub">Full library sample</string>
+    <string name="editorial_roam_newest_sub">Recent albums</string>
+    <string name="editorial_roam_newest_count">%1$d+ new albums</string>
+    <string name="editorial_roam_random_sub">Library shuffle</string>
 
     <!-- Discover & Sync Center -->
     <string name="editorial_discover_subtitle">SYNC CENTER &amp; CURATION</string>
     <string name="editorial_sync_center_title">Sync Center</string>
     <string name="editorial_sync_center_import_action">Import link ›</string>
     <string name="editorial_sync_col_wishes">Daily Wishes</string>
-    <string name="editorial_sync_col_playlists">Import Pending</string>
+    <string name="editorial_sync_col_playlists">Link Backfill</string>
     <string name="editorial_sync_col_charts">Chart Missing</string>
     <string name="editorial_sync_sub_ready">%1$d daily ready</string>
-    <string name="editorial_sync_sub_wishes_idle">Not generated yet</string>
-    <string name="editorial_sync_sub_pending_lists">%1$d lists · %2$d incomplete</string>
+    <string name="editorial_sync_sub_wishes_idle">Await daily mix</string>
+    <string name="editorial_sync_sub_pending_lists">%1$d lists · %2$d open</string>
     <string name="editorial_sync_sub_backfill_lists">%1$d imported lists</string>
     <string name="editorial_sync_sub_synced_lists">%1$d lists synced</string>
-    <string name="editorial_sync_sub_no_lists">Paste link below</string>
-    <string name="editorial_sync_sub_charts_matched">%1$d/8 charts checked</string>
-    <string name="editorial_sync_sub_charts_idle">Tap chart to match</string>
+    <string name="editorial_sync_sub_no_lists">Link import</string>
+    <string name="editorial_sync_sub_charts_matched">%1$d/8 matched</string>
+    <string name="editorial_sync_sub_charts_idle">Tap chart below</string>
 
     <!-- External Playlist Import Card & Screen -->
     <string name="editorial_import_card_title">Full External Playlist Import</string>
@@ -110,6 +110,7 @@
     <string name="editorial_chart_playable_count">%1$d playable</string>
     <string name="editorial_chart_total_count">%1$d / %2$d in library</string>
     <string name="editorial_chart_unmatched_hint">Tap to match Top 100</string>
+    <string name="editorial_chart_ring_compare">Match</string>
     <string name="editorial_badge_netease">NetEase</string>
     <string name="editorial_badge_qq">QQ Music</string>
 

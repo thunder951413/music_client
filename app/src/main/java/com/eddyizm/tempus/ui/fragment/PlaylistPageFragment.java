@@ -307,9 +307,13 @@ public class PlaylistPageFragment extends Fragment implements ClickCallback {
             activity.getSupportActionBar().setDisplayShowHomeEnabled(true);
         }
 
-        bind.animToolbar.setTitle(playlistPageViewModel.getPlaylist().getName());
+        String displayName = com.eddyizm.tempus.collection.CollectionName.displayTitle(
+                playlistPageViewModel.getPlaylist().getName(),
+                getString(R.string.home_daily_title)
+        );
+        bind.animToolbar.setTitle(displayName);
 
-        bind.playlistNameLabel.setText(playlistPageViewModel.getPlaylist().getName());
+        bind.playlistNameLabel.setText(displayName);
         bind.playlistSongCountLabel.setText(getString(R.string.playlist_song_count, playlistPageViewModel.getPlaylist().getSongCount()));
         bind.playlistDurationLabel.setText(getString(R.string.playlist_duration, MusicUtil.getReadableDurationString(playlistPageViewModel.getPlaylist().getDuration(), false)));
 

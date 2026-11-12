@@ -8,9 +8,13 @@ import android.graphics.Bitmap
 import android.graphics.BitmapShader
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.LinearGradient
+import android.graphics.Matrix
 import android.graphics.Paint
+import android.graphics.PorterDuff
+import android.graphics.PorterDuffXfermode
+import android.graphics.RadialGradient
 import android.graphics.RectF
-import android.graphics.RuntimeShader
 import android.graphics.Shader
 import android.util.AttributeSet
 import android.view.View
@@ -22,27 +26,32 @@ import java.util.Random
 /**
  * True low-power Static Aura backdrop for the Editorial Warm Dark ("唱片店夜色") full-screen player.
  *
- * - **Lazy AGSL**: [RuntimeShader] is compiled lazily on first draw rather than during XML inflate.
- * - **1/4-Resolution Aura Cache**: Radial cover mesh is rendered into a 1/4-width × 1/4-height
- *   offscreen [Bitmap] ONLY when colors change (during the 600ms crossfade or immediate snap) or
- *   view bounds change. Once settled, window redraws triggered by progress bars, lyrics, or vinyl
- *   blit the cached bitmap with **0 AGSL shader invocations**.
- * - **Tiled 64×64 Static Film Grain**: Uses a reusable 64×64 [BitmapShader] (`REPEAT`) instead of
- *   per-pixel `sin` trig in AGSL, avoiding Mali FP16 precision artifacts and GPU ALU work.
+ * - **Zero RuntimeShader**: Renders 4 LAB-clamped cover color fields onto a 1/4-resolution
+ *   offscreen [Bitmap] using soft elliptical [RadialGradient]s (`SRC_OVER` over `#0E0D0C`),
+ *   eliminating `Software rendering doesn't support RuntimeShader` crashes on `Canvas(bitmap)`
+ *   and removing all per-frame GPU shader compilation/execution overhead.
+ * - **1/4-Resolution Aura Cache**: Re-rendered ONLY when colors change (during the 600ms crossfade
+ *   or immediate snap) or view bounds change. Settled frames blit the cached bitmap directly.
+ * - **Tiled 64×64 Static Film Grain**: Reusable 64×64 [BitmapShader] (`REPEAT`) drawn over the
+ *   bilinear-upscaled aura on the view [Canvas].
  */
 class FluidBackdropView @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,
 ) : View(context, attrs), PlayerMotion.Listener {
 
-    private var auraShader: RuntimeShader? = null
-    private val shaderPaint = Paint()
-    private val blitPaint = Paint(Paint.FILTER_BITMAP_FLAG)
+    private val auraPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.DITHER_FLAG).apply {
+        xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_OVER)
+    }
+    private val settlePaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.DITHER_FLAG)
+    private val blitPaint = Paint(Paint.FILTER_BITMAP_FLAG or Paint.DITHER_FLAG)
     private val grainPaint = Paint().apply { shader = sharedGrainShader }
+    private val gradMatrix = Matrix()
     private val dstRect = RectF()
 
     private var cachedAuraBitmap: Bitmap? = null
     private var cachedAuraCanvas: Canvas? = null
+    private var cachedSettleHeight: Int = -1
     private var cacheDirty: Boolean = true
 
     private var from = PlayerMotion.scheme.blobs.toIntArray()
@@ -115,6 +124,36 @@ class FluidBackdropView @JvmOverloads constructor(
         }
     }
 
+    private fun drawAuraBlob(
+        auraCanvas: Canvas,
+        w: Float,
+        h: Float,
+        color: Int,
+        cxNorm: Float,
+        cyNorm: Float,
+        rxNorm: Float,
+        ryNorm: Float,
+        peakAlpha: Int,
+        midAlpha: Int,
+    ) {
+        val cPeak = ColorUtils.setAlphaComponent(color, peakAlpha)
+        val cMid = ColorUtils.setAlphaComponent(color, midAlpha)
+        val cEdge = ColorUtils.setAlphaComponent(color, 0)
+        val gradient = RadialGradient(
+            0f,
+            0f,
+            1f,
+            intArrayOf(cPeak, cMid, cEdge),
+            GRADIENT_STOPS,
+            Shader.TileMode.CLAMP,
+        )
+        gradMatrix.setScale((w * rxNorm).coerceAtLeast(1f), (h * ryNorm).coerceAtLeast(1f))
+        gradMatrix.postTranslate(w * cxNorm, h * cyNorm)
+        gradient.setLocalMatrix(gradMatrix)
+        auraPaint.shader = gradient
+        auraCanvas.drawRect(0f, 0f, w, h, auraPaint)
+    }
+
     private fun ensureCachedAura(viewWidth: Int, viewHeight: Int): Bitmap? {
         if (viewWidth <= 0 || viewHeight <= 0) return null
         val targetW = (viewWidth / CACHE_DIVISOR).coerceAtLeast(16)
@@ -126,20 +165,36 @@ class FluidBackdropView @JvmOverloads constructor(
             bitmap = createBitmap(targetW, targetH)
             cachedAuraBitmap = bitmap
             cachedAuraCanvas = Canvas(bitmap)
+            cachedSettleHeight = -1
             cacheDirty = true
         }
 
+        if (cachedSettleHeight != targetH) {
+            settlePaint.shader = LinearGradient(
+                0f,
+                targetH * 0.52f,
+                0f,
+                targetH.toFloat(),
+                0x000E0D0C,
+                0xB00E0D0C.toInt(),
+                Shader.TileMode.CLAMP,
+            )
+            cachedSettleHeight = targetH
+        }
+
         if (cacheDirty) {
-            val shader = auraShader ?: RuntimeShader(SHADER).also {
-                auraShader = it
-                shaderPaint.shader = it
+            val auraCanvas = cachedAuraCanvas
+            if (auraCanvas != null) {
+                val wf = targetW.toFloat()
+                val hf = targetH.toFloat()
+                auraCanvas.drawColor(BASE_COLOR)
+                drawAuraBlob(auraCanvas, wf, hf, current[0], 0.30f, 0.22f, 0.78f, 0.56f, 224, 116)
+                drawAuraBlob(auraCanvas, wf, hf, current[1], 0.74f, 0.28f, 0.72f, 0.52f, 196, 100)
+                drawAuraBlob(auraCanvas, wf, hf, current[2], 0.48f, 0.48f, 0.82f, 0.58f, 172, 88)
+                drawAuraBlob(auraCanvas, wf, hf, current[3], 0.24f, 0.66f, 0.68f, 0.48f, 144, 72)
+                auraPaint.shader = null
+                auraCanvas.drawRect(0f, 0f, wf, hf, settlePaint)
             }
-            shader.setFloatUniform("size", targetW.toFloat(), targetH.toFloat())
-            shader.setColorUniform("c0", current[0])
-            shader.setColorUniform("c1", current[1])
-            shader.setColorUniform("c2", current[2])
-            shader.setColorUniform("c3", current[3])
-            cachedAuraCanvas?.drawRect(0f, 0f, targetW.toFloat(), targetH.toFloat(), shaderPaint)
             cacheDirty = false
         }
         return bitmap
@@ -166,6 +221,7 @@ class FluidBackdropView @JvmOverloads constructor(
         const val CACHE_DIVISOR = 4
         const val GRAIN_TILE_PX = 64
         const val BASE_COLOR = 0xFF0E0D0C.toInt()
+        val GRADIENT_STOPS = floatArrayOf(0f, 0.52f, 1f)
         val FADE_INTERPOLATOR = PathInterpolator(0.2f, 0f, 0f, 1f)
 
         val sharedGrainShader: BitmapShader by lazy(LazyThreadSafetyMode.PUBLICATION) {
@@ -181,37 +237,5 @@ class FluidBackdropView @JvmOverloads constructor(
             val bmp = Bitmap.createBitmap(pixels, GRAIN_TILE_PX, GRAIN_TILE_PX, Bitmap.Config.ARGB_8888)
             BitmapShader(bmp, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
         }
-
-        val SHADER = """
-            uniform float2 size;
-            layout(color) uniform half4 c0;
-            layout(color) uniform half4 c1;
-            layout(color) uniform half4 c2;
-            layout(color) uniform half4 c3;
-
-            float radialGlow(float2 p, float2 center, float2 radii) {
-                float2 d = (p - center) / radii;
-                return exp(-dot(d, d));
-            }
-
-            half4 main(float2 coord) {
-                float2 uv = coord / size;
-                half3 base = half3(0.0549, 0.0510, 0.0471); // #0E0D0C warm charcoal
-
-                float g0 = radialGlow(uv, float2(0.32, 0.24), float2(0.56, 0.42));
-                float g1 = radialGlow(uv, float2(0.72, 0.30), float2(0.52, 0.38));
-                float g2 = radialGlow(uv, float2(0.46, 0.50), float2(0.62, 0.44));
-                float g3 = radialGlow(uv, float2(0.24, 0.66), float2(0.50, 0.36));
-
-                float weightSum = g0 + g1 + g2 + g3 + 0.0001;
-                half3 mesh = (c0.rgb * half(g0) + c1.rgb * half(g1) + c2.rgb * half(g2) + c3.rgb * half(g3)) / half(weightSum);
-
-                float auraMask = clamp(max(max(g0, g1), g2 * 0.85) * 0.92, 0.0, 0.88);
-                auraMask *= 1.0 - smoothstep(0.52, 0.98, uv.y) * 0.72;
-
-                half3 color = mix(base, mesh, half(auraMask));
-                return half4(clamp(color, half3(0.0), half3(1.0)), 1.0);
-            }
-        """.trimIndent()
     }
 }

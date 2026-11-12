@@ -305,8 +305,14 @@ fun DiscoverScreen(
                                 }
                             }
 
-                            // 5c. Genres (`流派`) — 2-column compact neutral cards
+                            // 5c. Genres (`流派`) — 2-column compact neutral cards (filter dirty 1-3 song tags)
                             if (state.genres.isNotEmpty()) {
+                                val majorGenres = state.genres.filter { it.songCount >= 10 }
+                                val featuredGenres = if (majorGenres.size >= 4) {
+                                    majorGenres.take(12)
+                                } else {
+                                    state.genres.filter { it.songCount >= 2 }.ifEmpty { state.genres }.take(12)
+                                }
                                 item(key = "genres_header") {
                                     Row(
                                         modifier = Modifier
@@ -333,7 +339,7 @@ fun DiscoverScreen(
                                         )
                                     }
                                 }
-                                editorialGrid(state.genres.take(12)) { genre, cellModifier ->
+                                editorialGrid(featuredGenres) { genre, cellModifier ->
                                     val name = genre.genre.orEmpty()
                                     val sub = if (genre.songCount > 0) {
                                         stringResource(R.string.editorial_genre_song_count, genre.songCount)
@@ -542,7 +548,7 @@ private fun SyncMetricColumn(
 ) {
     val colors = EditorialTheme.colors
     Column(
-        modifier = modifier.padding(horizontal = 6.dp),
+        modifier = modifier.padding(horizontal = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
@@ -750,17 +756,17 @@ private fun ExternalChartsHeader(
             letterSpacing = (-0.3).sp,
             color = colors.textPrimary,
         )
-        // `仅看可播` toggle chip
+        // `仅看可播` toggle chip — Stylus Brass interactive accent (Moss reserved for status only)
         Row(
             modifier = Modifier
                 .padding(end = 8.dp)
                 .height(30.dp)
                 .pressable(onClick = onTogglePlayable)
                 .clip(EditorialRadii.Pill)
-                .background(if (playableOnly) colors.moss.copy(alpha = 0.16f) else colors.surface2)
+                .background(if (playableOnly) colors.brass.copy(alpha = 0.16f) else colors.surface2)
                 .border(
                     width = 1.dp,
-                    color = if (playableOnly) colors.moss.copy(alpha = 0.55f) else colors.hairline,
+                    color = if (playableOnly) colors.brass.copy(alpha = 0.55f) else colors.hairline,
                     shape = EditorialRadii.Pill,
                 )
                 .padding(horizontal = 10.dp),
@@ -771,13 +777,13 @@ private fun ExternalChartsHeader(
                 Modifier
                     .size(6.dp)
                     .clip(EditorialRadii.Pill)
-                    .background(if (playableOnly) colors.moss else colors.textTertiary),
+                    .background(if (playableOnly) colors.brass else colors.textTertiary),
             )
             Text(
                 text = stringResource(R.string.editorial_charts_playable_only),
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Medium,
-                color = if (playableOnly) colors.moss else colors.textSecondary,
+                color = if (playableOnly) colors.brass else colors.textSecondary,
             )
         }
         // `导出全部缺歌` brass-outline pill
@@ -825,50 +831,31 @@ private fun ExternalChartNeutralCard(
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
+            verticalAlignment = Alignment.Top,
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            // Stacked mini record sleeve + monochrome platform badge
+            // Clean platform badge (replaces noisy double-play icon stack)
             Row(
+                modifier = Modifier
+                    .clip(EditorialRadii.Badge)
+                    .background(colors.surface2)
+                    .border(1.dp, colors.hairline, EditorialRadii.Badge)
+                    .padding(horizontal = 7.dp, vertical = 3.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(7.dp),
+                horizontalArrangement = Arrangement.spacedBy(5.dp),
             ) {
-                Box(Modifier.size(26.dp), contentAlignment = Alignment.Center) {
-                    Box(
-                        Modifier
-                            .offset(x = (-2).dp, y = 2.dp)
-                            .size(18.dp)
-                            .clip(EditorialRadii.Badge)
-                            .background(colors.surface3)
-                            .border(1.dp, colors.hairline, EditorialRadii.Badge),
-                    )
-                    Box(
-                        Modifier
-                            .offset(x = 2.dp, y = (-2).dp)
-                            .size(18.dp)
-                            .clip(EditorialRadii.Badge)
-                            .background(colors.surface2)
-                            .border(1.dp, colors.hairline, EditorialRadii.Badge),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(
-                            painter = painterResource(R.drawable.ic_play),
-                            contentDescription = null,
-                            tint = colors.brass.copy(alpha = 0.82f),
-                            modifier = Modifier.size(10.dp),
-                        )
-                    }
-                }
+                Box(
+                    Modifier
+                        .size(5.dp)
+                        .clip(EditorialRadii.Pill)
+                        .background(if (isNetease) colors.terracotta.copy(alpha = 0.85f) else colors.brass),
+                )
                 Text(
                     text = badgeLabel,
-                    modifier = Modifier
-                        .clip(EditorialRadii.Badge)
-                        .background(colors.surface2)
-                        .border(1.dp, colors.hairline, EditorialRadii.Badge)
-                        .padding(horizontal = 6.dp, vertical = 2.dp),
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Medium,
                     color = colors.textSecondary,
+                    maxLines = 1,
                 )
             }
 
@@ -876,6 +863,11 @@ private fun ExternalChartNeutralCard(
                 MatchRateRing(
                     matched = summary.available,
                     total = summary.total,
+                    size = 40.dp,
+                )
+            } else {
+                UnmatchedChartRing(
+                    label = stringResource(R.string.editorial_chart_ring_compare),
                     size = 40.dp,
                 )
             }
@@ -1323,12 +1315,16 @@ private fun ArtistAzIndexScreen(
                 Column(
                     modifier = Modifier
                         .align(Alignment.CenterEnd)
-                        .padding(end = 6.dp, top = 8.dp, bottom = 24.dp)
+                        .padding(
+                            end = 6.dp,
+                            top = 6.dp,
+                            bottom = dimensionResource(R.dimen.global_padding_bottom) + 10.dp,
+                        )
                         .width(24.dp)
                         .clip(EditorialRadii.Pill)
-                        .background(colors.surface2.copy(alpha = 0.85f))
+                        .background(colors.surface2.copy(alpha = 0.88f))
                         .border(1.dp, colors.hairline, EditorialRadii.Pill)
-                        .padding(vertical = 6.dp)
+                        .padding(vertical = 4.dp)
                         .onSizeChanged { railHeightPx = it.height.coerceAtLeast(1) }
                         .pointerInput(filteredSections) {
                             detectTapGestures { offset -> scrubTo(offset.y) }
@@ -1345,8 +1341,8 @@ private fun ArtistAzIndexScreen(
                     filteredSections.forEach { (letter, _) ->
                         Text(
                             text = letter.toString(),
-                            fontSize = 11.sp,
-                            lineHeight = 13.sp,
+                            fontSize = 10.sp,
+                            lineHeight = 11.sp,
                             fontWeight = FontWeight.SemiBold,
                             textAlign = TextAlign.Center,
                             color = colors.brass,

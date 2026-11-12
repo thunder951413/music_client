@@ -67,6 +67,7 @@ import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -857,13 +858,13 @@ fun RecordSleeveCard(
             accent = effectiveSpine,
             monogram = monogram ?: title.take(1),
             modifier = Modifier
-                .padding(start = 11.dp)
-                .size(50.dp),
+                .padding(start = 9.dp)
+                .size(44.dp),
         )
         Column(
             modifier = Modifier
                 .weight(1f)
-                .padding(start = 11.dp, end = 12.dp),
+                .padding(start = 9.dp, end = 8.dp),
             verticalArrangement = Arrangement.Center,
         ) {
             Text(
@@ -878,7 +879,7 @@ fun RecordSleeveCard(
                 Text(
                     text = subtitle,
                     modifier = Modifier.padding(top = 2.dp),
-                    fontSize = 13.sp,
+                    fontSize = 12.sp,
                     color = colors.textSecondary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -1024,6 +1025,45 @@ fun MatchRateRing(
             fontWeight = FontWeight.SemiBold,
             color = if (total > 0) colors.textPrimary else colors.textTertiary,
             style = LocalTextStyle.current.tnum(),
+        )
+    }
+}
+
+/**
+ * Subtle 40dp dashed warm ring shown on External Chart cards before Top-100 library matching runs.
+ */
+@Composable
+fun UnmatchedChartRing(
+    label: String,
+    modifier: Modifier = Modifier,
+    size: Dp = 40.dp,
+) {
+    val colors = EditorialTheme.colors
+    Box(
+        modifier = modifier.size(size),
+        contentAlignment = Alignment.Center,
+    ) {
+        Canvas(Modifier.fillMaxSize()) {
+            val stroke = 1.5.dp.toPx()
+            val inset = stroke / 2f
+            val arcSize = Size(this.size.width - stroke, this.size.height - stroke)
+            val dash = PathEffect.dashPathEffect(floatArrayOf(3.dp.toPx(), 3.dp.toPx()), 0f)
+            drawArc(
+                color = colors.brass.copy(alpha = 0.42f),
+                startAngle = -90f,
+                sweepAngle = 360f,
+                useCenter = false,
+                topLeft = Offset(inset, inset),
+                size = arcSize,
+                style = Stroke(width = stroke, cap = StrokeCap.Round, pathEffect = dash),
+            )
+        }
+        Text(
+            text = label,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Medium,
+            color = colors.textSecondary,
+            maxLines = 1,
         )
     }
 }

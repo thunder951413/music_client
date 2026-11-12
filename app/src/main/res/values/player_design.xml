@@ -51,7 +51,15 @@
     <style name="LibrarySectionTitle" parent="InterFontFamily">
         <item name="android:textSize">20sp</item>
         <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:letterSpacing">-0.015</item>
         <item name="android:textColor">?attr/colorOnSurface</item>
+    </style>
+
+    <style name="LibrarySectionEyebrow" parent="InterFontFamily">
+        <item name="android:textSize">11sp</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:letterSpacing">0.08</item>
+        <item name="android:textColor">?attr/colorOnSurfaceVariant</item>
     </style>
 
     <style name="LibrarySectionAction" parent="InterFontFamily">
