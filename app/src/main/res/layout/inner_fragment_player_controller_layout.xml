@@ -413,12 +413,28 @@
         style="@style/PlayerIconButton"
         android:layout_width="40dp"
         android:layout_height="40dp"
-        android:layout_marginStart="24dp"
+        android:layout_marginStart="22dp"
         android:padding="9dp"
+        android:background="@null"
+        android:contentDescription="@string/player_mode_shuffle"
+        app:srcCompat="@drawable/ic_shuffle"
+        app:tint="@color/player_secondary"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="@+id/exo_play_pause"
+        app:layout_constraintBottom_toBottomOf="@+id/exo_play_pause" />
+
+    <ImageButton
+        android:id="@+id/player_repeat_button"
+        style="@style/PlayerIconButton"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:layout_marginEnd="22dp"
+        android:padding="9dp"
+        android:background="@null"
         android:contentDescription="@string/player_mode_repeat_all"
         app:srcCompat="@drawable/ic_repeat"
         app:tint="@color/player_secondary"
-        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toTopOf="@+id/exo_play_pause"
         app:layout_constraintBottom_toBottomOf="@+id/exo_play_pause" />
 

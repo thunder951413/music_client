@@ -790,7 +790,7 @@ private fun DailyMixHeroCard(
         Column(
             modifier = Modifier
                 .align(Alignment.BottomStart)
-                .padding(start = 16.dp, bottom = 14.dp, end = 70.dp),
+                .padding(start = 16.dp, bottom = 15.dp, end = 68.dp),
         ) {
             Text(
                 text = stringResource(R.string.home_daily_title),
@@ -804,9 +804,8 @@ private fun DailyMixHeroCard(
                 text = statusText,
                 modifier = Modifier.padding(top = 2.dp),
                 fontSize = 12.sp,
-                lineHeight = 15.sp,
                 color = colors.textSecondary,
-                maxLines = 2,
+                maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 style = LocalTextStyle.current.tnum(),
             )
@@ -1014,7 +1013,7 @@ private fun WishStatusCapsule(
         else -> {
             val total = today.importedToday.coerceAtLeast(0) + wishes.size
             when {
-                total > 0 -> (today.importedToday.coerceAtLeast(0).toFloat() / total.toFloat()).coerceIn(0.12f, 1f)
+                total > 0 -> (today.importedToday.coerceAtLeast(0).toFloat() / total.toFloat()).coerceIn(0f, 1f)
                 songsCount > 0 -> 1f
                 else -> 0f
             }
@@ -1036,7 +1035,7 @@ private fun WishStatusCapsule(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        val trackColor = colors.surface3
+        val trackColor = if (canOpenWishes) colors.brass.copy(alpha = 0.28f) else colors.textTertiary.copy(alpha = 0.32f)
         Canvas(modifier = Modifier.size(12.dp)) {
             val strokePx = 1.6.dp.toPx()
             val inset = strokePx / 2f

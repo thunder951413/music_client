@@ -154,14 +154,8 @@ class PlayerCoverFragment : Fragment() {
     }
 
     private fun initTapButtonHideTransition() {
-        bind?.let { binding ->
-            binding.nowPlayingTapButton.visibility = View.VISIBLE
-            handler.removeCallbacksAndMessages(null)
-            val runnable = Runnable {
-                bind?.nowPlayingTapButton?.visibility = View.GONE
-            }
-            handler.postDelayed(runnable, 10000)
-        }
+        handler.removeCallbacksAndMessages(null)
+        bind?.nowPlayingTapButton?.visibility = View.GONE
     }
 
     private fun refreshRemoteArtwork() {
@@ -188,7 +182,7 @@ class PlayerCoverFragment : Fragment() {
 
         TransitionManager.beginDelayedTransition(binding.root, transition)
         binding.nowPlayingSongCoverButtonGroup.visibility = if (isVisible) View.VISIBLE else View.GONE
-        binding.nowPlayingTapButton.visibility = if (isVisible) View.GONE else View.VISIBLE
+        binding.nowPlayingTapButton.visibility = View.GONE
 
         val isMusic = mediaBrowser?.mediaMetadata?.extras?.getString("type") == Constants.MEDIA_TYPE_MUSIC
         binding.innerButtonTopLeft.visibility = if (isMusic) View.VISIBLE else View.GONE

@@ -188,6 +188,7 @@ public class PlayerControllerFragment extends Fragment {
     @Nullable private View playerOpenLyricsButton;
     @Nullable private TextView playerContextLabel;
     @Nullable private ImageButton playModeButton;
+    @Nullable private ImageButton repeatModeButton;
     @Nullable private View playerFavoriteSurface;
     @Nullable private ImageButton playerTrackInfo;
     @Nullable private LinearLayout ratingContainer;
@@ -505,7 +506,15 @@ public class PlayerControllerFragment extends Fragment {
         sleepTimerLabel = root.findViewById(R.id.player_sleep_timer_label);
         playerContextLabel = root.findViewById(R.id.player_context_label);
         playModeButton = root.findViewById(R.id.player_play_mode_button);
-        if (playModeButton != null) playModeButton.setOnClickListener(v -> cyclePlayMode());
+        if (playModeButton != null) {
+            PressFeedback.attach(playModeButton);
+            playModeButton.setOnClickListener(v -> toggleShuffleMode());
+        }
+        repeatModeButton = root.findViewById(R.id.player_repeat_button);
+        if (repeatModeButton != null) {
+            PressFeedback.attach(repeatModeButton);
+            repeatModeButton.setOnClickListener(v -> cycleRepeatMode());
+        }
         playerFavoriteSurface = root.findViewById(R.id.player_favorite_surface);
 
         // Bind Editorial Warm Dark surfaced controls
@@ -639,42 +648,101 @@ public class PlayerControllerFragment extends Fragment {
         return d;
     }
 
-    private com.eddyizm.tempus.ui.player.PlayMode currentPlayMode() {
+    private boolean currentShuffleEnabled() {
         if (com.eddyizm.tempus.lan.LanRemoteSession.isActive()) {
-            com.eddyizm.tempus.lan.LanRemoteState state = com.eddyizm.tempus.lan.LanRemoteSession.current();
-            return com.eddyizm.tempus.ui.player.PlayMode.of(state.getShuffle(), state.getRepeat());
+            return com.eddyizm.tempus.lan.LanRemoteSession.current().getShuffle();
         }
         MediaBrowser browser = getBrowser();
-        return browser != null
-                ? com.eddyizm.tempus.ui.player.PlayMode.of(browser.getShuffleModeEnabled(), browser.getRepeatMode())
-                : com.eddyizm.tempus.ui.player.PlayMode.of(Preferences.isShuffleModeEnabled(), Preferences.getRepeatMode());
+        return browser != null ? browser.getShuffleModeEnabled() : Preferences.isShuffleModeEnabled();
     }
 
-    /** Steps the play order: repeat queue, shuffle, repeat one, then in order without repeat. */
-    private void cyclePlayMode() {
-        com.eddyizm.tempus.ui.player.PlayMode next = currentPlayMode().next();
+    private int currentRepeatMode() {
         if (com.eddyizm.tempus.lan.LanRemoteSession.isActive()) {
-            com.eddyizm.tempus.lan.LanRemoteSession.command("shuffle", next.getShuffle() ? 1 : 0);
-            com.eddyizm.tempus.lan.LanRemoteSession.command("repeat", next.getRepeat());
+            return com.eddyizm.tempus.lan.LanRemoteSession.current().getRepeat();
+        }
+        MediaBrowser browser = getBrowser();
+        return browser != null ? browser.getRepeatMode() : Preferences.getRepeatMode();
+    }
+
+    private void toggleShuffleMode() {
+        boolean next = !currentShuffleEnabled();
+        if (com.eddyizm.tempus.lan.LanRemoteSession.isActive()) {
+            com.eddyizm.tempus.lan.LanRemoteSession.command("shuffle", next ? 1 : 0);
         } else {
             MediaBrowser browser = getBrowser();
             if (browser == null) return;
-            browser.setShuffleModeEnabled(next.getShuffle());
-            browser.setRepeatMode(next.getRepeat());
+            browser.setShuffleModeEnabled(next);
         }
-        showPlayMode(next);
-        Toast.makeText(requireContext(), next.getLabel(), Toast.LENGTH_SHORT).show();
+        Preferences.setShuffleModeEnabled(next);
+        showShuffleAndRepeat(next, currentRepeatMode());
+        Toast.makeText(
+                requireContext(),
+                next ? R.string.player_mode_shuffle : R.string.player_mode_sequential,
+                Toast.LENGTH_SHORT
+        ).show();
+    }
+
+    private void cycleRepeatMode() {
+        int current = currentRepeatMode();
+        int next;
+        int labelRes;
+        if (current == androidx.media3.common.Player.REPEAT_MODE_OFF) {
+            next = androidx.media3.common.Player.REPEAT_MODE_ALL;
+            labelRes = R.string.player_mode_repeat_all;
+        } else if (current == androidx.media3.common.Player.REPEAT_MODE_ALL) {
+            next = androidx.media3.common.Player.REPEAT_MODE_ONE;
+            labelRes = R.string.player_mode_repeat_one;
+        } else {
+            next = androidx.media3.common.Player.REPEAT_MODE_OFF;
+            labelRes = R.string.player_mode_sequential;
+        }
+        if (com.eddyizm.tempus.lan.LanRemoteSession.isActive()) {
+            com.eddyizm.tempus.lan.LanRemoteSession.command("repeat", next);
+        } else {
+            MediaBrowser browser = getBrowser();
+            if (browser == null) return;
+            browser.setRepeatMode(next);
+        }
+        Preferences.setRepeatMode(next);
+        showShuffleAndRepeat(currentShuffleEnabled(), next);
+        Toast.makeText(requireContext(), labelRes, Toast.LENGTH_SHORT).show();
     }
 
     private void updatePlayModeButton() {
-        if (playModeButton != null) showPlayMode(currentPlayMode());
+        showShuffleAndRepeat(currentShuffleEnabled(), currentRepeatMode());
     }
 
-    private void showPlayMode(com.eddyizm.tempus.ui.player.PlayMode mode) {
-        if (playModeButton == null) return;
-        playModeButton.setImageResource(mode.getIcon());
-        playModeButton.setContentDescription(getString(mode.getLabel()));
-        TooltipCompat.setTooltipText(playModeButton, getString(mode.getLabel()));
+    private void showShuffleAndRepeat(boolean shuffle, int repeat) {
+        if (playModeButton != null) {
+            playModeButton.setImageResource(R.drawable.ic_shuffle);
+            ImageViewCompat.setImageTintList(
+                    playModeButton,
+                    ColorStateList.valueOf(shuffle ? colorBrass : colorIvorySecondary)
+            );
+            playModeButton.setAlpha(shuffle ? 1.0f : 0.72f);
+            String desc = getString(R.string.player_mode_shuffle);
+            playModeButton.setContentDescription(desc);
+            TooltipCompat.setTooltipText(playModeButton, desc);
+        }
+        if (repeatModeButton != null) {
+            boolean active = repeat != androidx.media3.common.Player.REPEAT_MODE_OFF;
+            repeatModeButton.setImageResource(
+                    repeat == androidx.media3.common.Player.REPEAT_MODE_ONE
+                            ? R.drawable.ic_repeat_one
+                            : R.drawable.ic_repeat
+            );
+            ImageViewCompat.setImageTintList(
+                    repeatModeButton,
+                    ColorStateList.valueOf(active ? colorBrass : colorIvorySecondary)
+            );
+            repeatModeButton.setAlpha(active ? 1.0f : 0.72f);
+            int labelRes = repeat == androidx.media3.common.Player.REPEAT_MODE_ONE
+                    ? R.string.player_mode_repeat_one
+                    : (active ? R.string.player_mode_repeat_all : R.string.player_mode_sequential);
+            String desc = getString(labelRes);
+            repeatModeButton.setContentDescription(desc);
+            TooltipCompat.setTooltipText(repeatModeButton, desc);
+        }
     }
 
     private void syncFavoriteSurface() {
@@ -794,7 +862,7 @@ public class PlayerControllerFragment extends Fragment {
         if (playerOpenLyricsButton != null) {
             // Keep all 4 capsule slots permanently balanced; dim Lyrics slot when unavailable.
             playerOpenLyricsButton.setVisibility(View.VISIBLE);
-            playerOpenLyricsButton.setAlpha(hasLyrics ? 1.0f : 0.38f);
+            playerOpenLyricsButton.setAlpha(hasLyrics ? 1.0f : 0.45f);
         }
         if (!hasLyrics && isLyricsPage()) {
             goToControllerPage();

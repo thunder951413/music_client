@@ -24,6 +24,7 @@
         android:insetTop="0dp"
         android:insetRight="0dp"
         android:insetBottom="0dp"
+        android:visibility="gone"
         app:cornerRadius="64dp"
         android:alpha="0.7"
         app:icon="@drawable/ic_tap"

@@ -14,7 +14,7 @@
 
     <!-- Home Hero & Honest Wish Capsule -->
     <string name="editorial_daily_status_ready">今日已就绪</string>
-    <string name="editorial_daily_status_ready_wishes">今日就绪 · %1$d 首心愿</string>
+    <string name="editorial_daily_status_ready_wishes">含 %1$d 首心愿</string>
     <string name="editorial_daily_status_preparing">生成中…</string>
     <string name="editorial_daily_status_local">本地推荐</string>
     <string name="editorial_daily_status_cached">缓存推荐</string>

@@ -17,7 +17,6 @@ object PressFeedback {
         fun spring() = SpringForce(1f).setDampingRatio(0.5f).setStiffness(700f)
         val scaleX = SpringAnimation(view, DynamicAnimation.SCALE_X).setSpring(spring())
         val scaleY = SpringAnimation(view, DynamicAnimation.SCALE_Y).setSpring(spring())
-        view.background = null
         view.setOnTouchListener { v, event ->
             val target = when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> PRESSED_SCALE

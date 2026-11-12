@@ -34,7 +34,6 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -43,6 +42,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
@@ -829,22 +829,21 @@ fun SignalAndSoundSheet(
                     .clip(RoundedCornerShape(16.dp))
                     .background(CardBg)
                     .border(1.dp, Hairline, RoundedCornerShape(16.dp))
-                    .padding(14.dp),
+                    .padding(horizontal = 10.dp, vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Text(
                     text = stringResource(R.string.editorial_signal_chain_header),
+                    modifier = Modifier.padding(horizontal = 2.dp),
                     color = IvoryTertiary,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.SemiBold,
                     letterSpacing = 1.1.sp,
                 )
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
+                    modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    horizontalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
                     SignalChainNode(
                         stage = stringResource(R.string.editorial_signal_node_source),
@@ -853,6 +852,7 @@ fun SignalAndSoundSheet(
                         accent = if (sourceNodeInfo.isHiRes) StylusBrass else Ivory,
                         highlighted = sourceNodeInfo.isHiRes || sourceNodeInfo.isLossless,
                         brassBorder = sourceNodeInfo.isHiRes,
+                        modifier = Modifier.weight(1f),
                         onClick = { scope.launch { scrollState.animateScrollTo(0) } },
                     )
                     SignalConnector(active = true)
@@ -863,6 +863,7 @@ fun SignalAndSoundSheet(
                         accent = Ivory,
                         highlighted = decoderLabel == "FFmpeg" || decoderLabel == "PCM",
                         brassBorder = false,
+                        modifier = Modifier.weight(1f),
                         onClick = { scope.launch { scrollState.animateScrollTo(0) } },
                     )
                     val rgActive = rgMode != "disabled"
@@ -876,6 +877,7 @@ fun SignalAndSoundSheet(
                         accent = if (rgActive) Ivory else IvorySecondary,
                         highlighted = rgActive,
                         brassBorder = false,
+                        modifier = Modifier.weight(1f),
                         onClick = { scope.launch { scrollState.animateScrollTo(rgSectionY) } },
                     )
                     SignalConnector(active = eqSummary.isActive)
@@ -890,16 +892,24 @@ fun SignalAndSoundSheet(
                         },
                         highlighted = eqSummary.isActive,
                         brassBorder = eqSummary.isActive && !eqSummary.isParametric,
+                        modifier = Modifier.weight(1f),
                         onClick = { scope.launch { scrollState.animateScrollTo(eqSectionY) } },
                     )
                     SignalConnector(active = outputSummary.isRemote)
+                    val compactOutputSub = outputSummary.detail
+                        .removePrefix(outputSummary.label)
+                        .trim()
+                        .ifEmpty { outputSummary.detail }
+                        .takeIf { it.isNotBlank() && it != outputSummary.label }
+                        ?.take(12)
                     SignalChainNode(
                         stage = stringResource(R.string.editorial_signal_node_output),
                         value = outputSummary.label,
-                        subValue = outputSummary.detail.takeIf { it.isNotBlank() }?.take(14),
+                        subValue = compactOutputSub,
                         accent = if (outputSummary.isRemote) StylusBrass else Ivory,
                         highlighted = outputSummary.isRemote,
                         brassBorder = outputSummary.isRemote,
+                        modifier = Modifier.weight(1f),
                         onClick = onSwitchToOutputSheet,
                     )
                 }
@@ -1140,7 +1150,7 @@ fun SignalAndSoundSheet(
                             val binderRef = serviceBinder
                             dismissSmoothly { onOpenFullEqualizer(binderRef) }
                         },
-                        modifier = Modifier.weight(1.25f),
+                        modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(999.dp),
                         color = PillBg,
                         border = BorderStroke(1.dp, Hairline),
@@ -1271,7 +1281,7 @@ fun SignalAndSoundSheet(
                             }
                         },
                         valueRange = -15f..15f,
-                        steps = 29,
+                        steps = 0,
                         enabled = rgMode != "disabled",
                         colors = editorialSliderColors(),
                     )
@@ -1485,6 +1495,7 @@ private fun SignalChainNode(
     accent: Color,
     highlighted: Boolean,
     brassBorder: Boolean,
+    modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
     val borderColor = when {
@@ -1493,35 +1504,39 @@ private fun SignalChainNode(
         else -> Hairline
     }
     Column(
-        modifier = Modifier
-            .clip(RoundedCornerShape(10.dp))
+        modifier = modifier
+            .defaultMinSize(minHeight = 56.dp)
+            .clip(RoundedCornerShape(9.dp))
             .background(if (highlighted) DeepBg else PillBg.copy(alpha = 0.65f))
-            .border(width = 1.dp, color = borderColor, shape = RoundedCornerShape(10.dp))
+            .border(width = 1.dp, color = borderColor, shape = RoundedCornerShape(9.dp))
             .clickable(onClick = onClick)
-            .padding(horizontal = 10.dp, vertical = 7.dp),
+            .padding(horizontal = 3.dp, vertical = 6.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(2.dp)
+        verticalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterVertically)
     ) {
         Text(
             text = stage,
             color = IvoryTertiary,
-            fontSize = 11.sp,
+            fontSize = 10.sp,
             maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
         )
         Text(
             text = value,
             color = accent,
-            fontSize = 13.sp,
+            fontSize = 11.5.sp,
             fontWeight = FontWeight.SemiBold,
             maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
             style = TabularStyle,
         )
         if (!subValue.isNullOrBlank()) {
             Text(
                 text = subValue,
                 color = IvorySecondary,
-                fontSize = 11.sp,
+                fontSize = 9.5.sp,
                 maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
                 style = TabularStyle,
             )
         }
@@ -1533,7 +1548,7 @@ private fun SignalChainNode(
 private fun SignalConnector(active: Boolean) {
     Box(
         modifier = Modifier
-            .width(12.dp)
+            .width(5.dp)
             .height(1.dp)
             .background(if (active) StylusBrass.copy(alpha = 0.65f) else Hairline)
     )
@@ -1852,14 +1867,14 @@ private fun EqFrequencyResponseCanvas(
                         "${freq}Hz"
                     }
                     val dbVal = if (isActive) bandLevelsDb.getOrElse(idx) { 0f }.roundToInt() else 0
-                    val dbText = when {
-                        dbVal > 0 -> "+$dbVal"
-                        dbVal < 0 -> "$UNICODE_MINUS${abs(dbVal)}"
-                        else -> "0"
+                    val labelText = when {
+                        dbVal > 0 -> "$freqText (+$dbVal)"
+                        dbVal < 0 -> "$freqText ($UNICODE_MINUS${abs(dbVal)})"
+                        else -> freqText
                     }
                     Text(
-                        text = "$freqText ($dbText)",
-                        color = IvoryTertiary,
+                        text = labelText,
+                        color = if (dbVal != 0) StylusBrass else IvoryTertiary,
                         fontSize = 11.sp,
                         style = TabularStyle,
                     )
@@ -2795,8 +2810,13 @@ private fun editorialSliderColors() = SliderDefaults.colors(
     thumbColor = StylusBrass,
     activeTrackColor = StylusBrass,
     inactiveTrackColor = PillBg,
+    disabledThumbColor = IvoryTertiary,
+    disabledActiveTrackColor = IvoryTertiary.copy(alpha = 0.45f),
+    disabledInactiveTrackColor = PillBg.copy(alpha = 0.65f),
     activeTickColor = Color.Transparent,
     inactiveTickColor = Color.Transparent,
+    disabledActiveTickColor = Color.Transparent,
+    disabledInactiveTickColor = Color.Transparent,
 )
 
 private data class SourceSignalNodeInfo(

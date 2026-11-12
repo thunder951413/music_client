@@ -30,9 +30,9 @@
     <string name="editorial_signal_sheet_subtitle">Audio pipeline, parametric EQ &amp; playback acoustics</string>
     <string name="editorial_signal_chain_header">LIVE AUDIO PIPELINE</string>
     <string name="editorial_signal_node_source">Source</string>
-    <string name="editorial_signal_node_decoder">Decoder</string>
-    <string name="editorial_signal_node_rg">ReplayGain</string>
-    <string name="editorial_signal_node_eq">Equalizer</string>
+    <string name="editorial_signal_node_decoder">Decode</string>
+    <string name="editorial_signal_node_rg">RG</string>
+    <string name="editorial_signal_node_eq">EQ</string>
     <string name="editorial_signal_node_output">Output</string>
     <string name="editorial_signal_val_bypass">Bypass</string>
     <string name="editorial_signal_val_off">Off</string>
@@ -45,8 +45,8 @@
     <string name="editorial_eq_preset_classical">Classical</string>
     <string name="editorial_eq_preset_live">Live Stage</string>
     <string name="editorial_eq_autoeq_chip">AutoEq · %1$s</string>
-    <string name="editorial_eq_import_autoeq">Import AutoEq (.txt)</string>
-    <string name="editorial_eq_open_full">Open Full Equalizer / AutoEq</string>
+    <string name="editorial_eq_import_autoeq">Import AutoEq</string>
+    <string name="editorial_eq_open_full">Full Equalizer</string>
     <string name="editorial_eq_import_success">Loaded AutoEq profile: %1$s</string>
     <string name="editorial_eq_import_failed">Invalid Parametric EQ file (check AutoEq ParametricEQ.txt format)</string>
     <string name="editorial_eq_drag_hint">Drag band nodes on the curve to sculpt built-in EQ</string>

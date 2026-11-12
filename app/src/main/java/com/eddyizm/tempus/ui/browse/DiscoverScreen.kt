@@ -305,14 +305,9 @@ fun DiscoverScreen(
                                 }
                             }
 
-                            // 5c. Genres (`流派`) — 2-column compact neutral cards (filter dirty 1-3 song tags)
+                            // 5c. Genres (`流派`) — 2-column compact neutral cards (only clean >= 10 song genres in featured preview)
                             if (state.genres.isNotEmpty()) {
-                                val majorGenres = state.genres.filter { it.songCount >= 10 }
-                                val featuredGenres = if (majorGenres.size >= 4) {
-                                    majorGenres.take(12)
-                                } else {
-                                    state.genres.filter { it.songCount >= 2 }.ifEmpty { state.genres }.take(12)
-                                }
+                                val featuredGenres = state.genres.filter { it.songCount >= 10 }.take(12)
                                 item(key = "genres_header") {
                                     Row(
                                         modifier = Modifier
@@ -339,21 +334,23 @@ fun DiscoverScreen(
                                         )
                                     }
                                 }
-                                editorialGrid(featuredGenres) { genre, cellModifier ->
-                                    val name = genre.genre.orEmpty()
-                                    val sub = if (genre.songCount > 0) {
-                                        stringResource(R.string.editorial_genre_song_count, genre.songCount)
-                                    } else {
-                                        null
+                                if (featuredGenres.isNotEmpty()) {
+                                    editorialGrid(featuredGenres) { genre, cellModifier ->
+                                        val name = genre.genre.orEmpty()
+                                        val sub = if (genre.songCount > 0) {
+                                            stringResource(R.string.editorial_genre_song_count, genre.songCount)
+                                        } else {
+                                            null
+                                        }
+                                        CategoryTile(
+                                            title = name,
+                                            color = BrowsePalette.colorFor(name),
+                                            subtitle = sub,
+                                            height = 62.dp,
+                                            modifier = cellModifier,
+                                            onClick = { actions.openGenre(genre) },
+                                        )
                                     }
-                                    CategoryTile(
-                                        title = name,
-                                        color = BrowsePalette.colorFor(name),
-                                        subtitle = sub,
-                                        height = 62.dp,
-                                        modifier = cellModifier,
-                                        onClick = { actions.openGenre(genre) },
-                                    )
                                 }
                             }
 
