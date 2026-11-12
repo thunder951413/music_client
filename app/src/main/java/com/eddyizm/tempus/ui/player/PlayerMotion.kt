@@ -4,10 +4,9 @@ import android.animation.ValueAnimator
 import java.util.concurrent.CopyOnWriteArraySet
 
 /**
- * Shared playback and cover-scheme signals for the immersive player's animated views.
+ * Shared playback, visibility, and cover-scheme signals for the immersive player's views.
  *
- * The play button, the wavy time bar and the fluid backdrop live in different fragments; they
- * subscribe here instead of each binding its own media controller. All calls are main-thread only.
+ * All calls are main-thread only.
  */
 object PlayerMotion {
     fun interface Listener {
@@ -34,6 +33,16 @@ object PlayerMotion {
     var coverInFlight: Boolean = false
         private set
 
+    /** True while the full-screen player sheet is expanded or actively dragging open. */
+    @JvmStatic
+    var sheetExpanded: Boolean = false
+        private set
+
+    /** True while the lyrics page is covering the vinyl artwork pager. */
+    @JvmStatic
+    var lyricsShowing: Boolean = false
+        private set
+
     @JvmStatic
     fun setCoverInFlight(flying: Boolean) {
         if (coverInFlight == flying) return
@@ -45,6 +54,20 @@ object PlayerMotion {
     fun setPlaying(playing: Boolean) {
         if (isPlaying == playing) return
         isPlaying = playing
+        notifyListeners()
+    }
+
+    @JvmStatic
+    fun setSheetExpanded(expanded: Boolean) {
+        if (sheetExpanded == expanded) return
+        sheetExpanded = expanded
+        notifyListeners()
+    }
+
+    @JvmStatic
+    fun setLyricsShowing(showing: Boolean) {
+        if (lyricsShowing == showing) return
+        lyricsShowing = showing
         notifyListeners()
     }
 

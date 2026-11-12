@@ -13,9 +13,10 @@ import com.bumptech.glide.request.transition.Transition
 import com.eddyizm.tempus.R
 import com.eddyizm.tempus.glide.CustomGlideRequest
 
-/** Derives the immersive player's [CoverScheme] from the current cover and publishes it. */
+/** Derives the immersive player's [CoverScheme] from a 32x32 downsampled cover and publishes it. */
 object PlayerBackdrop {
-    private const val SAMPLE_SIZE = 128
+    private const val REQUEST_SIZE = 128
+    private const val SAMPLE_SIZE = 32
 
     @JvmStatic
     fun themedInflater(inflater: LayoutInflater): LayoutInflater =
@@ -33,7 +34,7 @@ object PlayerBackdrop {
         }
         Glide.with(target.context.applicationContext)
             .asBitmap()
-            .load(CustomGlideRequest.createUrl(coverArtId, SAMPLE_SIZE))
+            .load(CustomGlideRequest.createUrl(coverArtId, REQUEST_SIZE))
             .diskCacheStrategy(CustomGlideRequest.DEFAULT_DISK_CACHE_STRATEGY)
             .into(object : CustomTarget<Bitmap>(SAMPLE_SIZE, SAMPLE_SIZE) {
                 override fun onResourceReady(resource: Bitmap, transition: Transition<in Bitmap>?) {

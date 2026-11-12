@@ -6,13 +6,6 @@ import android.net.Uri
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.withFrameNanos
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.layout.Box
@@ -20,26 +13,37 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.State
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.lerp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.bumptech.glide.Glide
 import com.bumptech.glide.request.target.CustomTarget
 import com.bumptech.glide.request.transition.Transition
@@ -49,7 +53,6 @@ import com.eddyizm.tempus.subsonic.models.Child
 import com.eddyizm.tempus.ui.player.CoverCache
 import com.eddyizm.tempus.ui.player.PlayerMotion
 import com.eddyizm.tempus.ui.player.VinylClock
-import com.eddyizm.tempus.util.Preferences
 import com.eddyizm.tempus.util.RadioCoverArtDownloader
 import kotlin.math.absoluteValue
 
@@ -67,41 +70,96 @@ private fun <T> rememberMotion(read: () -> T): State<T> {
     return value
 }
 
+@Composable
+private fun rememberLifecycleStarted(): Boolean {
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    var started by remember(lifecycle) {
+        mutableStateOf(lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED))
+    }
+    DisposableEffect(lifecycle) {
+        val observer = LifecycleEventObserver { _, _ ->
+            started = lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
+        }
+        lifecycle.addObserver(observer)
+        onDispose { lifecycle.removeObserver(observer) }
+    }
+    return started
+}
+
 /**
- * The cover as a vinyl record, in the manner of NetEase Cloud Music: a black grooved disc with the
- * artwork as its round label, turning with [VinylClock] while playing. The light sheen stays put
- * while the record turns under it.
+ * Editorial Warm Dark vinyl disc: a warm charcoal-lacquer record turning via RenderNode `rotationZ`
+ * (zero Compose recompositions and zero groove redraws per frame), halting immediately with 0 frame
+ * callbacks whenever paused, collapsed to mini-player, occluded by lyrics, or stopped.
  */
 @Composable
 private fun VinylDisc(spinning: Boolean, hideLabel: Boolean, label: @Composable () -> Unit) {
-    var angle by remember { mutableFloatStateOf(VinylClock.angle()) }
-    LaunchedEffect(spinning) {
-        angle = VinylClock.angle()
-        if (spinning) while (true) withFrameNanos { angle = VinylClock.angle() }
+    val lifecycleStarted = rememberLifecycleStarted()
+    val activeSpin = spinning && lifecycleStarted
+    val angleState = remember { mutableFloatStateOf(VinylClock.angle()) }
+
+    LaunchedEffect(activeSpin) {
+        angleState.floatValue = VinylClock.angle()
+        if (activeSpin) {
+            while (true) {
+                withFrameNanos {
+                    angleState.floatValue = VinylClock.angle()
+                }
+            }
+        }
     }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
             .graphicsLayer {
-                shadowElevation = 22.dp.toPx()
+                shadowElevation = 24.dp.toPx()
                 shape = CircleShape
                 clip = true
             }
-            .background(Color(0xFF111113)),
+            .background(Color(0xFF12100E)),
         contentAlignment = Alignment.Center
     ) {
+        // Rotating disc layer: offscreen RenderNode cached while spinning so RenderThread only rotates it.
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .graphicsLayer { rotationZ = angle }
-                .drawBehind {
-                    val radius = size.minDimension / 2f
-                    var ring = VINYL_LABEL_FRACTION + 0.03f
-                    while (ring < 0.97f) {
-                        drawCircle(Color.White.copy(alpha = 0.045f), radius * ring, style = Stroke(width = 1.dp.toPx()))
-                        ring += 0.022f
+                .graphicsLayer {
+                    compositingStrategy = if (activeSpin) {
+                        CompositingStrategy.Offscreen
+                    } else {
+                        CompositingStrategy.Auto
                     }
-                    drawCircle(Color.Black.copy(alpha = 0.6f), radius * (VINYL_LABEL_FRACTION + 0.012f), style = Stroke(width = 3.dp.toPx()))
+                    rotationZ = angleState.floatValue
+                }
+                .drawWithCache {
+                    val radius = size.minDimension / 2f
+                    val grooveStroke = Stroke(width = 1.dp.toPx())
+                    val rimStroke = Stroke(width = 1.dp.toPx())
+                    val innerCollarStroke = Stroke(width = 3.dp.toPx())
+                    val brassRingStroke = Stroke(width = 1.2.dp.toPx())
+                    val grooveColor = Color(0xFFF2ECE3).copy(alpha = 0.042f)
+                    val rimColor = Color(0xFFFFF0DC).copy(alpha = 0.10f)
+                    val collarColor = Color(0xFF090807).copy(alpha = 0.72f)
+                    val brassRingColor = Color(0xFFCFA46A).copy(alpha = 0.42f)
+
+                    onDrawBehind {
+                        drawCircle(rimColor, radius - 0.5.dp.toPx(), style = rimStroke)
+                        var ring = VINYL_LABEL_FRACTION + 0.03f
+                        while (ring < 0.965f) {
+                            drawCircle(grooveColor, radius * ring, style = grooveStroke)
+                            ring += 0.024f
+                        }
+                        drawCircle(
+                            collarColor,
+                            radius * (VINYL_LABEL_FRACTION + 0.012f),
+                            style = innerCollarStroke
+                        )
+                        drawCircle(
+                            brassRingColor,
+                            radius * (VINYL_LABEL_FRACTION + 0.004f),
+                            style = brassRingStroke
+                        )
+                    }
                 },
             contentAlignment = Alignment.Center
         ) {
@@ -111,20 +169,34 @@ private fun VinylDisc(spinning: Boolean, hideLabel: Boolean, label: @Composable 
                     .clip(CircleShape)
                     .graphicsLayer { alpha = if (hideLabel) 0f else 1f }
             ) { label() }
+            // Warm brass spindle collar + dark center hole
             Box(
                 Modifier
-                    .fillMaxSize(0.04f)
+                    .fillMaxSize(0.052f)
                     .clip(CircleShape)
-                    .background(Color(0xFF111113))
-            )
+                    .background(Color(0xFFCFA46A).copy(alpha = 0.78f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Box(
+                    Modifier
+                        .fillMaxSize(0.68f)
+                        .clip(CircleShape)
+                        .background(Color(0xFF0E0D0C))
+                )
+            }
         }
+        // Stationary studio light sheen above the rotating vinyl
         Box(
             Modifier
                 .fillMaxSize()
                 .background(
                     Brush.sweepGradient(
-                        0f to Color.Transparent, 0.12f to Color.White.copy(alpha = 0.07f), 0.22f to Color.Transparent,
-                        0.62f to Color.Transparent, 0.72f to Color.White.copy(alpha = 0.05f), 0.82f to Color.Transparent,
+                        0f to Color.Transparent,
+                        0.11f to Color(0xFFFFF4E4).copy(alpha = 0.065f),
+                        0.22f to Color.Transparent,
+                        0.61f to Color.Transparent,
+                        0.72f to Color(0xFFCFA46A).copy(alpha = 0.045f),
+                        0.83f to Color.Transparent,
                     )
                 )
         )
@@ -144,7 +216,6 @@ fun NowPlayingArtworkPager(
     val currentQueue by rememberUpdatedState(queue)
     val currentTrackIndex by rememberUpdatedState(currentIndex)
     val currentOnPageSelected by rememberUpdatedState(onPageSelected)
-    val currentOnCoverClick by rememberUpdatedState(onCoverClick)
 
     val count = if (isRadio || queue.isEmpty()) 1 else queue.size
     val safeIndex = if (isRadio) 0 else currentIndex.coerceIn(0, (count - 1).coerceAtLeast(0))
@@ -177,7 +248,6 @@ fun NowPlayingArtworkPager(
         }
     }
 
-    // Capture user swipe settlement and trigger track change only when user physically swiped
     LaunchedEffect(pagerState) {
         snapshotFlow { pagerState.settledPage }.collect { settledPage ->
             if (userSwiped && !isRadio && settledPage in currentQueue.indices && settledPage != currentTrackIndex) {
@@ -188,11 +258,15 @@ fun NowPlayingArtworkPager(
     }
 
     val context = LocalContext.current
-    // Decode the covers either side of the current track before a swipe or skip needs them.
     LaunchedEffect(safeIndex, queue) {
         if (!isRadio) CoverCache.preload(context, (safeIndex - 1..safeIndex + 2).mapNotNull { queue.getOrNull(it)?.coverArtId })
     }
-    val isPlaying by rememberMotion { PlayerMotion.isPlaying }
+    val canSpin by rememberMotion {
+        PlayerMotion.isPlaying &&
+            PlayerMotion.motionEnabled &&
+            PlayerMotion.sheetExpanded &&
+            !PlayerMotion.lyricsShowing
+    }
     val coverInFlight by rememberMotion { PlayerMotion.coverInFlight }
 
     if (!isRadio && queue.isEmpty()) {
@@ -228,7 +302,10 @@ fun NowPlayingArtworkPager(
                 },
             contentAlignment = Alignment.Center
         ) {
-            VinylDisc(spinning = current && isPlaying, hideLabel = current && coverInFlight) {
+            VinylDisc(
+                spinning = current && canSpin && !isDragged,
+                hideLabel = current && coverInFlight
+            ) {
                 if (isRadio) {
                     RadioArtwork(artworkUri = radioArtworkUri, coverArtId = radioCoverArtId)
                 } else {
@@ -246,7 +323,6 @@ private fun SongArtwork(
     title: String?
 ) {
     val appContext = LocalContext.current.applicationContext
-    // A cover already decoded for the mini player or a neighbouring page shows on the first frame.
     var bitmap by remember(coverArtId) { mutableStateOf(CoverCache.get(coverArtId)) }
 
     DisposableEffect(coverArtId) {

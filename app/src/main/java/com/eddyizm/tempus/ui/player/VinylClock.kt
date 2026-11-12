@@ -1,14 +1,20 @@
 package com.eddyizm.tempus.ui.player
 
+import android.animation.ObjectAnimator
+import android.animation.ValueAnimator
 import android.os.SystemClock
 import android.view.View
+import android.view.animation.LinearInterpolator
 
 /**
- * One record angle shared by the mini player, the flying cover and the full-player disc, so the
- * artwork keeps its orientation when it moves between them. It turns only while playing.
+ * Shared record angle for the full-screen vinyl player.
+ *
+ * Rotation runs ONLY while playing, animations are enabled, the full-screen player sheet is
+ * expanded, and lyrics are not covering the artwork. When any condition turns false, rotation
+ * halts immediately with 0 frame callbacks.
  */
 object VinylClock : PlayerMotion.Listener {
-    private const val MS_PER_TURN = 24_000f
+    const val MS_PER_TURN = 24_000f
 
     private var base = 0f
     private var since = SystemClock.uptimeMillis()
@@ -26,7 +32,10 @@ object VinylClock : PlayerMotion.Listener {
         val now = SystemClock.uptimeMillis()
         base = angle(now)
         since = now
-        isRunning = PlayerMotion.isPlaying && PlayerMotion.motionEnabled
+        isRunning = PlayerMotion.isPlaying &&
+            PlayerMotion.motionEnabled &&
+            PlayerMotion.sheetExpanded &&
+            !PlayerMotion.lyricsShowing
     }
 
     @JvmStatic
@@ -34,39 +43,61 @@ object VinylClock : PlayerMotion.Listener {
     fun angle(now: Long = SystemClock.uptimeMillis()): Float =
         if (isRunning) (base + (now - since) * 360f / MS_PER_TURN) % 360f else base
 
-    /** Keeps [view] round and turning with the clock while it is attached. */
+    /**
+     * Rotates [view] using hardware-backed [View.ROTATION] property animation while [isRunning]
+     * and [view] is attached & visible, stopping immediately with 0 callbacks otherwise.
+     */
     @JvmStatic
     fun spin(view: View) {
-        val tick = object : Runnable {
-            override fun run() {
-                if (!view.isAttachedToWindow) return
-                view.rotation = angle()
-                when {
-                    !isRunning -> Unit
-                    view.isShown -> view.postOnAnimation(this)
-                    // Hidden (player expanded): look again later instead of every frame.
-                    else -> view.postDelayed(this, 500)
+        var animator: ObjectAnimator? = null
+
+        fun sync() {
+            val shouldSpin = isRunning && view.isAttachedToWindow && view.isShown
+            if (shouldSpin) {
+                if (animator?.isRunning == true) return
+                val startAngle = angle()
+                view.rotation = startAngle
+                view.setLayerType(View.LAYER_TYPE_HARDWARE, null)
+                animator = ObjectAnimator.ofFloat(view, View.ROTATION, startAngle, startAngle + 360f).apply {
+                    duration = MS_PER_TURN.toLong()
+                    interpolator = LinearInterpolator()
+                    repeatCount = ValueAnimator.INFINITE
+                    repeatMode = ValueAnimator.RESTART
+                    start()
                 }
+            } else {
+                if (animator != null) {
+                    animator?.cancel()
+                    animator = null
+                    view.setLayerType(View.LAYER_TYPE_NONE, null)
+                }
+                view.rotation = angle()
             }
         }
-        val listener = PlayerMotion.Listener {
-            view.removeCallbacks(tick)
-            view.post(tick)
-        }
+
+        val motionListener = PlayerMotion.Listener { sync() }
+        val layoutListener = View.OnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> sync() }
+
         view.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
             override fun onViewAttachedToWindow(v: View) {
-                PlayerMotion.addListener(listener)
-                view.post(tick)
+                PlayerMotion.addListener(motionListener)
+                v.addOnLayoutChangeListener(layoutListener)
+                sync()
             }
 
             override fun onViewDetachedFromWindow(v: View) {
-                PlayerMotion.removeListener(listener)
-                view.removeCallbacks(tick)
+                PlayerMotion.removeListener(motionListener)
+                v.removeOnLayoutChangeListener(layoutListener)
+                animator?.cancel()
+                animator = null
+                v.setLayerType(View.LAYER_TYPE_NONE, null)
             }
         })
+
         if (view.isAttachedToWindow) {
-            PlayerMotion.addListener(listener)
-            view.post(tick)
+            PlayerMotion.addListener(motionListener)
+            view.addOnLayoutChangeListener(layoutListener)
+            sync()
         }
     }
 }

@@ -1,15 +1,33 @@
 <?xml version="1.0" encoding="utf-8"?>
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:id="@+id/action_track_info" android:title="@string/track_info_dialog_title" />
-    <item android:id="@+id/action_audio_details" android:title="@string/player_audio_details" android:checkable="true" />
-    <item android:id="@+id/action_playback_speed" android:title="@string/playback_speed_dialog_title" />
-    <item android:id="@+id/action_sleep_timer" android:title="@string/sleep_timer_dialog_title" />
-    <item android:id="@+id/action_show_lyrics" android:title="@string/player_show_lyrics" />
-    <item android:id="@+id/action_lan_playback" android:title="@string/lan_play_on" />
+    <item
+        android:id="@+id/action_signal_and_sound"
+        android:title="@string/editorial_menu_signal_and_sound" />
+    <item
+        android:id="@+id/action_output_route"
+        android:title="@string/editorial_menu_output_route" />
+    <item
+        android:id="@+id/action_track_info"
+        android:title="@string/track_info_dialog_title" />
+    <item
+        android:id="@+id/action_audio_details"
+        android:title="@string/player_audio_details"
+        android:checkable="true" />
+    <item
+        android:id="@+id/action_playback_speed"
+        android:title="@string/playback_speed_dialog_title" />
+    <item
+        android:id="@+id/action_sleep_timer"
+        android:title="@string/sleep_timer_dialog_title" />
+    <item
+        android:id="@+id/action_show_lyrics"
+        android:title="@string/player_show_lyrics" />
+    <item
+        android:id="@+id/action_lan_playback"
+        android:title="@string/lan_play_on" />
     <item
         android:id="@+id/action_open_equalizer"
         android:title="@string/settings_app_equalizer" />
-
     <item
         android:id="@+id/action_add_to_playlist"
         android:title="@string/player_overflow_menu_add_to_playlist" />

@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Full-screen player surfaced controls & badges -->
+    <string name="editorial_player_output_local">本机</string>
+    <string name="editorial_player_capsule_lyrics">歌词</string>
+    <string name="editorial_player_capsule_output">输出</string>
+    <string name="editorial_player_capsule_sound">音效</string>
+    <string name="editorial_player_capsule_queue">队列</string>
+    <string name="editorial_player_no_lyrics_available">当前曲目暂无歌词</string>
+
+    <string name="editorial_badge_eq_flat">EQ 平直</string>
+    <string name="editorial_badge_eq_active">EQ · %1$s</string>
+    <string name="editorial_badge_eq_builtin">内置均衡</string>
+    <string name="editorial_badge_eq_system">系统音效</string>
+    <string name="editorial_badge_eq_autoeq">AutoEq</string>
+    <string name="editorial_badge_rg_on">RG 开启</string>
+    <string name="editorial_badge_rg_track">RG 单曲</string>
+    <string name="editorial_badge_rg_album">RG 专辑</string>
+    <string name="editorial_badge_rg_auto">RG 智能</string>
+    <string name="editorial_badge_rg_db">RG %1$s dB</string>
+    <string name="editorial_badge_transcoded">%1$s · 转码</string>
+
+    <!-- Overflow shortcuts -->
+    <string name="editorial_menu_signal_and_sound">信号链与音效</string>
+    <string name="editorial_menu_output_route">音频输出路由</string>
+
+    <!-- Sheet A: Signal & Sound -->
+    <string name="editorial_signal_sheet_title">信号链与声学调校</string>
+    <string name="editorial_signal_sheet_subtitle">实时音频通路、参数化均衡器与听感控制</string>
+    <string name="editorial_signal_chain_header">实时音频信号链</string>
+    <string name="editorial_signal_node_source">源文件</string>
+    <string name="editorial_signal_node_decoder">解码</string>
+    <string name="editorial_signal_node_rg">ReplayGain</string>
+    <string name="editorial_signal_node_eq">EQ 均衡器</string>
+    <string name="editorial_signal_node_output">输出</string>
+    <string name="editorial_signal_val_bypass">直通</string>
+    <string name="editorial_signal_val_off">关闭</string>
+    <string name="editorial_signal_val_remote_decode">远端解码</string>
+
+    <string name="editorial_eq_section_title">频响曲线与均衡器</string>
+    <string name="editorial_eq_preset_flat">平直 (关闭)</string>
+    <string name="editorial_eq_preset_vocal">温润人声</string>
+    <string name="editorial_eq_preset_bass">低频下潜</string>
+    <string name="editorial_eq_preset_classical">古典厅堂</string>
+    <string name="editorial_eq_preset_live">现场声场</string>
+    <string name="editorial_eq_preset_custom">自定义 5 段</string>
+    <string name="editorial_eq_import_autoeq">导入 AutoEq (.txt)</string>
+    <string name="editorial_eq_open_full">打开完整均衡器 / AutoEq 导入</string>
+    <string name="editorial_eq_import_success">已加载 AutoEq 配置：%1$s</string>
+    <string name="editorial_eq_import_failed">无法解析参数均衡文件（请使用 AutoEq ParametricEQ.txt 格式）</string>
+    <string name="editorial_eq_drag_hint">在曲线上上下拖动频段节点可实时调节内置均衡</string>
+    <string name="editorial_eq_autoeq_summary">参数化 %1$d 段滤波 · 预放 %2$s dB</string>
+
+    <string name="editorial_rg_section_title">ReplayGain 响度均衡</string>
+    <string name="editorial_rg_mode_off">关闭</string>
+    <string name="editorial_rg_mode_track">单曲</string>
+    <string name="editorial_rg_mode_album">专辑</string>
+    <string name="editorial_rg_mode_auto">智能</string>
+    <string name="editorial_rg_preamp_label">响度预放增益</string>
+
+    <string name="editorial_playback_section_title">播放倍速与静音跳过</string>
+    <string name="editorial_skip_silence_title">自动跳过静音段</string>
+    <string name="editorial_skip_silence_subtitle">无缝滤除曲首尾或播客停顿空白</string>
+
+    <string name="editorial_sleep_section_title">睡眠定时</string>
+    <string name="editorial_sleep_off">关闭</string>
+    <string name="editorial_sleep_15m">15分</string>
+    <string name="editorial_sleep_30m">30分</string>
+    <string name="editorial_sleep_45m">45分</string>
+    <string name="editorial_sleep_60m">60分</string>
+    <string name="editorial_sleep_eot">播完当前曲</string>
+    <string name="editorial_sleep_active_countdown">剩余 %1$s</string>
+
+    <!-- Sheet B: Output Route -->
+    <string name="editorial_output_sheet_title">输出路由切换</string>
+    <string name="editorial_output_sheet_subtitle">本机解码、局域网 Tempus 互联与无损渲染器</string>
+    <string name="editorial_output_group_local">本机设备</string>
+    <string name="editorial_output_local_speaker">本机扬声器</string>
+    <string name="editorial_output_local_wired">有线耳机 / 线路输出</string>
+    <string name="editorial_output_local_usb">外置 USB DAC 解码耳放</string>
+    <string name="editorial_output_local_bt">蓝牙音频设备</string>
+    <string name="editorial_output_active_tag">当前使用</string>
+
+    <string name="editorial_output_group_lan">局域网 Tempus (LAN)</string>
+    <string name="editorial_output_lan_disabled_desc">通过局域网发现其他 Tempus 客户端，双向投送队列与无损遥控播放。</string>
+    <string name="editorial_output_lan_enable_action">启用局域网遥控</string>
+    <string name="editorial_output_lan_searching">正在扫描同一 Wi-Fi 下的 Tempus 设备…</string>
+    <string name="editorial_output_lan_empty">暂未发现同一局域网下的其他 Tempus 接收端</string>
+    <string name="editorial_output_lan_verified">Ed25519 已验证</string>
+    <string name="editorial_output_lan_pair_manage">配对管理</string>
+    <string name="editorial_output_lan_disconnect">断开</string>
+    <string name="editorial_output_lan_connecting">正在连接…</string>
+    <string name="editorial_output_lan_connected">已连接 · 实时同步队列</string>
+
+    <string name="editorial_output_group_upnp">UPnP / DLNA</string>
+    <string name="editorial_output_upnp_disabled_desc">扫描局域网 UPnP / DLNA 数播、音响与无损渲染器。</string>
+    <string name="editorial_output_upnp_enable_action">启用 UPnP / DLNA</string>
+    <string name="editorial_output_upnp_searching">正在搜索 UPnP / DLNA 渲染器…</string>
+    <string name="editorial_output_upnp_empty">暂未发现 UPnP / DLNA 渲染器</string>
+
+    <string name="editorial_output_group_cast">Chromecast</string>
+    <string name="editorial_output_cast_empty">当前网络未发现可用 Chromecast 设备</string>
+
+    <string name="editorial_output_remote_volume">远端音量</string>
+</resources>

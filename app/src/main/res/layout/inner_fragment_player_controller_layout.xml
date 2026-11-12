@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Portrait player in the Apple Music manner: cover, title, progress and three transport
-     controls. Speed, audio details, sleep timer and rating live in the overflow menu, shuffle and
-     repeat in the queue. Hidden views stay so the menu can still trigger their actions. -->
 <androidx.constraintlayout.widget.ConstraintLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/now_playing_media_controller_layout"
     android:clickable="true"
+    android:focusable="true"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
+
+    <!-- Top Bar: Collapse chevron | Now Playing + Context | Output Device Pill + 36dp Overflow -->
     <LinearLayout
         android:id="@+id/player_toolbar"
         android:layout_width="match_parent"
@@ -16,11 +16,17 @@
         android:orientation="horizontal"
         android:gravity="center_vertical"
         android:paddingStart="12dp"
-        android:paddingEnd="12dp"
-        app:layout_constraintTop_toTopOf="parent">
+        android:paddingEnd="14dp"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
         <ImageButton
             style="@style/PlayerIconButton"
             android:id="@+id/player_collapse_button"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:padding="9dp"
             android:contentDescription="@string/player_collapse"
             app:srcCompat="@drawable/player_collapse" />
 
@@ -28,16 +34,19 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
+            android:paddingStart="6dp"
+            android:paddingEnd="6dp"
             android:gravity="center"
             android:orientation="vertical">
+
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/player_now_playing"
                 android:textAllCaps="true"
                 android:letterSpacing="0.08"
-                android:textSize="11sp"
-                android:textColor="?attr/colorOnSurfaceVariant" />
+                android:textSize="10sp"
+                android:textColor="@color/player_secondary" />
 
             <TextView
                 android:id="@+id/player_context_label"
@@ -45,10 +54,45 @@
                 android:layout_height="wrap_content"
                 android:maxLines="1"
                 android:ellipsize="end"
-                android:textSize="13sp"
+                android:textSize="12sp"
                 android:fontFamily="sans-serif-medium"
-                android:textColor="?attr/colorOnSurface"
+                android:textColor="@color/player_foreground"
                 android:visibility="gone" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/player_top_output_pill"
+            android:layout_width="wrap_content"
+            android:layout_height="32dp"
+            android:layout_marginEnd="8dp"
+            android:paddingStart="10dp"
+            android:paddingEnd="11dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:clickable="true"
+            android:focusable="true"
+            android:contentDescription="@string/editorial_menu_output_route">
+
+            <ImageView
+                android:id="@+id/player_top_output_icon"
+                android:layout_width="14dp"
+                android:layout_height="14dp"
+                app:srcCompat="@drawable/ic_speaker"
+                app:tint="@color/player_foreground"
+                android:importantForAccessibility="no" />
+
+            <TextView
+                android:id="@+id/player_top_output_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="5dp"
+                android:maxWidth="104dp"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:textSize="11sp"
+                android:fontFamily="sans-serif-medium"
+                android:textColor="@color/player_foreground"
+                android:text="@string/editorial_player_output_local" />
         </LinearLayout>
 
         <ImageButton
@@ -57,85 +101,61 @@
             android:background="@drawable/player_round_surface"
             android:layout_width="36dp"
             android:layout_height="36dp"
-            android:layout_marginEnd="6dp"
             android:padding="7dp"
             android:src="@drawable/ic_more_horiz"
-            app:tint="?attr/colorOnSurface"
+            app:tint="@color/player_foreground"
             android:contentDescription="@string/player_more_options" />
     </LinearLayout>
 
+    <!-- Legacy hidden views kept so existing overflow actions / controllers never NPE -->
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/player_media_quality_sector"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:gravity="center"
-        android:orientation="horizontal"
+        android:visibility="gone"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        android:visibility="gone"
         app:layout_constraintTop_toBottomOf="@id/player_toolbar">
+
         <Button
             android:id="@+id/player_playback_speed_button"
             style="@style/Widget.Material3.Button.TextButton"
-            android:layout_width="@dimen/_80sdp"
-            android:layout_height="@dimen/_48sdp"
-            android:textSize="@dimen/_12sdp"
-            android:textColor="?attr/colorPrimary"
-            app:cornerRadius="30dp"
-            app:layout_constraintLeft_toLeftOf="parent"
-            app:layout_constraintTop_toTopOf="parent"
-            app:layout_constraintBottom_toBottomOf="parent" />
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
 
         <ImageButton
             android:id="@+id/player_info_track"
             android:layout_width="wrap_content"
-            android:layout_height="@dimen/_50sdp"
-            android:padding="@dimen/_16sdp"
-            android:layout_marginEnd="@dimen/_8sdp"
+            android:layout_height="wrap_content"
             android:background="?attr/selectableItemBackgroundBorderless"
-            android:scaleType="fitCenter"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintTop_toTopOf="@id/player_media_quality_sector_center"
-            app:layout_constraintBottom_toBottomOf="@id/player_media_quality_sector_center"
             app:srcCompat="@drawable/ic_info_stream"
-            app:tint="?attr/colorPrimary" />
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
 
         <androidx.constraintlayout.widget.ConstraintLayout
             android:id="@+id/player_media_quality_sector_center"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginVertical="@dimen/_8sdp"
             app:layout_constraintTop_toTopOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent">
+
             <TextView
                 android:id="@+id/player_media_bitrate"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:textSize="@dimen/_12sdp"
-                android:layout_marginStart="@dimen/_8sdp"
-                android:background="?attr/colorSurface"
-                app:layout_constraintTop_toTopOf="@id/player_media_extension"
-                app:layout_constraintBottom_toBottomOf="@id/player_media_extension"
-                app:layout_constraintStart_toEndOf="@id/player_media_extension"
-                app:layout_constraintEnd_toEndOf="parent" />
+                app:layout_constraintTop_toTopOf="parent"
+                app:layout_constraintStart_toEndOf="@id/player_media_extension" />
 
             <com.google.android.material.chip.Chip
                 android:id="@+id/player_media_extension"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:clickable="true"
-                android:checked="true"
-                android:focusable="true"
                 android:text="Unknown"
-                android:textSize="@dimen/_12sdp"
-                app:chipStrokeWidth="0dp"
-                app:chipBackgroundColor="?attr/colorSecondaryContainer"
                 app:layout_constraintTop_toTopOf="parent"
-                app:layout_constraintBottom_toBottomOf="parent"
-                app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintEnd_toStartOf="@id/player_media_bitrate"
-                app:layout_constraintHorizontal_chainStyle="packed" />
+                app:layout_constraintStart_toStartOf="parent" />
         </androidx.constraintlayout.widget.ConstraintLayout>
     </androidx.constraintlayout.widget.ConstraintLayout>
 
@@ -151,6 +171,7 @@
         app:layout_constraintTop_toBottomOf="@id/player_media_quality_sector"
         android:visibility="gone" />
 
+    <!-- Vinyl Disc / Lyrics Horizontal Pager -->
     <androidx.viewpager2.widget.ViewPager2
         android:id="@+id/player_media_cover_view_pager"
         android:layout_width="0dp"
@@ -158,7 +179,7 @@
         android:clipToPadding="false"
         android:layout_marginStart="24dp"
         android:layout_marginEnd="24dp"
-        android:layout_marginTop="12dp"
+        android:layout_marginTop="8dp"
         app:layout_constraintBottom_toTopOf="@id/guideline"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
@@ -170,15 +191,15 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        app:layout_constraintGuide_percent="0.585" />
+        app:layout_constraintGuide_percent="0.545" />
 
     <TextView
         android:id="@+id/player_media_title_label"
         style="@style/PlayerSongTitle"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginStart="28dp"
-        android:layout_marginTop="22dp"
+        android:layout_marginStart="26dp"
+        android:layout_marginTop="14dp"
         android:layout_marginEnd="12dp"
         android:ellipsize="marquee"
         android:marqueeRepeatLimit="marquee_forever"
@@ -192,13 +213,13 @@
         android:id="@+id/player_artist_name_label"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginStart="28dp"
+        android:layout_marginStart="26dp"
         android:layout_marginTop="2dp"
         android:layout_marginEnd="12dp"
         android:ellipsize="end"
         android:singleLine="true"
-        android:textSize="18sp"
-        android:textColor="?attr/colorOnSurfaceVariant"
+        android:textSize="15sp"
+        android:textColor="@color/player_secondary"
         android:text="@string/label_placeholder"
         app:layout_constraintEnd_toStartOf="@+id/player_favorite_surface"
         app:layout_constraintStart_toStartOf="parent"
@@ -208,24 +229,74 @@
         android:id="@+id/player_favorite_surface"
         android:layout_width="36dp"
         android:layout_height="36dp"
-        android:layout_marginEnd="28dp"
+        android:layout_marginEnd="26dp"
         android:background="@drawable/player_round_surface"
         app:layout_constraintBottom_toBottomOf="@+id/player_artist_name_label"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toTopOf="@+id/player_media_title_label">
+
         <androidx.appcompat.widget.AppCompatToggleButton
             android:id="@+id/button_favorite"
             android:layout_width="22dp"
             android:layout_height="22dp"
             android:layout_gravity="center"
             android:background="@drawable/player_favorite_refined"
-            android:backgroundTint="?attr/colorOnSurface"
+            android:backgroundTint="@color/player_foreground"
             android:checked="false"
             android:text=""
             android:textOff=""
             android:textOn=""
             android:contentDescription="@string/player_queue_starred" />
     </FrameLayout>
+
+    <!-- Clickable Audiophile Signal Badges Row -->
+    <HorizontalScrollView
+        android:id="@+id/player_signal_badges_scroll"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="26dp"
+        android:layout_marginEnd="26dp"
+        android:layout_marginTop="10dp"
+        android:scrollbars="none"
+        android:overScrollMode="never"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/player_artist_name_label">
+
+        <LinearLayout
+            android:id="@+id/player_signal_badges_row"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:clickable="true"
+            android:focusable="true"
+            android:contentDescription="@string/editorial_menu_signal_and_sound">
+
+            <TextView
+                android:id="@+id/player_badge_codec"
+                style="@style/PlayerSignalBadge"
+                android:layout_marginEnd="6dp"
+                android:text="FLAC" />
+
+            <TextView
+                android:id="@+id/player_badge_rate"
+                style="@style/PlayerSignalBadge"
+                android:layout_marginEnd="6dp"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/player_badge_rg"
+                style="@style/PlayerSignalBadge"
+                android:layout_marginEnd="6dp"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/player_badge_eq"
+                style="@style/PlayerSignalBadge"
+                android:text="@string/editorial_badge_eq_flat" />
+        </LinearLayout>
+    </HorizontalScrollView>
 
     <LinearLayout
         android:id="@+id/rating_container"
@@ -237,8 +308,10 @@
         android:scaleX="0.7"
         android:scaleY="0.7"
         android:transformPivotX="0dp"
+        android:visibility="gone"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/player_artist_name_label">
+        app:layout_constraintTop_toBottomOf="@+id/player_signal_badges_scroll">
+
         <RatingBar
             android:id="@+id/song_rating_bar"
             style="?android:attr/ratingBarStyleIndicator"
@@ -255,17 +328,18 @@
             android:layout_height="wrap_content"
             android:layout_marginStart="8dp"
             android:textSize="12sp"
-            android:textColor="?attr/colorOnSurfaceVariant"
+            android:textColor="@color/player_secondary"
             android:text="" />
     </LinearLayout>
 
+    <!-- Progress & Tabular Time Labels -->
     <com.eddyizm.tempus.ui.player.SmoothTimeBar
         android:id="@id/exo_progress"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginStart="28dp"
-        android:layout_marginEnd="28dp"
-        android:layout_marginTop="14dp"
+        android:layout_marginStart="26dp"
+        android:layout_marginEnd="26dp"
+        android:layout_marginTop="12dp"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/rating_container" />
@@ -273,33 +347,35 @@
     <TextView
         android:id="@+id/exo_position"
         style="@style/PlayerTimeLabel"
-        android:layout_marginStart="28dp"
+        android:layout_marginStart="26dp"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/exo_progress" />
 
     <TextView
         android:id="@+id/exo_duration"
         style="@style/PlayerTimeLabel"
-        android:layout_marginEnd="28dp"
+        android:layout_marginEnd="26dp"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/exo_progress" />
 
+    <!-- Transport Controls: Play Mode | Prev/Rew | Stylus Brass Play Circle | Next/Ffwd -->
     <ImageButton
         android:id="@id/exo_play_pause"
-        style="@style/PlayerHeroButton"
-        android:layout_width="84dp"
-        android:layout_height="84dp"
-        android:padding="14dp"
+        style="@style/PlayerMainButton"
+        android:layout_width="66dp"
+        android:layout_height="66dp"
+        android:padding="17dp"
+        app:tint="@color/player_on_action"
         app:layout_constraintBottom_toTopOf="@+id/player_quick_action_view"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/exo_position"
-        app:layout_constraintVertical_bias="0.42" />
+        app:layout_constraintVertical_bias="0.46" />
 
     <ImageButton
         android:id="@+id/exo_prev"
         style="@style/PlayerHeroButton"
-        android:layout_marginEnd="28dp"
+        android:layout_marginEnd="22dp"
         app:srcCompat="@drawable/ic_skip_previous"
         app:layout_constraintBottom_toBottomOf="@+id/exo_play_pause"
         app:layout_constraintEnd_toStartOf="@+id/exo_play_pause"
@@ -308,7 +384,7 @@
     <ImageButton
         android:id="@+id/exo_rew"
         style="@style/PlayerHeroButton"
-        android:layout_marginEnd="28dp"
+        android:layout_marginEnd="22dp"
         android:src="@drawable/ic_replay"
         app:layout_constraintBottom_toBottomOf="@+id/exo_play_pause"
         app:layout_constraintEnd_toStartOf="@+id/exo_play_pause"
@@ -317,7 +393,7 @@
     <ImageButton
         android:id="@+id/exo_next"
         style="@style/PlayerHeroButton"
-        android:layout_marginStart="28dp"
+        android:layout_marginStart="22dp"
         app:srcCompat="@drawable/ic_skip_next"
         app:layout_constraintBottom_toBottomOf="@+id/exo_play_pause"
         app:layout_constraintStart_toEndOf="@+id/exo_play_pause"
@@ -326,17 +402,32 @@
     <ImageButton
         android:id="@+id/exo_ffwd"
         style="@style/PlayerHeroButton"
-        android:layout_marginStart="28dp"
+        android:layout_marginStart="22dp"
         app:srcCompat="@drawable/ic_forward"
         app:layout_constraintBottom_toBottomOf="@+id/exo_play_pause"
         app:layout_constraintStart_toEndOf="@+id/exo_play_pause"
         app:layout_constraintTop_toTopOf="@+id/exo_play_pause" />
 
+    <ImageButton
+        android:id="@+id/player_play_mode_button"
+        style="@style/PlayerIconButton"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:layout_marginStart="24dp"
+        android:padding="9dp"
+        android:contentDescription="@string/player_mode_repeat_all"
+        app:srcCompat="@drawable/ic_repeat"
+        app:tint="@color/player_secondary"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="@+id/exo_play_pause"
+        app:layout_constraintBottom_toBottomOf="@+id/exo_play_pause" />
+
+    <!-- Legacy hidden views -->
     <ToggleButton
         android:id="@+id/player_skip_silence_toggle_button"
         android:layout_width="24dp"
         android:layout_height="24dp"
-        android:layout_marginEnd="28dp"
+        android:visibility="gone"
         android:background="@drawable/button_skip_silence_selector"
         android:text=""
         android:textOff=""
@@ -350,85 +441,175 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:gravity="center_vertical"
         android:visibility="gone"
         app:layout_constraintBottom_toTopOf="@+id/player_quick_action_view"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        android:layout_marginBottom="2dp">
+        app:layout_constraintStart_toStartOf="parent">
+
         <ImageButton
             android:id="@+id/player_sleep_timer_button"
             style="@style/PlayerIconButton"
             android:layout_width="32dp"
             android:layout_height="32dp"
-            android:padding="7dp"
-            app:srcCompat="@drawable/ic_timer"
-            app:tint="?attr/colorOnSurfaceVariant"
-            android:contentDescription="@string/sleep_timer_dialog_title" />
+            app:srcCompat="@drawable/ic_timer" />
 
         <TextView
             android:id="@+id/player_sleep_timer_label"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:textSize="12sp"
-            android:textColor="?attr/colorOnSurfaceVariant"
             android:text="" />
     </LinearLayout>
 
+    <TextView
+        android:id="@+id/player_output_label"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent" />
+
+    <!-- Bottom Frosted 4-Button Capsule: Lyrics | Output | Sound | Queue -->
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/player_quick_action_view"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:paddingStart="24dp"
-        android:paddingEnd="24dp"
+        android:paddingStart="20dp"
+        android:paddingEnd="20dp"
         android:layout_marginBottom="14dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent">
-        <ImageButton
-            android:id="@+id/player_play_mode_button"
-            style="@style/PlayerIconButton"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:padding="9dp"
-            android:background="@drawable/player_round_surface"
-            android:contentDescription="@string/player_mode_repeat_all"
-            app:srcCompat="@drawable/ic_repeat"
-            app:tint="@color/player_foreground"
+
+        <LinearLayout
+            android:id="@+id/player_capsule_bar"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingStart="6dp"
+            android:paddingEnd="6dp"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent"
-            app:layout_constraintBottom_toBottomOf="parent" />
+            app:layout_constraintEnd_toEndOf="parent">
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/player_open_lyrics_button"
-            style="@style/PlayerPillButton"
-            android:layout_marginStart="8dp"
-            android:text="@string/player_show_lyrics"
-            app:icon="@drawable/ic_lyrics"
-            android:visibility="gone"
-            app:layout_constraintStart_toEndOf="@id/player_play_mode_button"
-            app:layout_constraintTop_toTopOf="parent"
-            app:layout_constraintBottom_toBottomOf="parent" />
+            <!-- 1. Lyrics -->
+            <LinearLayout
+                android:id="@+id/player_open_lyrics_button"
+                style="@style/PlayerCapsuleAction"
+                android:contentDescription="@string/editorial_player_capsule_lyrics">
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/player_output_label"
-            style="@style/PlayerPillButton"
-            android:layout_marginEnd="8dp"
-            android:maxWidth="140dp"
-            android:text="@string/player_local_output"
-            app:icon="@drawable/ic_speaker"
-            app:layout_constraintEnd_toStartOf="@id/player_open_queue_button"
-            app:layout_constraintTop_toTopOf="parent"
-            app:layout_constraintBottom_toBottomOf="parent" />
+                <ImageView
+                    android:id="@+id/player_capsule_lyrics_icon"
+                    android:layout_width="17dp"
+                    android:layout_height="17dp"
+                    app:srcCompat="@drawable/ic_lyrics"
+                    app:tint="@color/player_foreground"
+                    android:importantForAccessibility="no" />
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/player_open_queue_button"
-            style="@style/PlayerPillButton"
-            android:text="@string/player_queue_title"
-            app:icon="@drawable/ic_queue"
-            android:contentDescription="@string/player_queue_playing_next"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintTop_toTopOf="parent"
-            app:layout_constraintBottom_toBottomOf="parent" />
+                <TextView
+                    android:id="@+id/player_capsule_lyrics_text"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="5dp"
+                    android:maxLines="1"
+                    android:textSize="12sp"
+                    android:fontFamily="sans-serif-medium"
+                    android:textColor="@color/player_foreground"
+                    android:text="@string/editorial_player_capsule_lyrics" />
+            </LinearLayout>
+
+            <!-- 2. Output -->
+            <LinearLayout
+                android:id="@+id/player_capsule_output_button"
+                style="@style/PlayerCapsuleAction"
+                android:contentDescription="@string/editorial_player_capsule_output">
+
+                <ImageView
+                    android:id="@+id/player_capsule_output_icon"
+                    android:layout_width="17dp"
+                    android:layout_height="17dp"
+                    app:srcCompat="@drawable/ic_speaker"
+                    app:tint="@color/player_foreground"
+                    android:importantForAccessibility="no" />
+
+                <TextView
+                    android:id="@+id/player_capsule_output_text"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="5dp"
+                    android:maxLines="1"
+                    android:textSize="12sp"
+                    android:fontFamily="sans-serif-medium"
+                    android:textColor="@color/player_foreground"
+                    android:text="@string/editorial_player_capsule_output" />
+
+                <View
+                    android:id="@+id/player_capsule_output_dot"
+                    android:layout_width="5dp"
+                    android:layout_height="5dp"
+                    android:layout_marginStart="4dp"
+                    android:visibility="gone" />
+            </LinearLayout>
+
+            <!-- 3. Sound (EQ / RG / Sleep Timer countdown) -->
+            <LinearLayout
+                android:id="@+id/player_capsule_sound_button"
+                style="@style/PlayerCapsuleAction"
+                android:contentDescription="@string/editorial_player_capsule_sound">
+
+                <ImageView
+                    android:id="@+id/player_capsule_sound_icon"
+                    android:layout_width="17dp"
+                    android:layout_height="17dp"
+                    app:srcCompat="@drawable/ic_graphic_eq"
+                    app:tint="@color/player_foreground"
+                    android:importantForAccessibility="no" />
+
+                <TextView
+                    android:id="@+id/player_capsule_sound_text"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="5dp"
+                    android:maxLines="1"
+                    android:fontFeatureSettings="tnum"
+                    android:textSize="12sp"
+                    android:fontFamily="sans-serif-medium"
+                    android:textColor="@color/player_foreground"
+                    android:text="@string/editorial_player_capsule_sound" />
+
+                <View
+                    android:id="@+id/player_capsule_sound_dot"
+                    android:layout_width="5dp"
+                    android:layout_height="5dp"
+                    android:layout_marginStart="4dp"
+                    android:visibility="gone" />
+            </LinearLayout>
+
+            <!-- 4. Queue -->
+            <LinearLayout
+                android:id="@+id/player_open_queue_button"
+                style="@style/PlayerCapsuleAction"
+                android:contentDescription="@string/editorial_player_capsule_queue">
+
+                <ImageView
+                    android:id="@+id/player_capsule_queue_icon"
+                    android:layout_width="17dp"
+                    android:layout_height="17dp"
+                    app:srcCompat="@drawable/ic_queue"
+                    app:tint="@color/player_foreground"
+                    android:importantForAccessibility="no" />
+
+                <TextView
+                    android:id="@+id/player_capsule_queue_text"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="5dp"
+                    android:maxLines="1"
+                    android:textSize="12sp"
+                    android:fontFamily="sans-serif-medium"
+                    android:textColor="@color/player_foreground"
+                    android:text="@string/editorial_player_capsule_queue" />
+            </LinearLayout>
+        </LinearLayout>
     </androidx.constraintlayout.widget.ConstraintLayout>
 </androidx.constraintlayout.widget.ConstraintLayout>

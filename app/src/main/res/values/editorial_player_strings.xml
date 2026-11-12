@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Full-screen player surfaced controls & badges -->
+    <string name="editorial_player_output_local">This device</string>
+    <string name="editorial_player_capsule_lyrics">Lyrics</string>
+    <string name="editorial_player_capsule_output">Output</string>
+    <string name="editorial_player_capsule_sound">Sound</string>
+    <string name="editorial_player_capsule_queue">Queue</string>
+    <string name="editorial_player_no_lyrics_available">No lyrics available for this track</string>
+
+    <string name="editorial_badge_eq_flat">EQ Flat</string>
+    <string name="editorial_badge_eq_active">EQ · %1$s</string>
+    <string name="editorial_badge_eq_builtin">Built-in</string>
+    <string name="editorial_badge_eq_system">System</string>
+    <string name="editorial_badge_eq_autoeq">AutoEq</string>
+    <string name="editorial_badge_rg_on">RG On</string>
+    <string name="editorial_badge_rg_track">RG Track</string>
+    <string name="editorial_badge_rg_album">RG Album</string>
+    <string name="editorial_badge_rg_auto">RG Smart</string>
+    <string name="editorial_badge_rg_db">RG %1$s dB</string>
+    <string name="editorial_badge_transcoded">%1$s · Transcode</string>
+
+    <!-- Overflow shortcuts -->
+    <string name="editorial_menu_signal_and_sound">Signal &amp; Sound</string>
+    <string name="editorial_menu_output_route">Audio Output</string>
+
+    <!-- Sheet A: Signal & Sound -->
+    <string name="editorial_signal_sheet_title">Signal Chain &amp; Sound</string>
+    <string name="editorial_signal_sheet_subtitle">Audio pipeline, parametric EQ &amp; playback acoustics</string>
+    <string name="editorial_signal_chain_header">LIVE AUDIO PIPELINE</string>
+    <string name="editorial_signal_node_source">Source</string>
+    <string name="editorial_signal_node_decoder">Decoder</string>
+    <string name="editorial_signal_node_rg">ReplayGain</string>
+    <string name="editorial_signal_node_eq">Equalizer</string>
+    <string name="editorial_signal_node_output">Output</string>
+    <string name="editorial_signal_val_bypass">Bypass</string>
+    <string name="editorial_signal_val_off">Off</string>
+    <string name="editorial_signal_val_remote_decode">Remote</string>
+
+    <string name="editorial_eq_section_title">Frequency Response &amp; Equalizer</string>
+    <string name="editorial_eq_preset_flat">Flat (Off)</string>
+    <string name="editorial_eq_preset_vocal">Vocal</string>
+    <string name="editorial_eq_preset_bass">Warm Bass</string>
+    <string name="editorial_eq_preset_classical">Classical</string>
+    <string name="editorial_eq_preset_live">Live Stage</string>
+    <string name="editorial_eq_preset_custom">Custom 5-Band</string>
+    <string name="editorial_eq_import_autoeq">Import AutoEq (.txt)</string>
+    <string name="editorial_eq_open_full">Open Full Equalizer / AutoEq</string>
+    <string name="editorial_eq_import_success">Loaded AutoEq profile: %1$s</string>
+    <string name="editorial_eq_import_failed">Invalid Parametric EQ file (check AutoEq ParametricEQ.txt format)</string>
+    <string name="editorial_eq_drag_hint">Drag band nodes on the curve to sculpt built-in EQ</string>
+    <string name="editorial_eq_autoeq_summary">Parametric %1$d-band filter · Preamp %2$s dB</string>
+
+    <string name="editorial_rg_section_title">ReplayGain Loudness</string>
+    <string name="editorial_rg_mode_off">Off</string>
+    <string name="editorial_rg_mode_track">Track</string>
+    <string name="editorial_rg_mode_album">Album</string>
+    <string name="editorial_rg_mode_auto">Smart</string>
+    <string name="editorial_rg_preamp_label">Loudness Preamp</string>
+
+    <string name="editorial_playback_section_title">Playback Speed &amp; Silence</string>
+    <string name="editorial_skip_silence_title">Skip Silence</string>
+    <string name="editorial_skip_silence_subtitle">Trim dead air seamlessly during playback</string>
+
+    <string name="editorial_sleep_section_title">Sleep Timer</string>
+    <string name="editorial_sleep_off">Off</string>
+    <string name="editorial_sleep_15m">15m</string>
+    <string name="editorial_sleep_30m">30m</string>
+    <string name="editorial_sleep_45m">45m</string>
+    <string name="editorial_sleep_60m">60m</string>
+    <string name="editorial_sleep_eot">End of Track</string>
+    <string name="editorial_sleep_active_countdown">Remaining %1$s</string>
+
+    <!-- Sheet B: Output Route -->
+    <string name="editorial_output_sheet_title">Output Route</string>
+    <string name="editorial_output_sheet_subtitle">Local DAC, LAN Tempus &amp; network renderers</string>
+    <string name="editorial_output_group_local">THIS DEVICE</string>
+    <string name="editorial_output_local_speaker">Built-in Speaker</string>
+    <string name="editorial_output_local_wired">Wired Headphones / Line-Out</string>
+    <string name="editorial_output_local_usb">USB DAC Audio</string>
+    <string name="editorial_output_local_bt">Bluetooth Audio</string>
+    <string name="editorial_output_active_tag">Active</string>
+
+    <string name="editorial_output_group_lan">TEMPUS LAN REMOTE</string>
+    <string name="editorial_output_lan_disabled_desc">Control and cast bit-perfect queues to another Tempus device on your Wi-Fi.</string>
+    <string name="editorial_output_lan_enable_action">Enable LAN Remote</string>
+    <string name="editorial_output_lan_searching">Scanning _tempus-lan._tcp on local Wi-Fi…</string>
+    <string name="editorial_output_lan_empty">No other Tempus receivers found on this network yet</string>
+    <string name="editorial_output_lan_verified">Ed25519 Verified</string>
+    <string name="editorial_output_lan_pair_manage">Manage Pairing</string>
+    <string name="editorial_output_lan_disconnect">Disconnect</string>
+    <string name="editorial_output_lan_connecting">Connecting…</string>
+    <string name="editorial_output_lan_connected">Connected · Live Queue Sync</string>
+
+    <string name="editorial_output_group_upnp">UPnP / DLNA RENDERERS</string>
+    <string name="editorial_output_upnp_disabled_desc">Discover lossless UPnP / DLNA network streamers on Wi-Fi.</string>
+    <string name="editorial_output_upnp_enable_action">Enable UPnP / DLNA</string>
+    <string name="editorial_output_upnp_searching">Scanning SSDP media renderers…</string>
+    <string name="editorial_output_upnp_empty">No UPnP / DLNA renderers discovered yet</string>
+
+    <string name="editorial_output_group_cast">CHROMECAST</string>
+    <string name="editorial_output_cast_empty">No Chromecast devices found on this network</string>
+
+    <string name="editorial_output_remote_volume">Remote Volume</string>
+</resources>

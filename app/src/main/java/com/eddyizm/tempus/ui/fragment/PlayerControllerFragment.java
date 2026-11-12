@@ -6,6 +6,9 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
+import android.content.SharedPreferences;
+import android.content.res.ColorStateList;
+import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.text.TextUtils;
@@ -17,16 +20,20 @@ import android.view.ViewGroup;
 import android.view.animation.AccelerateDecelerateInterpolator;
 import android.widget.Button;
 import android.widget.ImageButton;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.RatingBar;
 import android.widget.TextView;
-import android.widget.ToggleButton;
 import android.widget.Toast;
+import android.widget.ToggleButton;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.widget.PopupMenu;
+import androidx.appcompat.widget.TooltipCompat;
 import androidx.constraintlayout.widget.ConstraintLayout;
+import androidx.core.view.ViewCompat;
+import androidx.core.widget.ImageViewCompat;
 import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.media3.common.Format;
@@ -39,6 +46,9 @@ import androidx.media3.common.util.RepeatModeUtil;
 import androidx.media3.common.util.UnstableApi;
 import androidx.media3.session.MediaBrowser;
 import androidx.media3.session.SessionToken;
+import androidx.mediarouter.media.MediaControlIntent;
+import androidx.mediarouter.media.MediaRouteSelector;
+import androidx.mediarouter.media.MediaRouter;
 import androidx.navigation.NavController;
 import androidx.navigation.NavOptions;
 import androidx.navigation.fragment.NavHostFragment;
@@ -48,87 +58,158 @@ import androidx.transition.TransitionManager;
 import androidx.transition.TransitionSet;
 import androidx.viewpager2.widget.ViewPager2;
 
+import com.eddyizm.tempus.App;
 import com.eddyizm.tempus.R;
-import com.eddyizm.tempus.ui.player.PlayerBackdrop;
-import com.eddyizm.tempus.ui.player.PressFeedback;
 import com.eddyizm.tempus.databinding.InnerFragmentPlayerControllerBinding;
+import com.eddyizm.tempus.service.BaseMediaService;
 import com.eddyizm.tempus.service.MediaService;
+import com.eddyizm.tempus.subsonic.models.Child;
+import com.eddyizm.tempus.subsonic.models.ReplayGainInfo;
 import com.eddyizm.tempus.ui.activity.MainActivity;
 import com.eddyizm.tempus.ui.dialog.PlaybackSpeedDialog;
 import com.eddyizm.tempus.ui.dialog.PlaylistChooserDialog;
-import com.eddyizm.tempus.ui.dialog.SleepTimerDialog;
-import com.eddyizm.tempus.util.SleepTimerManager;
-
-import androidx.core.widget.ImageViewCompat;
-import android.content.res.ColorStateList;
 import com.eddyizm.tempus.ui.dialog.RatingDialog;
+import com.eddyizm.tempus.ui.dialog.SleepTimerDialog;
 import com.eddyizm.tempus.ui.dialog.TrackInfoDialog;
 import com.eddyizm.tempus.ui.fragment.pager.PlayerControllerHorizontalPager;
+import com.eddyizm.tempus.ui.player.PlayerBackdrop;
+import com.eddyizm.tempus.ui.player.PlayerMotion;
+import com.eddyizm.tempus.ui.player.PlayerSheets;
+import com.eddyizm.tempus.ui.player.PressFeedback;
+import com.eddyizm.tempus.upnp.UpnpPlayer;
+import com.eddyizm.tempus.upnp.UpnpRouteProvider;
 import com.eddyizm.tempus.util.AssetLinkUtil;
 import com.eddyizm.tempus.util.Constants;
-import com.eddyizm.tempus.upnp.UpnpPlayer;
+import com.eddyizm.tempus.util.FavoriteRegistry;
 import com.eddyizm.tempus.util.MusicUtil;
 import com.eddyizm.tempus.util.Preferences;
+import com.eddyizm.tempus.util.ReplayGainBundleUtil;
+import com.eddyizm.tempus.util.SleepTimerManager;
 import com.eddyizm.tempus.viewmodel.PlayerBottomSheetViewModel;
 import com.eddyizm.tempus.viewmodel.RatingViewModel;
-import com.eddyizm.tempus.util.FavoriteRegistry;
 import com.google.android.material.chip.Chip;
 import com.google.android.material.chip.ChipGroup;
-import com.google.android.material.elevation.SurfaceColors;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
 
+import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 
 @UnstableApi
 public class PlayerControllerFragment extends Fragment {
     private static final String TAG = "PlayerCoverFragment";
 
+    // Editorial Warm Dark ("唱片店夜色") tokens
+    private static final int COLOR_SURFACE_3 = 0xFF28241F;
+    private static final int COLOR_FROSTED_CAPSULE = 0xCC1E1B18;
+    private static final int COLOR_HAIRLINE = 0x14FFF0DC;
+    private static final int COLOR_IVORY = 0xFFF2ECE3;
+    private static final int COLOR_IVORY_SECONDARY = 0xA3F2ECE3;
+    private static final int COLOR_IVORY_MUTED = 0x80F2ECE3;
+    private static final int COLOR_BRASS = 0xFFCFA46A;
+    private static final int COLOR_BRASS_SUBTLE = 0x22CFA46A;
+    private static final int COLOR_BRASS_BORDER = 0x88CFA46A;
+    private static final int COLOR_MOSS = 0xFF8DB596;
+    private static final int COLOR_MOSS_SUBTLE = 0x228DB596;
+    private static final int COLOR_MOSS_BORDER = 0x888DB596;
+    private static final int COLOR_ON_BRASS = 0xFF0E0D0C;
+
     private InnerFragmentPlayerControllerBinding bind;
     private com.eddyizm.tempus.lan.LanPlayerAdapter remotePlayer;
-    private final android.content.SharedPreferences.OnSharedPreferenceChangeListener lanSwitchListener = (prefs, key) -> {
-        if (Preferences.LAN_REMOTE_ENABLED.equals(key)) updateRemoteToggleVisibility();
+    private final SharedPreferences.OnSharedPreferenceChangeListener prefsChangeListener = (prefs, key) -> {
+        if (bind == null || !isAdded()) return;
+        updateRemoteToggleVisibility();
+        refreshSignalBadges();
+        updateCapsuleState();
     };
     private boolean renderingRemote;
     private ViewPager2 playerMediaCoverViewPager;
     private ToggleButton buttonFavorite;
-    private ImageButton playerOverflowButton;
+    @Nullable private ImageButton playerOverflowButton;
     private RatingViewModel ratingViewModel;
-    private RatingBar songRatingBar;
+    @Nullable private RatingBar songRatingBar;
     private TextView playerMediaTitleLabel;
     private TextView playerArtistNameLabel;
-    private TextView playerOutputLabel;
-    private Button playbackSpeedButton;
-    private ToggleButton skipSilenceToggleButton;
-    private Chip playerMediaExtension;
-    private TextView playerMediaBitrate;
-    private ConstraintLayout playerQuickActionView;
-    // Pills in the portrait layout, icon buttons in landscape and tablet layouts.
-    private View playerOpenQueueButton;
-    private View playerOpenLyricsButton;
-    private TextView playerContextLabel;
-    private ImageButton playModeButton;
-    private View playerFavoriteSurface;
-    /** True for the portrait layout with glyph transport controls and pill shortcuts. */
+    @Nullable private TextView playerOutputLabel;
+    @Nullable private Button playbackSpeedButton;
+    @Nullable private ToggleButton skipSilenceToggleButton;
+    @Nullable private Chip playerMediaExtension;
+    @Nullable private TextView playerMediaBitrate;
+    @Nullable private ConstraintLayout playerQuickActionView;
+    @Nullable private View playerOpenQueueButton;
+    @Nullable private View playerOpenLyricsButton;
+    @Nullable private TextView playerContextLabel;
+    @Nullable private ImageButton playModeButton;
+    @Nullable private View playerFavoriteSurface;
     private boolean immersiveLayout;
-    private ImageButton playerTrackInfo;
-    private LinearLayout ratingContainer;
-    private LinearLayout sleepTimerContainer;
-    private ImageButton sleepTimerButton;
-    private android.widget.TextView sleepTimerLabel;
-    private ChipGroup assetLinkChipGroup;
-    private Chip playerSongLinkChip;
-    private Chip playerAlbumLinkChip;
-    private Chip playerArtistLinkChip;
+    @Nullable private ImageButton playerTrackInfo;
+    @Nullable private LinearLayout ratingContainer;
+    @Nullable private LinearLayout sleepTimerContainer;
+    @Nullable private ImageButton sleepTimerButton;
+    @Nullable private TextView sleepTimerLabel;
+    @Nullable private ChipGroup assetLinkChipGroup;
+    @Nullable private Chip playerSongLinkChip;
+    @Nullable private Chip playerAlbumLinkChip;
+    @Nullable private Chip playerArtistLinkChip;
+
+    // Editorial Warm Dark surfaced views (null-guarded across all 4 layout variants)
+    @Nullable private View playerTopOutputPill;
+    @Nullable private ImageView playerTopOutputIcon;
+    @Nullable private TextView playerTopOutputText;
+    @Nullable private View playerSignalBadgesRow;
+    @Nullable private TextView playerBadgeCodec;
+    @Nullable private TextView playerBadgeRate;
+    @Nullable private TextView playerBadgeRg;
+    @Nullable private TextView playerBadgeEq;
+    @Nullable private View playerCapsuleBar;
+    @Nullable private ImageView playerCapsuleLyricsIcon;
+    @Nullable private TextView playerCapsuleLyricsText;
+    @Nullable private View playerCapsuleOutputButton;
+    @Nullable private ImageView playerCapsuleOutputIcon;
+    @Nullable private TextView playerCapsuleOutputText;
+    @Nullable private View playerCapsuleOutputDot;
+    @Nullable private View playerCapsuleSoundButton;
+    @Nullable private ImageView playerCapsuleSoundIcon;
+    @Nullable private TextView playerCapsuleSoundText;
+    @Nullable private View playerCapsuleSoundDot;
+    @Nullable private ImageView playerCapsuleQueueIcon;
+    @Nullable private TextView playerCapsuleQueueText;
+    private boolean queueSheetOpen = false;
+
+    @Nullable private MediaRouter mediaRouter;
+    private final MediaRouter.Callback mediaRouterCallback = new MediaRouter.Callback() {
+        @Override
+        public void onRouteSelected(@NonNull MediaRouter router, @NonNull MediaRouter.RouteInfo route, int reason) {
+            onRoutesUpdated();
+        }
+
+        @Override
+        public void onRouteUnselected(@NonNull MediaRouter router, @NonNull MediaRouter.RouteInfo route, int reason) {
+            onRoutesUpdated();
+        }
+
+        @Override
+        public void onRouteChanged(@NonNull MediaRouter router, @NonNull MediaRouter.RouteInfo route) {
+            onRoutesUpdated();
+        }
+
+        private void onRoutesUpdated() {
+            if (bind == null || !isAdded()) return;
+            updatePlaybackDestinationLabel();
+            refreshSignalBadges();
+            updateCapsuleState();
+        }
+    };
 
     private MainActivity activity;
     private PlayerBottomSheetViewModel playerBottomSheetViewModel;
     private ListenableFuture<MediaBrowser> mediaBrowserListenableFuture;
 
-    private MediaService.LocalBinder mediaServiceBinder;
+    private BaseMediaService.LocalBinder mediaServiceBinder;
     private boolean isServiceBound = false;
 
     @Override
@@ -143,11 +224,11 @@ public class PlayerControllerFragment extends Fragment {
 
         init();
         remotePlayer = new com.eddyizm.tempus.lan.LanPlayerAdapter();
-        // Settings is a fragment in this activity, so a flipped switch is heard here rather than on resume.
-        com.eddyizm.tempus.App.getInstance().getPreferences().registerOnSharedPreferenceChangeListener(lanSwitchListener);
+        App.getInstance().getPreferences().registerOnSharedPreferenceChangeListener(prefsChangeListener);
         com.eddyizm.tempus.lan.LanRemoteSession.state().observe(getViewLifecycleOwner(), state -> refreshPlaybackDestination());
         com.eddyizm.tempus.lan.LanRemoteSession.queueState().observe(getViewLifecycleOwner(), queue -> refreshPlaybackDestination());
-        bind.playerRemoteToggle.setOnClickListener(v -> com.eddyizm.tempus.lan.LanDevicePicker.toggle(requireActivity()));
+        bind.playerRemoteToggle.setVisibility(View.GONE);
+        bind.playerRemoteToggle.setOnClickListener(v -> openOutputRouteSheet());
         initOverflowButton();
         initQuickActionView();
         initCoverLyricsSlideView();
@@ -159,8 +240,10 @@ public class PlayerControllerFragment extends Fragment {
         playerBottomSheetViewModel.getLiveLyrics().observe(getViewLifecycleOwner(), ignored -> updateLyricsAvailability());
         playerBottomSheetViewModel.getLiveLyricsList().observe(getViewLifecycleOwner(), ignored -> updateLyricsAvailability());
 
-        // Sync UI immediately in case a timer survived a rotation.
+        updatePlaybackDestinationLabel();
+        refreshSignalBadges();
         updateSleepTimerUI();
+        updateLyricsAvailability();
 
         return view;
     }
@@ -168,12 +251,14 @@ public class PlayerControllerFragment extends Fragment {
     @Override
     public void onStart() {
         super.onStart();
+        registerRouteObserver();
         initializeBrowser();
         bindMediaController();
     }
 
     @Override
     public void onStop() {
+        unregisterRouteObserver();
         releaseBrowser();
         super.onStop();
     }
@@ -181,11 +266,46 @@ public class PlayerControllerFragment extends Fragment {
     @Override
     public void onDestroyView() {
         super.onDestroyView();
-        com.eddyizm.tempus.App.getInstance().getPreferences().unregisterOnSharedPreferenceChangeListener(lanSwitchListener);
+        PlayerMotion.setLyricsShowing(false);
+        App.getInstance().getPreferences().unregisterOnSharedPreferenceChangeListener(prefsChangeListener);
         if (bind != null) bind.nowPlayingMediaControllerView.setPlayer(null);
         if (remotePlayer != null) remotePlayer.release();
         remotePlayer = null;
         bind = null;
+    }
+
+    private void registerRouteObserver() {
+        try {
+            mediaRouter = MediaRouter.getInstance(requireContext());
+            MediaRouteSelector selector = new MediaRouteSelector.Builder()
+                    .addControlCategory(MediaControlIntent.CATEGORY_REMOTE_PLAYBACK)
+                    .addControlCategory(MediaControlIntent.CATEGORY_LIVE_AUDIO)
+                    .addControlCategory(UpnpRouteProvider.CATEGORY_UPNP)
+                    .build();
+            mediaRouter.addCallback(selector, mediaRouterCallback, 0);
+        } catch (Exception ignored) {
+            mediaRouter = null;
+        }
+    }
+
+    private void unregisterRouteObserver() {
+        if (mediaRouter != null) {
+            try {
+                mediaRouter.removeCallback(mediaRouterCallback);
+            } catch (Exception ignored) {
+            }
+            mediaRouter = null;
+        }
+    }
+
+    private void openSignalAndSoundSheet() {
+        if (!isAdded()) return;
+        PlayerSheets.showSignalAndSound(requireActivity(), this::navigateToEqualizerFragment);
+    }
+
+    private void openOutputRouteSheet() {
+        if (!isAdded()) return;
+        PlayerSheets.showOutputRoute(requireActivity());
     }
 
     private void refreshPlaybackDestination() {
@@ -205,25 +325,33 @@ public class PlayerControllerFragment extends Fragment {
             bind.nowPlayingMediaControllerView.setShowFastForwardButton(false);
             bind.nowPlayingMediaControllerView.setShowPreviousButton(true);
             bind.nowPlayingMediaControllerView.setShowNextButton(true);
-            playbackSpeedButton.setVisibility(View.VISIBLE);
-            skipSilenceToggleButton.setVisibility(View.GONE);
-            buttonFavorite.setVisibility(View.VISIBLE);
+            if (playbackSpeedButton != null) playbackSpeedButton.setVisibility(View.VISIBLE);
+            if (skipSilenceToggleButton != null) skipSilenceToggleButton.setVisibility(View.GONE);
+            if (buttonFavorite != null) buttonFavorite.setVisibility(View.VISIBLE);
             syncFavoriteSurface();
             var displayedSong = playerBottomSheetViewModel.getLiveMedia().getValue();
-            buttonFavorite.setEnabled(displayedSong != null && Objects.equals(displayedSong.getId(), state.getMediaId()));
+            if (buttonFavorite != null) {
+                buttonFavorite.setEnabled(displayedSong != null && Objects.equals(displayedSong.getId(), state.getMediaId()));
+            }
             renderingRemote = true;
             try {
                 MediaMetadata metadata = com.eddyizm.tempus.lan.LanPlayerAdapter.metadata(com.eddyizm.tempus.lan.LanRemoteSession.currentSong());
                 setMetadata(metadata);
                 setMediaInfo(metadata);
-                playbackSpeedButton.setText(getString(R.string.player_playback_speed, state.getSpeed()));
+                if (playbackSpeedButton != null) {
+                    playbackSpeedButton.setText(getString(R.string.player_playback_speed, state.getSpeed()));
+                }
                 updateSleepTimerUI();
-            } finally { renderingRemote = false; }
+                refreshSignalBadges();
+                updateCapsuleState();
+            } finally {
+                renderingRemote = false;
+            }
         } else {
             bind.playerRemoteToggle.setText(R.string.lan_play_on);
             bind.playerRemoteToggle.setContentDescription(getString(R.string.lan_play_on));
             bind.playerRemoteToggle.setSelected(false);
-            buttonFavorite.setEnabled(true);
+            if (buttonFavorite != null) buttonFavorite.setEnabled(true);
             MediaBrowser browser = getBrowser();
             if (browser != null) {
                 bind.nowPlayingMediaControllerView.setPlayer(browser);
@@ -231,50 +359,134 @@ public class PlayerControllerFragment extends Fragment {
                 setMetadata(browser.getMediaMetadata());
                 setMediaInfo(browser.getMediaMetadata());
             }
+            refreshSignalBadges();
+            updateCapsuleState();
         }
     }
 
     private void init() {
-        playerMediaCoverViewPager = bind.getRoot().findViewById(R.id.player_media_cover_view_pager);
-        buttonFavorite = bind.getRoot().findViewById(R.id.button_favorite);
-        playerOverflowButton = bind.getRoot().findViewById(R.id.player_overflow_button);
-        playerMediaTitleLabel = bind.getRoot().findViewById(R.id.player_media_title_label);
-        playerArtistNameLabel = bind.getRoot().findViewById(R.id.player_artist_name_label);
-        playerOutputLabel = bind.getRoot().findViewById(R.id.player_output_label);
-        playbackSpeedButton = bind.getRoot().findViewById(R.id.player_playback_speed_button);
-        skipSilenceToggleButton = bind.getRoot().findViewById(R.id.player_skip_silence_toggle_button);
-        playerMediaExtension = bind.getRoot().findViewById(R.id.player_media_extension);
-        playerMediaBitrate = bind.getRoot().findViewById(R.id.player_media_bitrate);
-        playerQuickActionView = bind.getRoot().findViewById(R.id.player_quick_action_view);
-        playerOpenQueueButton = bind.getRoot().findViewById(R.id.player_open_queue_button);
-        playerOpenLyricsButton = bind.getRoot().findViewById(R.id.player_open_lyrics_button);
-        // Portrait uses MaterialButtons, landscape uses ImageButtons. These actions have no
-        // user state; restoring one widget's Parcelable into the other crashes on rotation.
-        playerOpenQueueButton.setSaveFromParentEnabled(false);
-        playerOpenLyricsButton.setSaveFromParentEnabled(false);
-        playerTrackInfo = bind.getRoot().findViewById(R.id.player_info_track);
-        songRatingBar = bind.getRoot().findViewById(R.id.song_rating_bar);
-        ratingContainer = bind.getRoot().findViewById(R.id.rating_container);
-        assetLinkChipGroup = bind.getRoot().findViewById(R.id.asset_link_chip_group);
-        playerSongLinkChip = bind.getRoot().findViewById(R.id.asset_link_song_chip);
-        playerAlbumLinkChip = bind.getRoot().findViewById(R.id.asset_link_album_chip);
-        playerArtistLinkChip = bind.getRoot().findViewById(R.id.asset_link_artist_chip);
-        sleepTimerContainer = bind.getRoot().findViewById(R.id.player_sleep_timer_container);
-        sleepTimerButton = bind.getRoot().findViewById(R.id.player_sleep_timer_button);
-        sleepTimerLabel = bind.getRoot().findViewById(R.id.player_sleep_timer_label);
-        playerContextLabel = bind.getRoot().findViewById(R.id.player_context_label);
-        playModeButton = bind.getRoot().findViewById(R.id.player_play_mode_button);
+        View root = bind.getRoot();
+        playerMediaCoverViewPager = root.findViewById(R.id.player_media_cover_view_pager);
+        buttonFavorite = root.findViewById(R.id.button_favorite);
+        playerOverflowButton = root.findViewById(R.id.player_overflow_button);
+        playerMediaTitleLabel = root.findViewById(R.id.player_media_title_label);
+        playerArtistNameLabel = root.findViewById(R.id.player_artist_name_label);
+        playerOutputLabel = root.findViewById(R.id.player_output_label);
+        playbackSpeedButton = root.findViewById(R.id.player_playback_speed_button);
+        skipSilenceToggleButton = root.findViewById(R.id.player_skip_silence_toggle_button);
+        playerMediaExtension = root.findViewById(R.id.player_media_extension);
+        playerMediaBitrate = root.findViewById(R.id.player_media_bitrate);
+        playerQuickActionView = root.findViewById(R.id.player_quick_action_view);
+        playerOpenQueueButton = root.findViewById(R.id.player_open_queue_button);
+        playerOpenLyricsButton = root.findViewById(R.id.player_open_lyrics_button);
+        if (playerOpenQueueButton != null) playerOpenQueueButton.setSaveFromParentEnabled(false);
+        if (playerOpenLyricsButton != null) playerOpenLyricsButton.setSaveFromParentEnabled(false);
+        playerTrackInfo = root.findViewById(R.id.player_info_track);
+        songRatingBar = root.findViewById(R.id.song_rating_bar);
+        ratingContainer = root.findViewById(R.id.rating_container);
+        assetLinkChipGroup = root.findViewById(R.id.asset_link_chip_group);
+        playerSongLinkChip = root.findViewById(R.id.asset_link_song_chip);
+        playerAlbumLinkChip = root.findViewById(R.id.asset_link_album_chip);
+        playerArtistLinkChip = root.findViewById(R.id.asset_link_artist_chip);
+        sleepTimerContainer = root.findViewById(R.id.player_sleep_timer_container);
+        sleepTimerButton = root.findViewById(R.id.player_sleep_timer_button);
+        sleepTimerLabel = root.findViewById(R.id.player_sleep_timer_label);
+        playerContextLabel = root.findViewById(R.id.player_context_label);
+        playModeButton = root.findViewById(R.id.player_play_mode_button);
         if (playModeButton != null) playModeButton.setOnClickListener(v -> cyclePlayMode());
-        playerFavoriteSurface = bind.getRoot().findViewById(R.id.player_favorite_surface);
+        playerFavoriteSurface = root.findViewById(R.id.player_favorite_surface);
+
+        // Bind Editorial Warm Dark surfaced controls
+        playerTopOutputPill = root.findViewById(R.id.player_top_output_pill);
+        playerTopOutputIcon = root.findViewById(R.id.player_top_output_icon);
+        playerTopOutputText = root.findViewById(R.id.player_top_output_text);
+
+        playerSignalBadgesRow = root.findViewById(R.id.player_signal_badges_row);
+        playerBadgeCodec = root.findViewById(R.id.player_badge_codec);
+        playerBadgeRate = root.findViewById(R.id.player_badge_rate);
+        playerBadgeRg = root.findViewById(R.id.player_badge_rg);
+        playerBadgeEq = root.findViewById(R.id.player_badge_eq);
+
+        playerCapsuleBar = root.findViewById(R.id.player_capsule_bar);
+        playerCapsuleLyricsIcon = root.findViewById(R.id.player_capsule_lyrics_icon);
+        playerCapsuleLyricsText = root.findViewById(R.id.player_capsule_lyrics_text);
+        playerCapsuleOutputButton = root.findViewById(R.id.player_capsule_output_button);
+        playerCapsuleOutputIcon = root.findViewById(R.id.player_capsule_output_icon);
+        playerCapsuleOutputText = root.findViewById(R.id.player_capsule_output_text);
+        playerCapsuleOutputDot = root.findViewById(R.id.player_capsule_output_dot);
+        playerCapsuleSoundButton = root.findViewById(R.id.player_capsule_sound_button);
+        playerCapsuleSoundIcon = root.findViewById(R.id.player_capsule_sound_icon);
+        playerCapsuleSoundText = root.findViewById(R.id.player_capsule_sound_text);
+        playerCapsuleSoundDot = root.findViewById(R.id.player_capsule_sound_dot);
+        playerCapsuleQueueIcon = root.findViewById(R.id.player_capsule_queue_icon);
+        playerCapsuleQueueText = root.findViewById(R.id.player_capsule_queue_text);
+
         immersiveLayout = playerContextLabel != null;
-        if (immersiveLayout) {
-            for (int id : new int[]{R.id.exo_prev, R.id.exo_play_pause, R.id.exo_next, R.id.exo_rew, R.id.exo_ffwd}) {
-                View button = bind.getRoot().findViewById(id);
-                if (button != null) PressFeedback.attach(button);
+
+        // Style hero play/pause button in Stylus Brass (#CFA46A) with deep charcoal glyph
+        View playPauseButton = root.findViewById(R.id.exo_play_pause);
+        if (playPauseButton != null) {
+            ViewCompat.setBackgroundTintList(playPauseButton, ColorStateList.valueOf(COLOR_BRASS));
+            if (playPauseButton instanceof ImageView) {
+                ImageViewCompat.setImageTintList((ImageView) playPauseButton, ColorStateList.valueOf(COLOR_ON_BRASS));
             }
-            playerOutputLabel.setOnClickListener(v -> openOutputSwitcher());
         }
+
+        for (int id : new int[]{R.id.exo_prev, R.id.exo_play_pause, R.id.exo_next, R.id.exo_rew, R.id.exo_ffwd}) {
+            View button = root.findViewById(id);
+            if (button != null) PressFeedback.attach(button);
+        }
+
+        if (playerOutputLabel != null) {
+            playerOutputLabel.setOnClickListener(v -> openOutputRouteSheet());
+        }
+
+        if (playerTopOutputPill != null) {
+            PressFeedback.attach(playerTopOutputPill);
+            playerTopOutputPill.setOnClickListener(v -> openOutputRouteSheet());
+        }
+
+        View.OnClickListener signalSheetClick = v -> openSignalAndSoundSheet();
+        if (playerSignalBadgesRow != null) {
+            PressFeedback.attach(playerSignalBadgesRow);
+            playerSignalBadgesRow.setOnClickListener(signalSheetClick);
+        }
+        for (View badge : new View[]{playerBadgeCodec, playerBadgeRate, playerBadgeRg, playerBadgeEq}) {
+            if (badge != null) {
+                badge.setOnClickListener(signalSheetClick);
+            }
+        }
+
+        if (playerCapsuleBar != null) {
+            playerCapsuleBar.setBackground(makeRoundedRect(999f, COLOR_FROSTED_CAPSULE, 1f, COLOR_HAIRLINE));
+        }
+        if (playerCapsuleOutputDot != null) {
+            playerCapsuleOutputDot.setBackground(makeOval(COLOR_BRASS));
+        }
+        if (playerCapsuleSoundDot != null) {
+            playerCapsuleSoundDot.setBackground(makeOval(COLOR_BRASS));
+        }
+
         checkAndSetRatingContainerVisibility();
+    }
+
+    private GradientDrawable makeRoundedRect(float radiusDp, int fillColor, float strokeDp, int strokeColor) {
+        float density = getResources().getDisplayMetrics().density;
+        GradientDrawable d = new GradientDrawable();
+        d.setShape(GradientDrawable.RECTANGLE);
+        d.setCornerRadius(radiusDp * density);
+        d.setColor(fillColor);
+        if (strokeDp > 0f) {
+            d.setStroke(Math.max(1, Math.round(strokeDp * density)), strokeColor);
+        }
+        return d;
+    }
+
+    private GradientDrawable makeOval(int fillColor) {
+        GradientDrawable d = new GradientDrawable();
+        d.setShape(GradientDrawable.OVAL);
+        d.setColor(fillColor);
+        return d;
     }
 
     private com.eddyizm.tempus.ui.player.PlayMode currentPlayMode() {
@@ -312,19 +524,9 @@ public class PlayerControllerFragment extends Fragment {
         if (playModeButton == null) return;
         playModeButton.setImageResource(mode.getIcon());
         playModeButton.setContentDescription(getString(mode.getLabel()));
-        androidx.appcompat.widget.TooltipCompat.setTooltipText(playModeButton, getString(mode.getLabel()));
+        TooltipCompat.setTooltipText(playModeButton, getString(mode.getLabel()));
     }
 
-    /** Picks a Tempus receiver when that feature is on, otherwise Android's own output switcher. */
-    private void openOutputSwitcher() {
-        if (com.eddyizm.tempus.lan.LanDevicePicker.isOffered()) {
-            com.eddyizm.tempus.lan.LanDevicePicker.toggle(requireActivity());
-        } else {
-            android.media.MediaRouter2.getInstance(requireContext()).showSystemOutputSwitcher();
-        }
-    }
-
-    /** The favourite's round backdrop follows the button, which is hidden for podcasts and radio. */
     private void syncFavoriteSurface() {
         if (playerFavoriteSurface != null && buttonFavorite != null) {
             playerFavoriteSurface.setVisibility(buttonFavorite.getVisibility());
@@ -332,57 +534,66 @@ public class PlayerControllerFragment extends Fragment {
     }
 
     private void initOverflowButton() {
-        // Not available on sw600dp
         if (playerOverflowButton != null) {
             playerOverflowButton.setOnClickListener(v -> {
                 PopupMenu popup = new PopupMenu(requireContext(), v);
                 popup.inflate(R.menu.player_overflow_menu);
-                popup.getMenu().findItem(R.id.action_show_lyrics).setVisible(playerBottomSheetViewModel.hasLyrics());
-                View audioDetails = bind.getRoot().findViewById(R.id.player_media_quality_sector);
-                popup.getMenu().findItem(R.id.action_audio_details)
-                        .setVisible(playerOutputLabel != null)
-                        .setChecked(audioDetails.getVisibility() == View.VISIBLE);
-
-                int selectedEq = Preferences.getSelectedEqualizer();
-                if (selectedEq != 1) {
-                    popup.getMenu().removeItem(R.id.action_open_equalizer);
+                if (popup.getMenu().findItem(R.id.action_show_lyrics) != null) {
+                    popup.getMenu().findItem(R.id.action_show_lyrics).setVisible(playerBottomSheetViewModel.hasLyrics());
                 }
-                if (!com.eddyizm.tempus.lan.LanDevicePicker.isOffered()) {
+                View audioDetails = bind.getRoot().findViewById(R.id.player_media_quality_sector);
+                if (popup.getMenu().findItem(R.id.action_audio_details) != null && audioDetails != null) {
+                    popup.getMenu().findItem(R.id.action_audio_details)
+                            .setVisible(playerOutputLabel != null)
+                            .setChecked(audioDetails.getVisibility() == View.VISIBLE);
+                }
+
+                if (!com.eddyizm.tempus.lan.LanDevicePicker.isOffered()
+                        && popup.getMenu().findItem(R.id.action_lan_playback) != null) {
                     popup.getMenu().removeItem(R.id.action_lan_playback);
                 }
 
                 popup.setOnMenuItemClickListener(item -> {
-                    if (item.getItemId() == R.id.action_track_info) {
-                        playerTrackInfo.performClick();
+                    int itemId = item.getItemId();
+                    if (itemId == R.id.action_signal_and_sound) {
+                        openSignalAndSoundSheet();
                         return true;
-                    } else if (item.getItemId() == R.id.action_playback_speed) {
-                        playbackSpeedButton.performClick();
+                    } else if (itemId == R.id.action_output_route) {
+                        openOutputRouteSheet();
                         return true;
-                    } else if (item.getItemId() == R.id.action_sleep_timer) {
-                        sleepTimerButton.performClick();
+                    } else if (itemId == R.id.action_track_info) {
+                        if (playerTrackInfo != null) playerTrackInfo.performClick();
                         return true;
-                    } else if (item.getItemId() == R.id.action_show_lyrics) {
+                    } else if (itemId == R.id.action_playback_speed) {
+                        if (playbackSpeedButton != null) playbackSpeedButton.performClick();
+                        else openSignalAndSoundSheet();
+                        return true;
+                    } else if (itemId == R.id.action_sleep_timer) {
+                        if (sleepTimerButton != null) sleepTimerButton.performClick();
+                        else openSignalAndSoundSheet();
+                        return true;
+                    } else if (itemId == R.id.action_show_lyrics) {
                         goToLyricsPage();
                         return true;
-                    } else if (item.getItemId() == R.id.action_audio_details) {
-                        boolean show = audioDetails.getVisibility() != View.VISIBLE;
-                        audioDetails.setVisibility(show ? View.VISIBLE : View.GONE);
-                        bind.getRoot().findViewById(R.id.player_asset_link_row).setVisibility(show ? View.VISIBLE : View.GONE);
+                    } else if (itemId == R.id.action_audio_details) {
+                        if (audioDetails != null) {
+                            boolean show = audioDetails.getVisibility() != View.VISIBLE;
+                            audioDetails.setVisibility(show ? View.VISIBLE : View.GONE);
+                            View assetRow = bind.getRoot().findViewById(R.id.player_asset_link_row);
+                            if (assetRow != null) assetRow.setVisibility(show ? View.VISIBLE : View.GONE);
+                        }
                         return true;
-                    }
-                    if (item.getItemId() == R.id.action_lan_playback) {
-                        com.eddyizm.tempus.lan.LanDevicePicker.toggle(requireActivity());
+                    } else if (itemId == R.id.action_lan_playback) {
+                        openOutputRouteSheet();
                         return true;
-                    }
-                    if (item.getItemId() == R.id.action_open_equalizer) {
+                    } else if (itemId == R.id.action_open_equalizer) {
                         navigateToEqualizerFragment();
                         return true;
-                    } else if (item.getItemId() == R.id.action_add_to_playlist) {
+                    } else if (itemId == R.id.action_add_to_playlist) {
                         openAddToPlaylistDialog();
                         return true;
-                    } else {
-                        return false;
                     }
+                    return false;
                 });
                 popup.show();
             });
@@ -390,44 +601,377 @@ public class PlayerControllerFragment extends Fragment {
     }
 
     private void initQuickActionView() {
-        playerQuickActionView.setVisibility(Preferences.getQuickActionVisible() ? View.VISIBLE : View.GONE);
-        updateQueueButtonTint(false);
+        if (playerQuickActionView != null) {
+            playerQuickActionView.setVisibility(Preferences.getQuickActionVisible() ? View.VISIBLE : View.GONE);
+        }
 
-        playerOpenQueueButton.setOnClickListener(view -> {
-            PlayerBottomSheetFragment playerBottomSheetFragment = (PlayerBottomSheetFragment) requireActivity()
-                    .getSupportFragmentManager().findFragmentByTag("PlayerBottomSheet");
-            if (playerBottomSheetFragment != null) {
-                playerBottomSheetFragment.goToQueuePage();
-            }
-        });
-        playerOpenLyricsButton.setOnClickListener(view -> {
-            int currentItem = playerMediaCoverViewPager.getCurrentItem();
-            if (currentItem == 0) {
-                playerMediaCoverViewPager.setCurrentItem(1, true);
-            } else if (currentItem == 1) {
-                playerMediaCoverViewPager.setCurrentItem(0, true);
-            }
-        });
+        if (playerOpenLyricsButton != null) {
+            PressFeedback.attach(playerOpenLyricsButton);
+            playerOpenLyricsButton.setOnClickListener(view -> {
+                if (!playerBottomSheetViewModel.hasLyrics()) {
+                    if (isLyricsPage()) goToControllerPage();
+                    Toast.makeText(requireContext(), R.string.editorial_player_no_lyrics_available, Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                int currentItem = playerMediaCoverViewPager.getCurrentItem();
+                if (currentItem == 0) {
+                    playerMediaCoverViewPager.setCurrentItem(1, true);
+                } else if (currentItem == 1) {
+                    playerMediaCoverViewPager.setCurrentItem(0, true);
+                }
+            });
+        }
+
+        if (playerCapsuleOutputButton != null) {
+            PressFeedback.attach(playerCapsuleOutputButton);
+            playerCapsuleOutputButton.setOnClickListener(view -> openOutputRouteSheet());
+        }
+
+        if (playerCapsuleSoundButton != null) {
+            PressFeedback.attach(playerCapsuleSoundButton);
+            playerCapsuleSoundButton.setOnClickListener(view -> openSignalAndSoundSheet());
+        }
+
+        if (playerOpenQueueButton != null) {
+            PressFeedback.attach(playerOpenQueueButton);
+            playerOpenQueueButton.setOnClickListener(view -> {
+                PlayerBottomSheetFragment playerBottomSheetFragment = (PlayerBottomSheetFragment) requireActivity()
+                        .getSupportFragmentManager().findFragmentByTag("PlayerBottomSheet");
+                if (playerBottomSheetFragment != null) {
+                    playerBottomSheetFragment.goToQueuePage();
+                }
+            });
+        }
+
+        updateQueueButtonTint(false);
+        updateCapsuleState();
     }
 
     private void updateLyricsAvailability() {
-        if (bind == null || playerOutputLabel == null) return;
-        // Lyrics never reserve space on the cover screen; only the portrait pill row offers them.
-        boolean showPill = immersiveLayout && playerBottomSheetViewModel.hasLyrics();
-        playerOpenLyricsButton.setVisibility(showPill ? View.VISIBLE : View.GONE);
-        if (!playerBottomSheetViewModel.hasLyrics() && isLyricsPage()) goToControllerPage();
+        if (bind == null) return;
+        boolean hasLyrics = playerBottomSheetViewModel.hasLyrics();
+        if (playerOpenLyricsButton != null) {
+            // Keep all 4 capsule slots permanently balanced; dim Lyrics slot when unavailable.
+            playerOpenLyricsButton.setVisibility(View.VISIBLE);
+            playerOpenLyricsButton.setAlpha(hasLyrics ? 1.0f : 0.38f);
+        }
+        if (!hasLyrics && isLyricsPage()) {
+            goToControllerPage();
+        }
+        updateCapsuleState();
     }
 
     private void updatePlaybackDestinationLabel() {
-        if (playerOutputLabel == null) return;
-        if (com.eddyizm.tempus.lan.LanRemoteSession.isActive()) {
-            playerOutputLabel.setText(com.eddyizm.tempus.lan.LanRemoteSession.current().getName());
-        } else {
-            MediaBrowser browser = getBrowser();
-            boolean remote = browser != null && browser.getDeviceInfo().playbackType
-                    == androidx.media3.common.DeviceInfo.PLAYBACK_TYPE_REMOTE;
-            playerOutputLabel.setText(remote ? R.string.player_remote_output : R.string.player_local_output);
+        if (bind == null || !isAdded()) return;
+        Context context = requireContext();
+        PlayerSheets.OutputSummary summary = PlayerSheets.currentOutputSummary(context);
+
+        if (playerOutputLabel != null) {
+            playerOutputLabel.setText(summary.getLabel());
         }
+
+        if (playerTopOutputPill != null) {
+            boolean remote = summary.isRemote();
+            playerTopOutputPill.setBackground(makeRoundedRect(
+                    999f,
+                    remote ? COLOR_BRASS_SUBTLE : COLOR_SURFACE_3,
+                    1f,
+                    remote ? COLOR_BRASS_BORDER : COLOR_HAIRLINE
+            ));
+            int contentColor = remote ? COLOR_BRASS : COLOR_IVORY;
+            if (playerTopOutputIcon != null) {
+                playerTopOutputIcon.setImageResource(summary.getIconRes());
+                ImageViewCompat.setImageTintList(playerTopOutputIcon, ColorStateList.valueOf(contentColor));
+            }
+            if (playerTopOutputText != null) {
+                setTextIfChanged(playerTopOutputText, summary.getLabel());
+                playerTopOutputText.setTextColor(contentColor);
+            }
+        }
+    }
+
+    private void refreshSignalBadges() {
+        if (bind == null || !isAdded()) return;
+        Context context = requireContext();
+
+        boolean lanActive = com.eddyizm.tempus.lan.LanRemoteSession.isActive();
+        MediaBrowser browser = getBrowser();
+        MediaMetadata metadata = lanActive
+                ? com.eddyizm.tempus.lan.LanPlayerAdapter.metadata(com.eddyizm.tempus.lan.LanRemoteSession.currentSong())
+                : (browser != null ? browser.getMediaMetadata() : null);
+        Bundle extras = metadata != null ? metadata.extras : null;
+
+        // 1 & 2. Codec + Sample Rate / Bitrate Badges
+        String codecUpper = "";
+        boolean transcoded = false;
+        int bitDepth = 0;
+        int sampleRateHz = 0;
+        int bitrateKbps = 0;
+
+        if (lanActive) {
+            Child remoteSong = com.eddyizm.tempus.lan.LanRemoteSession.currentSong();
+            String ext = remoteSong != null ? remoteSong.getSuffix() : null;
+            codecUpper = !TextUtils.isEmpty(ext) ? ext.toUpperCase(Locale.ROOT) : "STREAM";
+            if (remoteSong != null && remoteSong.getBitrate() != null && remoteSong.getBitrate() > 0) {
+                bitrateKbps = remoteSong.getBitrate();
+            }
+        } else {
+            boolean isLocalTrack = MusicUtil.isCurrentTrackLocal(browser);
+            Format format = MusicUtil.getCurrentAudioFormat(browser);
+            boolean renderer = format != null && UpnpPlayer.FORMAT_ID.equals(format.id);
+            boolean unknownRendererFormat = renderer && MimeTypes.AUDIO_UNKNOWN.equals(format.sampleMimeType);
+
+            String actual = null;
+            if (!isLocalTrack && format != null && !unknownRendererFormat) {
+                actual = MusicUtil.audioFormatLabel(format.sampleMimeType);
+                String original = renderer
+                        ? (extras != null ? MusicUtil.sourceSuffix(extras) : null)
+                        : MusicUtil.getCurrentOriginalSuffix(browser);
+                transcoded = MusicUtil.isTranscodedFormat(actual, original);
+            }
+
+            String suffix = extras != null ? extras.getString("suffix") : null;
+            String rawCodec = !TextUtils.isEmpty(actual) ? actual
+                    : (!TextUtils.isEmpty(suffix) ? suffix : context.getString(R.string.player_unknown_format));
+            codecUpper = rawCodec.toUpperCase(Locale.ROOT);
+
+            if (extras != null) {
+                bitDepth = extras.getInt("bitDepth", 0);
+                sampleRateHz = extras.getInt("samplingRate", 0);
+                bitrateKbps = extras.getInt("bitrate", 0);
+            }
+            if (sampleRateHz <= 0 && format != null && format.sampleRate != Format.NO_VALUE && format.sampleRate > 0) {
+                sampleRateHz = format.sampleRate;
+            }
+            if (transcoded) {
+                if (format != null && format.bitrate != Format.NO_VALUE && format.bitrate > 0) {
+                    bitrateKbps = format.bitrate / 1000;
+                } else {
+                    String targetBr = MusicUtil.getBitratePreference();
+                    try {
+                        int parsed = Integer.parseInt(targetBr);
+                        if (parsed > 0) bitrateKbps = parsed;
+                    } catch (Exception ignored) {
+                    }
+                }
+            } else if (bitrateKbps <= 0 && format != null && format.bitrate != Format.NO_VALUE && format.bitrate > 0) {
+                bitrateKbps = format.bitrate / 1000;
+            }
+        }
+
+        boolean losslessCodec = !transcoded && isLosslessCodec(codecUpper);
+        boolean hiResAudio = !transcoded && (bitDepth >= 24 || sampleRateHz > 48000);
+        boolean brassCodecBadge = losslessCodec || hiResAudio;
+
+        if (playerBadgeCodec != null) {
+            String codecDisplay = transcoded
+                    ? context.getString(R.string.editorial_badge_transcoded, codecUpper)
+                    : codecUpper;
+            setTextIfChanged(playerBadgeCodec, codecDisplay);
+            playerBadgeCodec.setBackground(makeRoundedRect(
+                    6f,
+                    brassCodecBadge ? COLOR_BRASS_SUBTLE : COLOR_SURFACE_3,
+                    1f,
+                    brassCodecBadge ? COLOR_BRASS : COLOR_HAIRLINE
+            ));
+            playerBadgeCodec.setTextColor(brassCodecBadge ? COLOR_BRASS : COLOR_IVORY_SECONDARY);
+            playerBadgeCodec.setVisibility(View.VISIBLE);
+        }
+
+        if (playerBadgeRate != null) {
+            String rateLabel = "";
+            DecimalFormat khzFormat = new DecimalFormat("0.#");
+            if (!transcoded && bitDepth > 0 && sampleRateHz > 0) {
+                rateLabel = bitDepth + "/" + khzFormat.format(sampleRateHz / 1000.0) + " kHz";
+            } else if (!transcoded && losslessCodec && sampleRateHz > 0) {
+                rateLabel = khzFormat.format(sampleRateHz / 1000.0) + " kHz";
+            } else if (bitrateKbps > 0) {
+                rateLabel = bitrateKbps + " kbps";
+            } else if (!transcoded && sampleRateHz > 0) {
+                rateLabel = khzFormat.format(sampleRateHz / 1000.0) + " kHz";
+            }
+
+            if (!rateLabel.isEmpty()) {
+                setTextIfChanged(playerBadgeRate, rateLabel);
+                playerBadgeRate.setBackground(makeRoundedRect(
+                        6f,
+                        hiResAudio ? COLOR_BRASS_SUBTLE : COLOR_SURFACE_3,
+                        1f,
+                        hiResAudio ? COLOR_BRASS_BORDER : COLOR_HAIRLINE
+                ));
+                playerBadgeRate.setTextColor(hiResAudio ? COLOR_BRASS : COLOR_IVORY);
+                playerBadgeRate.setVisibility(View.VISIBLE);
+            } else {
+                playerBadgeRate.setVisibility(View.GONE);
+            }
+        }
+
+        // 3. ReplayGain Badge
+        if (playerBadgeRg != null) {
+            String rgMode = Preferences.getReplayGainMode();
+            if (rgMode == null || "disabled".equals(rgMode)) {
+                playerBadgeRg.setVisibility(View.GONE);
+            } else {
+                ReplayGainInfo rgInfo = ReplayGainBundleUtil.fromBundle(extras);
+                Float gainDb = null;
+                if (rgInfo != null) {
+                    if ("album".equals(rgMode)) {
+                        gainDb = rgInfo.getAlbumGain() != null ? rgInfo.getAlbumGain()
+                                : (rgInfo.getTrackGain() != null ? rgInfo.getTrackGain() : rgInfo.getFallbackGain());
+                    } else {
+                        gainDb = rgInfo.getTrackGain() != null ? rgInfo.getTrackGain()
+                                : (rgInfo.getAlbumGain() != null ? rgInfo.getAlbumGain() : rgInfo.getFallbackGain());
+                    }
+                }
+                String rgText;
+                if (gainDb != null && gainDb != 0f) {
+                    rgText = context.getString(R.string.editorial_badge_rg_db, String.format(Locale.US, "%+.1f", gainDb));
+                } else if ("track".equals(rgMode)) {
+                    rgText = context.getString(R.string.editorial_badge_rg_track);
+                } else if ("album".equals(rgMode)) {
+                    rgText = context.getString(R.string.editorial_badge_rg_album);
+                } else if ("auto".equals(rgMode)) {
+                    rgText = context.getString(R.string.editorial_badge_rg_auto);
+                } else {
+                    rgText = context.getString(R.string.editorial_badge_rg_on);
+                }
+                setTextIfChanged(playerBadgeRg, rgText);
+                playerBadgeRg.setBackground(makeRoundedRect(6f, COLOR_BRASS_SUBTLE, 1f, COLOR_BRASS_BORDER));
+                playerBadgeRg.setTextColor(COLOR_BRASS);
+                playerBadgeRg.setVisibility(View.VISIBLE);
+            }
+        }
+
+        // 4. EQ Badge
+        if (playerBadgeEq != null) {
+            PlayerSheets.EqSummary eqSummary = PlayerSheets.currentEqSummary(context);
+            setTextIfChanged(playerBadgeEq, eqSummary.getBadgeText());
+            if (eqSummary.isActive()) {
+                boolean peq = eqSummary.isParametric();
+                playerBadgeEq.setBackground(makeRoundedRect(
+                        6f,
+                        peq ? COLOR_MOSS_SUBTLE : COLOR_BRASS_SUBTLE,
+                        1f,
+                        peq ? COLOR_MOSS_BORDER : COLOR_BRASS
+                ));
+                playerBadgeEq.setTextColor(peq ? COLOR_MOSS : COLOR_BRASS);
+            } else {
+                playerBadgeEq.setBackground(makeRoundedRect(6f, COLOR_SURFACE_3, 1f, COLOR_HAIRLINE));
+                playerBadgeEq.setTextColor(COLOR_IVORY_MUTED);
+            }
+            playerBadgeEq.setVisibility(View.VISIBLE);
+        }
+    }
+
+    private void updateCapsuleState() {
+        if (bind == null || !isAdded()) return;
+        Context context = requireContext();
+
+        // 1. Lyrics slot
+        boolean lyricsActive = isLyricsPage();
+        styleCapsuleSlot(playerOpenLyricsButton, playerCapsuleLyricsIcon, playerCapsuleLyricsText, lyricsActive);
+
+        // 2. Output slot
+        PlayerSheets.OutputSummary outputSummary = PlayerSheets.currentOutputSummary(context);
+        boolean remoteActive = outputSummary.isRemote();
+        if (playerCapsuleOutputIcon != null) {
+            playerCapsuleOutputIcon.setImageResource(outputSummary.getIconRes());
+        }
+        if (playerCapsuleOutputDot != null) {
+            playerCapsuleOutputDot.setVisibility(remoteActive ? View.VISIBLE : View.GONE);
+        }
+        styleCapsuleSlot(playerCapsuleOutputButton, playerCapsuleOutputIcon, playerCapsuleOutputText, remoteActive);
+
+        // 3. Sound slot (sleep timer countdown text or brass dot when EQ / DSP / timer active)
+        boolean lanRemote = com.eddyizm.tempus.lan.LanRemoteSession.isActive();
+        com.eddyizm.tempus.lan.LanRemoteState lanState = com.eddyizm.tempus.lan.LanRemoteSession.current();
+        boolean timerActive = lanRemote ? lanState.getTimerActive() : SleepTimerManager.getInstance().isActive();
+
+        String soundLabel = context.getString(R.string.editorial_player_capsule_sound);
+        if (timerActive) {
+            boolean eot = lanRemote ? lanState.getTimerEndOfTrack() : SleepTimerManager.getInstance().isEndOfTrack();
+            if (eot) {
+                soundLabel = "EOT";
+            } else {
+                String raw = lanRemote ? lanState.getTimerRemaining() : SleepTimerManager.getInstance().getRemainingFormatted();
+                String compact = formatCompactSleepCountdown(raw);
+                if (!compact.isEmpty()) {
+                    soundLabel = compact;
+                }
+            }
+        }
+        if (playerCapsuleSoundText != null) {
+            setTextIfChanged(playerCapsuleSoundText, soundLabel);
+        }
+
+        PlayerSheets.EqSummary eqSummary = PlayerSheets.currentEqSummary(context);
+        String rgMode = Preferences.getReplayGainMode();
+        boolean rgActive = rgMode != null && !"disabled".equals(rgMode);
+        float speed = lanRemote ? lanState.getSpeed() : Preferences.getPlaybackSpeed();
+        boolean speedActive = Math.abs(speed - 1.0f) > 0.01f;
+        boolean skipSilence = !lanRemote && Preferences.isSkipSilenceMode();
+        boolean anySoundActive = timerActive || eqSummary.isActive() || rgActive || speedActive || skipSilence;
+
+        if (playerCapsuleSoundDot != null) {
+            playerCapsuleSoundDot.setVisibility(anySoundActive ? View.VISIBLE : View.GONE);
+        }
+        styleCapsuleSlot(playerCapsuleSoundButton, playerCapsuleSoundIcon, playerCapsuleSoundText, timerActive || eqSummary.isActive());
+
+        // 4. Queue slot
+        styleCapsuleSlot(playerOpenQueueButton, playerCapsuleQueueIcon, playerCapsuleQueueText, queueSheetOpen);
+    }
+
+    private void styleCapsuleSlot(@Nullable View container, @Nullable ImageView icon, @Nullable TextView label, boolean active) {
+        int fg = active ? COLOR_BRASS : COLOR_IVORY;
+        if (icon != null) {
+            ImageViewCompat.setImageTintList(icon, ColorStateList.valueOf(fg));
+        }
+        if (label != null) {
+            label.setTextColor(fg);
+        }
+        if (container != null) {
+            if (active) {
+                container.setBackground(makeRoundedRect(999f, COLOR_BRASS_SUBTLE, 0f, 0));
+            } else {
+                container.setBackgroundResource(android.R.color.transparent);
+            }
+        }
+    }
+
+    private String formatCompactSleepCountdown(@Nullable String formattedMmSs) {
+        if (formattedMmSs == null || formattedMmSs.trim().isEmpty()) return "";
+        String trimmed = formattedMmSs.trim();
+        int colon = trimmed.indexOf(':');
+        if (colon > 0) {
+            try {
+                int mins = Integer.parseInt(trimmed.substring(0, colon));
+                int secs = Integer.parseInt(trimmed.substring(colon + 1));
+                int totalSec = mins * 60 + secs;
+                if (totalSec >= 60) {
+                    int ceilMins = (totalSec + 59) / 60;
+                    return ceilMins + "m";
+                } else if (totalSec > 0) {
+                    return totalSec + "s";
+                }
+            } catch (NumberFormatException ignored) {
+            }
+        }
+        return trimmed;
+    }
+
+    private boolean isLosslessCodec(@Nullable String codecUpper) {
+        if (codecUpper == null) return false;
+        String clean = codecUpper.toUpperCase(Locale.ROOT);
+        return clean.contains("FLAC")
+                || clean.contains("ALAC")
+                || clean.contains("WAV")
+                || clean.contains("PCM")
+                || clean.contains("AIFF")
+                || clean.contains("APE")
+                || clean.contains("WV")
+                || clean.contains("DSD")
+                || clean.contains("DFF")
+                || clean.contains("DSF");
     }
 
     private void initializeBrowser() {
@@ -445,6 +989,7 @@ public class PlayerControllerFragment extends Fragment {
         mediaBrowserListenableFuture.addListener(() -> {
             try {
                 MediaBrowser mediaBrowser = mediaBrowserListenableFuture.get();
+                if (bind == null) return;
 
                 bind.nowPlayingMediaControllerView.setPlayer(com.eddyizm.tempus.lan.LanRemoteSession.isActive() ? remotePlayer : mediaBrowser);
                 mediaBrowser.setShuffleModeEnabled(Preferences.isShuffleModeEnabled());
@@ -475,13 +1020,22 @@ public class PlayerControllerFragment extends Fragment {
             @Override
             public void onTracksChanged(@NonNull Tracks tracks) {
                 setMediaFormatFromFileReturnedByServer();
+                refreshSignalBadges();
             }
 
             @Override
             public void onPlaybackStateChanged(int playbackState) {
                 if (playbackState == Player.STATE_READY) {
                     setMediaFormatFromFileReturnedByServer();
+                    refreshSignalBadges();
                 }
+            }
+
+            @Override
+            public void onDeviceInfoChanged(@NonNull androidx.media3.common.DeviceInfo deviceInfo) {
+                updatePlaybackDestinationLabel();
+                refreshSignalBadges();
+                updateCapsuleState();
             }
 
             @Override
@@ -505,9 +1059,6 @@ public class PlayerControllerFragment extends Fragment {
         String type = mediaMetadata.extras != null ? mediaMetadata.extras.getString("type") : null;
 
         if (Objects.equals(type, Constants.MEDIA_TYPE_RADIO)) {
-            // For radio: always read from extras first (radioArtist, radioTitle,
-            // stationName)
-            // MediaMetadata.title/artist are formatted for notification
             String stationName = mediaMetadata.extras != null
                     ? mediaMetadata.extras.getString("stationName",
                             mediaMetadata.artist != null ? String.valueOf(mediaMetadata.artist) : "")
@@ -521,7 +1072,6 @@ public class PlayerControllerFragment extends Fragment {
                     ? mediaMetadata.extras.getString("radioTitle", "")
                     : "";
 
-            // Format: "Artist - Song" or fallback to title or station name
             String mainTitle;
             if (!TextUtils.isEmpty(artist) && !TextUtils.isEmpty(title)) {
                 mainTitle = artist + " - " + title;
@@ -544,6 +1094,7 @@ public class PlayerControllerFragment extends Fragment {
             playerArtistNameLabel.setVisibility(!TextUtils.isEmpty(stationName) ? View.VISIBLE : View.GONE);
 
             updateAssetLinkChips(mediaMetadata);
+            refreshSignalBadges();
             return;
         }
 
@@ -574,18 +1125,17 @@ public class PlayerControllerFragment extends Fragment {
 
         setContextLabel(mediaMetadata.albumTitle);
         updateAssetLinkChips(mediaMetadata);
+        refreshSignalBadges();
     }
 
-    /** Names what is playing from (the album) under "Now playing", or hides the line. */
     private void setContextLabel(@Nullable CharSequence context) {
         if (playerContextLabel == null) return;
         setTextIfChanged(playerContextLabel, context == null ? "" : context);
         playerContextLabel.setVisibility(TextUtils.isEmpty(context) ? View.GONE : View.VISIBLE);
     }
 
-    private void setTextIfChanged(TextView label, CharSequence text) {
-        // Remote position updates arrive every second. Reassigning the same
-        // title restarts Android's marquee before it can begin scrolling.
+    private void setTextIfChanged(@Nullable TextView label, CharSequence text) {
+        if (label == null) return;
         if (!TextUtils.equals(label.getText(), text)) label.setText(text);
     }
 
@@ -593,12 +1143,12 @@ public class PlayerControllerFragment extends Fragment {
         if (bind == null || (com.eddyizm.tempus.lan.LanRemoteSession.isActive() && !renderingRemote)) return;
         boolean isLocal = !com.eddyizm.tempus.lan.LanRemoteSession.isActive() && MusicUtil.isCurrentTrackLocal(getBrowser());
 
-        if (mediaMetadata.extras != null) {
+        if (mediaMetadata.extras != null && playerMediaExtension != null && playerMediaBitrate != null) {
             String extension = mediaMetadata.extras.getString("suffix", getString(R.string.player_unknown_format));
             int rawBitrate = mediaMetadata.extras.getInt("bitrate", 0);
             String bitrate = rawBitrate != 0 ? rawBitrate + "kbps" : "Original";
             String samplingRate = mediaMetadata.extras.getInt("samplingRate", 0) != 0
-                    ? new java.text.DecimalFormat("0.#").format(mediaMetadata.extras.getInt("samplingRate", 0) / 1000.0)
+                    ? new DecimalFormat("0.#").format(mediaMetadata.extras.getInt("samplingRate", 0) / 1000.0)
                             + "kHz"
                     : "";
             String bitDepth = mediaMetadata.extras.getInt("bitDepth", 0) != 0
@@ -611,16 +1161,13 @@ public class PlayerControllerFragment extends Fragment {
                 playerMediaBitrate.setVisibility(View.GONE);
             } else {
                 List<String> items = new ArrayList<>();
-                if (!bitrate.trim().isEmpty())
-                    items.add(bitrate);
-                if (!bitDepth.trim().isEmpty())
-                    items.add(bitDepth);
-                if (!samplingRate.trim().isEmpty())
-                    items.add(samplingRate);
+                if (!bitrate.trim().isEmpty()) items.add(bitrate);
+                if (!bitDepth.trim().isEmpty()) items.add(bitDepth);
+                if (!samplingRate.trim().isEmpty()) items.add(samplingRate);
                 String mediaQuality = TextUtils.join(" • ", items);
 
                 playerMediaBitrate.setVisibility(Preferences.getBitrateVisible() ? View.VISIBLE : View.GONE);
-                playerMediaBitrate.setText(isLocal ? mediaQuality : mediaQuality);
+                playerMediaBitrate.setText(mediaQuality);
             }
         }
 
@@ -628,16 +1175,24 @@ public class PlayerControllerFragment extends Fragment {
             setMediaFormatFromFileReturnedByServer();
         }
 
-        playerTrackInfo.setOnClickListener(view -> {
-            TrackInfoDialog dialog = new TrackInfoDialog(mediaMetadata);
-            dialog.show(activity.getSupportFragmentManager(), null);
-        });
+        if (playerTrackInfo != null) {
+            playerTrackInfo.setOnClickListener(view -> {
+                TrackInfoDialog dialog = new TrackInfoDialog(mediaMetadata);
+                dialog.show(activity.getSupportFragmentManager(), null);
+            });
+        }
 
-        playerMediaExtension.setOnClickListener(v -> toggleBitrateVisibility());
-        playerMediaExtension.setOnLongClickListener(v -> toggleQuickActionVisiblity());
+        if (playerMediaExtension != null) {
+            playerMediaExtension.setOnClickListener(v -> toggleBitrateVisibility());
+            playerMediaExtension.setOnLongClickListener(v -> toggleQuickActionVisiblity());
+        }
 
-        playerMediaBitrate.setOnClickListener(v -> toggleBitrateVisibility());
-        playerMediaBitrate.setOnLongClickListener(v -> toggleQuickActionVisiblity());
+        if (playerMediaBitrate != null) {
+            playerMediaBitrate.setOnClickListener(v -> toggleBitrateVisibility());
+            playerMediaBitrate.setOnLongClickListener(v -> toggleQuickActionVisiblity());
+        }
+
+        refreshSignalBadges();
     }
 
     private MediaBrowser getBrowser() {
@@ -652,24 +1207,20 @@ public class PlayerControllerFragment extends Fragment {
 
     private void setMediaFormatFromFileReturnedByServer() {
         if (com.eddyizm.tempus.lan.LanRemoteSession.isActive()) return;
-        if (playerMediaExtension == null) return;
+        if (playerMediaExtension == null || playerMediaBitrate == null) return;
 
         MediaBrowser browser = getBrowser();
-        // Guard against local files here too: onTracksChanged also calls this, and a local
-        // file's format comes from its metadata in setMediaInfo, not the decoder label.
         if (MusicUtil.isCurrentTrackLocal(browser)) return;
 
         Format format = MusicUtil.getCurrentAudioFormat(browser);
         if (format == null) return;
 
-        // A renderer's unknown format says nothing about the stream, and it carries no bitrate.
         boolean renderer = UpnpPlayer.FORMAT_ID.equals(format.id);
         if (renderer && MimeTypes.AUDIO_UNKNOWN.equals(format.sampleMimeType)) return;
 
         String actual = MusicUtil.audioFormatLabel(format.sampleMimeType);
-        // A renderer plays the server's file, not a transcoded download.
         String original = renderer
-                ? MusicUtil.sourceSuffix(browser.getMediaMetadata().extras)
+                ? (browser.getMediaMetadata().extras != null ? MusicUtil.sourceSuffix(browser.getMediaMetadata().extras) : null)
                 : MusicUtil.getCurrentOriginalSuffix(browser);
         boolean transcoded = MusicUtil.isTranscodedFormat(actual, original);
 
@@ -679,7 +1230,8 @@ public class PlayerControllerFragment extends Fragment {
                     : actual);
         }
 
-        if (Objects.equals(browser.getMediaMetadata().extras.getString("type"), Constants.MEDIA_TYPE_RADIO)) {
+        if (browser.getMediaMetadata().extras != null
+                && Objects.equals(browser.getMediaMetadata().extras.getString("type"), Constants.MEDIA_TYPE_RADIO)) {
             playerMediaBitrate.setText((format.bitrate / 1000) + "kbps");
             playerMediaBitrate.setVisibility(Preferences.getBitrateVisible() ? View.VISIBLE : View.GONE);
         } else if (format.bitrate != Format.NO_VALUE && format.bitrate > 0) {
@@ -696,10 +1248,10 @@ public class PlayerControllerFragment extends Fragment {
                 playerMediaBitrate.setVisibility(View.GONE);
             }
         }
-
     }
 
     private void toggleBitrateVisibility() {
+        if (playerMediaBitrate == null || !(playerMediaBitrate.getParent() instanceof ViewGroup)) return;
         ViewGroup parent = (ViewGroup) playerMediaBitrate.getParent();
 
         TransitionSet transition = new TransitionSet()
@@ -714,6 +1266,7 @@ public class PlayerControllerFragment extends Fragment {
     }
 
     private boolean toggleQuickActionVisiblity() {
+        if (playerQuickActionView == null || !(playerQuickActionView.getParent() instanceof ViewGroup)) return true;
         ViewGroup parent = (ViewGroup) playerQuickActionView.getParent();
 
         TransitionSet transition = new TransitionSet()
@@ -728,8 +1281,7 @@ public class PlayerControllerFragment extends Fragment {
     }
 
     private void updateAssetLinkChips(MediaMetadata mediaMetadata) {
-        if (assetLinkChipGroup == null)
-            return;
+        if (assetLinkChipGroup == null) return;
         String mediaType = mediaMetadata.extras != null
                 ? mediaMetadata.extras.getString("type", Constants.MEDIA_TYPE_MUSIC)
                 : Constants.MEDIA_TYPE_MUSIC;
@@ -747,8 +1299,7 @@ public class PlayerControllerFragment extends Fragment {
 
         AssetLinkUtil.AssetLink songLink = bindAssetLinkChip(playerSongLinkChip, AssetLinkUtil.TYPE_SONG, songId);
         AssetLinkUtil.AssetLink albumLink = bindAssetLinkChip(playerAlbumLinkChip, AssetLinkUtil.TYPE_ALBUM, albumId);
-        AssetLinkUtil.AssetLink artistLink = bindAssetLinkChip(playerArtistLinkChip, AssetLinkUtil.TYPE_ARTIST,
-                artistId);
+        AssetLinkUtil.AssetLink artistLink = bindAssetLinkChip(playerArtistLinkChip, AssetLinkUtil.TYPE_ARTIST, artistId);
         bindAssetLinkView(playerMediaTitleLabel, songLink);
         bindAssetLinkView(playerArtistNameLabel, artistLink != null ? artistLink : songLink);
         bindAssetLinkView(playerMediaCoverViewPager, songLink);
@@ -756,8 +1307,7 @@ public class PlayerControllerFragment extends Fragment {
     }
 
     private AssetLinkUtil.AssetLink bindAssetLinkChip(Chip chip, String type, String id) {
-        if (chip == null)
-            return null;
+        if (chip == null) return null;
         if (TextUtils.isEmpty(id)) {
             clearAssetLinkChip(chip);
             return null;
@@ -773,18 +1323,11 @@ public class PlayerControllerFragment extends Fragment {
         chip.setText(getString(R.string.asset_link_chip_text, label, assetLink.id));
         chip.setVisibility(View.VISIBLE);
 
-        chip.setOnClickListener(v -> {
-            if (assetLink != null) {
-                activity.openAssetLink(assetLink);
-            }
-        });
+        chip.setOnClickListener(v -> activity.openAssetLink(assetLink));
 
         chip.setOnLongClickListener(v -> {
-            if (assetLink != null) {
-                AssetLinkUtil.copyToClipboard(requireContext(), assetLink);
-                Toast.makeText(requireContext(), getString(R.string.asset_link_copied_toast, id), Toast.LENGTH_SHORT)
-                        .show();
-            }
+            AssetLinkUtil.copyToClipboard(requireContext(), assetLink);
+            Toast.makeText(requireContext(), getString(R.string.asset_link_copied_toast, id), Toast.LENGTH_SHORT).show();
             return true;
         });
 
@@ -792,8 +1335,7 @@ public class PlayerControllerFragment extends Fragment {
     }
 
     private void clearAssetLinkChip(Chip chip) {
-        if (chip == null)
-            return;
+        if (chip == null) return;
         chip.setVisibility(View.GONE);
         chip.setText("");
         chip.setOnClickListener(null);
@@ -801,8 +1343,7 @@ public class PlayerControllerFragment extends Fragment {
     }
 
     private void bindAssetLinkView(View view, AssetLinkUtil.AssetLink assetLink) {
-        if (view == null)
-            return;
+        if (view == null) return;
         if (assetLink == null) {
             AssetLinkUtil.clearLinkAppearance(view);
             view.setOnClickListener(null);
@@ -821,15 +1362,13 @@ public class PlayerControllerFragment extends Fragment {
         });
         view.setOnLongClickListener(v -> {
             AssetLinkUtil.copyToClipboard(requireContext(), assetLink);
-            Toast.makeText(requireContext(), getString(R.string.asset_link_copied_toast, assetLink.id),
-                    Toast.LENGTH_SHORT).show();
+            Toast.makeText(requireContext(), getString(R.string.asset_link_copied_toast, assetLink.id), Toast.LENGTH_SHORT).show();
             return true;
         });
     }
 
     private void syncAssetLinkGroupVisibility() {
-        if (assetLinkChipGroup == null)
-            return;
+        if (assetLinkChipGroup == null) return;
         boolean hasVisible = false;
         for (int i = 0; i < assetLinkChipGroup.getChildCount(); i++) {
             View child = assetLinkChipGroup.getChildAt(i);
@@ -854,9 +1393,9 @@ public class PlayerControllerFragment extends Fragment {
                     bind.nowPlayingMediaControllerView.setShowNextButton(false);
                     bind.nowPlayingMediaControllerView.setShowFastForwardButton(true);
                     bind.nowPlayingMediaControllerView.setRepeatToggleModes(RepeatModeUtil.REPEAT_TOGGLE_MODE_NONE);
-                    bind.getRoot().findViewById(R.id.player_playback_speed_button).setVisibility(View.VISIBLE);
-                    bind.getRoot().findViewById(R.id.player_skip_silence_toggle_button).setVisibility(View.VISIBLE);
-                    bind.getRoot().findViewById(R.id.button_favorite).setVisibility(View.GONE);
+                    if (playbackSpeedButton != null) playbackSpeedButton.setVisibility(View.VISIBLE);
+                    if (skipSilenceToggleButton != null) skipSilenceToggleButton.setVisibility(View.GONE);
+                    if (buttonFavorite != null) buttonFavorite.setVisibility(View.GONE);
                     setPlaybackParameters(mediaBrowser);
                     break;
                 case Constants.MEDIA_TYPE_RADIO:
@@ -866,9 +1405,9 @@ public class PlayerControllerFragment extends Fragment {
                     bind.nowPlayingMediaControllerView.setShowNextButton(false);
                     bind.nowPlayingMediaControllerView.setShowFastForwardButton(false);
                     bind.nowPlayingMediaControllerView.setRepeatToggleModes(RepeatModeUtil.REPEAT_TOGGLE_MODE_NONE);
-                    bind.getRoot().findViewById(R.id.player_playback_speed_button).setVisibility(View.GONE);
-                    bind.getRoot().findViewById(R.id.player_skip_silence_toggle_button).setVisibility(View.GONE);
-                    bind.getRoot().findViewById(R.id.button_favorite).setVisibility(View.GONE);
+                    if (playbackSpeedButton != null) playbackSpeedButton.setVisibility(View.GONE);
+                    if (skipSilenceToggleButton != null) skipSilenceToggleButton.setVisibility(View.GONE);
+                    if (buttonFavorite != null) buttonFavorite.setVisibility(View.GONE);
                     setPlaybackParameters(mediaBrowser);
                     break;
                 case Constants.MEDIA_TYPE_MUSIC:
@@ -880,78 +1419,74 @@ public class PlayerControllerFragment extends Fragment {
                     bind.nowPlayingMediaControllerView.setShowFastForwardButton(false);
                     bind.nowPlayingMediaControllerView.setRepeatToggleModes(
                             RepeatModeUtil.REPEAT_TOGGLE_MODE_ALL | RepeatModeUtil.REPEAT_TOGGLE_MODE_ONE);
-                    bind.getRoot().findViewById(R.id.player_playback_speed_button).setVisibility(View.VISIBLE);
-                    bind.getRoot().findViewById(R.id.player_skip_silence_toggle_button).setVisibility(View.GONE);
-                    bind.getRoot().findViewById(R.id.button_favorite).setVisibility(View.VISIBLE);
+                    if (playbackSpeedButton != null) playbackSpeedButton.setVisibility(View.VISIBLE);
+                    if (skipSilenceToggleButton != null) skipSilenceToggleButton.setVisibility(View.GONE);
+                    if (buttonFavorite != null) buttonFavorite.setVisibility(View.VISIBLE);
                     setPlaybackParameters(mediaBrowser);
                     break;
             }
         }
         syncFavoriteSurface();
-        // Play order only means something for music queues, not podcasts or radio.
-        if (playModeButton != null) playModeButton.setVisibility(buttonFavorite.getVisibility());
+        if (playModeButton != null && buttonFavorite != null) {
+            playModeButton.setVisibility(buttonFavorite.getVisibility());
+        }
     }
 
     // -------------------------------------------------------------------------
     // Sleep timer
     // -------------------------------------------------------------------------
 
-    /**
-     * Wire up the sleep timer button click listener and connect the
-     * {@link SleepTimerManager} tick callback so that:
-     * - the countdown label refreshes every second, and
-     * - the player pauses automatically when the timer expires.
-     */
     private void initSleepTimerButton(MediaBrowser mediaBrowser) {
-        sleepTimerButton.setOnClickListener(v -> {
-            SleepTimerDialog dialog = new SleepTimerDialog();
-            dialog.setSleepTimerListener(new SleepTimerDialog.SleepTimerListener() {
-                @Override
-                public void onTimerSet(int minutes) {
-                    if (com.eddyizm.tempus.lan.LanRemoteSession.isActive()) { com.eddyizm.tempus.lan.LanRemoteSession.sleepTimer("minutes", minutes); return; }
-                    SleepTimerManager.getInstance().startTimer(minutes);
-                    connectSleepTimerTick(mediaBrowser);
-                }
+        if (sleepTimerButton != null) {
+            sleepTimerButton.setOnClickListener(v -> {
+                SleepTimerDialog dialog = new SleepTimerDialog();
+                dialog.setSleepTimerListener(new SleepTimerDialog.SleepTimerListener() {
+                    @Override
+                    public void onTimerSet(int minutes) {
+                        if (com.eddyizm.tempus.lan.LanRemoteSession.isActive()) {
+                            com.eddyizm.tempus.lan.LanRemoteSession.sleepTimer("minutes", minutes);
+                            return;
+                        }
+                        SleepTimerManager.getInstance().startTimer(minutes);
+                        connectSleepTimerTick(mediaBrowser);
+                    }
 
-                @Override
-                public void onTimerCancelled() {
-                    if (com.eddyizm.tempus.lan.LanRemoteSession.isActive()) { com.eddyizm.tempus.lan.LanRemoteSession.sleepTimer("cancel", 0); return; }
-                    SleepTimerManager.getInstance().cancelTimer();
-                    updateSleepTimerUI();
-                }
+                    @Override
+                    public void onTimerCancelled() {
+                        if (com.eddyizm.tempus.lan.LanRemoteSession.isActive()) {
+                            com.eddyizm.tempus.lan.LanRemoteSession.sleepTimer("cancel", 0);
+                            return;
+                        }
+                        SleepTimerManager.getInstance().cancelTimer();
+                        updateSleepTimerUI();
+                    }
 
-                @Override
-                public void onEndOfTrackSet() {
-                    if (com.eddyizm.tempus.lan.LanRemoteSession.isActive()) { com.eddyizm.tempus.lan.LanRemoteSession.sleepTimer("end", 0); return; }
-                    SleepTimerManager.getInstance().startEndOfTrack();
-                    connectSleepTimerTick(mediaBrowser);
-                }
+                    @Override
+                    public void onEndOfTrackSet() {
+                        if (com.eddyizm.tempus.lan.LanRemoteSession.isActive()) {
+                            com.eddyizm.tempus.lan.LanRemoteSession.sleepTimer("end", 0);
+                            return;
+                        }
+                        SleepTimerManager.getInstance().startEndOfTrack();
+                        connectSleepTimerTick(mediaBrowser);
+                    }
+                });
+                dialog.show(requireActivity().getSupportFragmentManager(), null);
             });
-            dialog.show(requireActivity().getSupportFragmentManager(), null);
-        });
+        }
 
         connectSleepTimerTick(mediaBrowser);
     }
 
-    /**
-     * (Re-)registers the UI tick listener with {@link SleepTimerManager}.
-     * Called on first bind and whenever the fragment reconnects after rotation.
-     * Fade-out and pause are now handled by BaseMediaService via its own
-     * ServiceActionListener — this callback only refreshes the UI label.
-     */
     private void connectSleepTimerTick(MediaBrowser mediaBrowser) {
         SleepTimerManager.getInstance().setTickListener(expired -> updateSleepTimerUI());
     }
 
-    /**
-     * Refreshes the sleep timer button tint and the countdown label to
-     * reflect the current timer state. Safe to call from any thread because
-     * {@link SleepTimerManager} always invokes the tick listener on the
-     * main thread.
-     */
     private void updateSleepTimerUI() {
-        if (sleepTimerButton == null || sleepTimerLabel == null)
-            return;
+        if (bind == null || !isAdded()) return;
+        updateCapsuleState();
+
+        if (sleepTimerButton == null || sleepTimerLabel == null) return;
 
         boolean remote = com.eddyizm.tempus.lan.LanRemoteSession.isActive();
         com.eddyizm.tempus.lan.LanRemoteState remoteState = com.eddyizm.tempus.lan.LanRemoteSession.current();
@@ -964,19 +1499,13 @@ public class PlayerControllerFragment extends Fragment {
                     : remote ? remoteState.getTimerRemaining() : SleepTimerManager.getInstance().getRemainingFormatted();
             sleepTimerLabel.setText(label);
             sleepTimerLabel.setVisibility(View.VISIBLE);
-            if (immersiveLayout) sleepTimerContainer.setVisibility(View.VISIBLE);
-            int accentColor = com.google.android.material.color.MaterialColors.getColor(
-                    sleepTimerButton, com.google.android.material.R.attr.colorPrimary);
-            ImageViewCompat.setImageTintList(sleepTimerButton,
-                    ColorStateList.valueOf(accentColor));
+            if (sleepTimerContainer != null) sleepTimerContainer.setVisibility(View.GONE);
+            ImageViewCompat.setImageTintList(sleepTimerButton, ColorStateList.valueOf(COLOR_BRASS));
         } else {
             sleepTimerLabel.setVisibility(View.GONE);
             sleepTimerLabel.setText("");
-            if (immersiveLayout) sleepTimerContainer.setVisibility(View.GONE);
-            int defaultColor = com.google.android.material.color.MaterialColors.getColor(
-                    sleepTimerButton, com.google.android.material.R.attr.colorOnSurface);
-            ImageViewCompat.setImageTintList(sleepTimerButton,
-                    ColorStateList.valueOf(defaultColor));
+            if (sleepTimerContainer != null) sleepTimerContainer.setVisibility(View.GONE);
+            ImageViewCompat.setImageTintList(sleepTimerButton, ColorStateList.valueOf(COLOR_IVORY));
         }
     }
 
@@ -993,6 +1522,8 @@ public class PlayerControllerFragment extends Fragment {
             @Override
             public void onPageSelected(int position) {
                 super.onPageSelected(position);
+
+                PlayerMotion.setLyricsShowing(position == 1 || queueSheetOpen);
 
                 if (getParentFragment() instanceof PlayerBottomSheetFragment) {
                     ((PlayerBottomSheetFragment) getParentFragment()).updateBottomSheetDraggableState();
@@ -1013,25 +1544,13 @@ public class PlayerControllerFragment extends Fragment {
     }
 
     private void updateLyricsButtonTint(boolean isLyricsActive) {
-        tintShortcut(playerOpenLyricsButton, isLyricsActive);
+        updateCapsuleState();
     }
 
     public void updateQueueButtonTint(boolean isQueueActive) {
-        tintShortcut(playerOpenQueueButton, isQueueActive);
-    }
-
-    /** A selected pill gets a brighter backdrop; landscape icon buttons switch their tint instead. */
-    private void tintShortcut(@Nullable View shortcut, boolean active) {
-        if (shortcut instanceof com.google.android.material.button.MaterialButton) {
-            int surface = active ? 0x47FFFFFF : androidx.core.content.ContextCompat.getColor(shortcut.getContext(), R.color.player_control_surface);
-            ((com.google.android.material.button.MaterialButton) shortcut).setBackgroundTintList(ColorStateList.valueOf(surface));
-        } else if (shortcut instanceof android.widget.ImageView) {
-            int colorAttr = active
-                    ? com.google.android.material.R.attr.colorPrimary
-                    : com.google.android.material.R.attr.colorOnSurface;
-            int color = com.google.android.material.color.MaterialColors.getColor(shortcut, colorAttr);
-            ImageViewCompat.setImageTintList((android.widget.ImageView) shortcut, ColorStateList.valueOf(color));
-        }
+        this.queueSheetOpen = isQueueActive;
+        PlayerMotion.setLyricsShowing(isLyricsPage() || isQueueActive);
+        updateCapsuleState();
     }
 
     private void initMediaListenable() {
@@ -1039,38 +1558,33 @@ public class PlayerControllerFragment extends Fragment {
             if (media != null) {
                 if (com.eddyizm.tempus.lan.LanRemoteSession.isActive()
                         && !Objects.equals(media.getId(), com.eddyizm.tempus.lan.LanRemoteSession.current().getMediaId())) return;
-                buttonFavorite.setEnabled(true);
+                if (buttonFavorite != null) {
+                    buttonFavorite.setEnabled(true);
+                    buttonFavorite.setChecked(FavoriteRegistry.resolve(FavoriteRegistry.Kind.SONG, media.getId(), media.getStarred() != null));
+                    buttonFavorite.setOnClickListener(v -> playerBottomSheetViewModel.setFavorite(requireContext(), media));
+                    buttonFavorite.setOnLongClickListener(v -> {
+                        Bundle bundle = new Bundle();
+                        bundle.putParcelable(Constants.TRACK_OBJECT, media);
+
+                        RatingDialog dialog = new RatingDialog();
+                        dialog.setArguments(bundle);
+                        dialog.show(requireActivity().getSupportFragmentManager(), null);
+
+                        return true;
+                    });
+                }
                 ratingViewModel.setSong(media);
-                buttonFavorite.setChecked(FavoriteRegistry.resolve(FavoriteRegistry.Kind.SONG, media.getId(), media.getStarred() != null));
-                buttonFavorite.setOnClickListener(v -> playerBottomSheetViewModel.setFavorite(requireContext(), media));
-                buttonFavorite.setOnLongClickListener(v -> {
-                    Bundle bundle = new Bundle();
-                    bundle.putParcelable(Constants.TRACK_OBJECT, media);
-
-                    RatingDialog dialog = new RatingDialog();
-                    dialog.setArguments(bundle);
-                    dialog.show(requireActivity().getSupportFragmentManager(), null);
-
-                    return true;
-                });
 
                 Integer currentRating = media.getUserRating();
-
-                if (currentRating != null) {
-                    songRatingBar.setRating(currentRating);
-                } else {
-                    songRatingBar.setRating(0);
-                }
-
-                songRatingBar.setOnRatingBarChangeListener(new RatingBar.OnRatingBarChangeListener() {
-                    @Override
-                    public void onRatingChanged(RatingBar ratingBar, float rating, boolean fromUser) {
+                if (songRatingBar != null) {
+                    songRatingBar.setRating(currentRating != null ? currentRating : 0);
+                    songRatingBar.setOnRatingBarChangeListener((ratingBar, rating, fromUser) -> {
                         if (fromUser) {
                             ratingViewModel.rate((int) rating);
                             media.setUserRating((int) rating);
                         }
-                    }
-                });
+                    });
+                }
 
                 if (getActivity() != null) {
                     playerBottomSheetViewModel.refreshMediaInfo(requireActivity(), media);
@@ -1081,7 +1595,7 @@ public class PlayerControllerFragment extends Fragment {
 
     private void initMediaLabelButton() {
         playerBottomSheetViewModel.getLiveAlbum().observe(getViewLifecycleOwner(), album -> {
-            if (album != null) {
+            if (album != null && playerMediaTitleLabel != null) {
                 playerMediaTitleLabel.setOnClickListener(view -> {
                     Bundle bundle = new Bundle();
                     bundle.putParcelable(Constants.ALBUM_OBJECT, album);
@@ -1095,7 +1609,7 @@ public class PlayerControllerFragment extends Fragment {
 
     private void initArtistLabelButton() {
         playerBottomSheetViewModel.getLiveArtist().observe(getViewLifecycleOwner(), artist -> {
-            if (artist != null) {
+            if (artist != null && playerArtistNameLabel != null) {
                 playerArtistNameLabel.setOnClickListener(view -> {
                     Bundle bundle = new Bundle();
                     bundle.putParcelable(Constants.ARTIST_OBJECT, artist);
@@ -1122,17 +1636,17 @@ public class PlayerControllerFragment extends Fragment {
     }
 
     private void initPlaybackSpeedButton(MediaBrowser mediaBrowser) {
-        playbackSpeedButton.setOnClickListener(view -> {
-            PlaybackSpeedDialog dialog = new PlaybackSpeedDialog();
-            dialog.setPlaybackSpeedListener(speed -> {
-                applyPlaybackSpeed(speed);
+        if (playbackSpeedButton != null) {
+            playbackSpeedButton.setOnClickListener(view -> {
+                PlaybackSpeedDialog dialog = new PlaybackSpeedDialog();
+                dialog.setPlaybackSpeedListener(this::applyPlaybackSpeed);
+                dialog.show(requireActivity().getSupportFragmentManager(), null);
             });
-            dialog.show(requireActivity().getSupportFragmentManager(), null);
-        });
+        }
 
-        skipSilenceToggleButton.setOnClickListener(view -> {
-            Preferences.setSkipSilenceMode(!skipSilenceToggleButton.isChecked());
-        });
+        if (skipSilenceToggleButton != null) {
+            skipSilenceToggleButton.setOnClickListener(view -> Preferences.setSkipSilenceMode(!skipSilenceToggleButton.isChecked()));
+        }
     }
 
     private void openAddToPlaylistDialog() {
@@ -1151,22 +1665,33 @@ public class PlayerControllerFragment extends Fragment {
             Toast.makeText(requireContext(), R.string.lan_receiver_audio_settings, Toast.LENGTH_LONG).show();
             return;
         }
+        if (Preferences.getSelectedEqualizer() == 0) {
+            Preferences.setSelectedEqualizer("1");
+            if (mediaServiceBinder != null) {
+                mediaServiceBinder.reloadEqualizer();
+            }
+        }
         NavController navController = NavHostFragment.findNavController(this);
         NavOptions navOptions = new NavOptions.Builder()
                 .setLaunchSingleTop(true)
                 .setPopUpTo(R.id.equalizerFragment, true)
                 .build();
         navController.navigate(R.id.equalizerFragment, null, navOptions);
-        if (activity != null)
+        if (activity != null) {
             activity.collapseBottomSheetDelayed();
+        }
     }
 
     public void goToControllerPage() {
-        playerMediaCoverViewPager.setCurrentItem(0, false);
+        if (playerMediaCoverViewPager != null) {
+            playerMediaCoverViewPager.setCurrentItem(0, false);
+        }
     }
 
     public void goToLyricsPage() {
-        playerMediaCoverViewPager.setCurrentItem(1, true);
+        if (playerMediaCoverViewPager != null) {
+            playerMediaCoverViewPager.setCurrentItem(1, true);
+        }
     }
 
     public boolean isLyricsPage() {
@@ -1174,43 +1699,33 @@ public class PlayerControllerFragment extends Fragment {
     }
 
     private void checkAndSetRatingContainerVisibility() {
-        if (ratingContainer == null)
-            return;
-
-        if (Preferences.showItemStarRating()) {
-            ratingContainer.setVisibility(View.VISIBLE);
-        } else {
-            ratingContainer.setVisibility(View.GONE);
-        }
+        if (ratingContainer == null) return;
+        ratingContainer.setVisibility(Preferences.showItemStarRating() ? View.VISIBLE : View.GONE);
     }
 
     private void setPlaybackParameters(MediaBrowser mediaBrowser) {
-        Button playbackSpeedButton = bind.getRoot().findViewById(R.id.player_playback_speed_button);
         float currentSpeed = Preferences.getPlaybackSpeed();
         boolean skipSilence = Preferences.isSkipSilenceMode();
 
         mediaBrowser.setPlaybackParameters(getPlaybackParameters(currentSpeed));
-        playbackSpeedButton.setText(getString(R.string.player_playback_speed, currentSpeed));
-
-        // TODO Skippare il silenzio
-        skipSilenceToggleButton.setChecked(skipSilence);
-    }
-
-    private void resetPlaybackParameters(MediaBrowser mediaBrowser) {
-        mediaBrowser.setPlaybackParameters(getPlaybackParameters(1.0f));
-        // TODO Resettare lo skip del silenzio
+        if (playbackSpeedButton != null) {
+            playbackSpeedButton.setText(getString(R.string.player_playback_speed, currentSpeed));
+        }
+        if (skipSilenceToggleButton != null) {
+            skipSilenceToggleButton.setChecked(skipSilence);
+        }
     }
 
     private void applyPlaybackSpeed(float speed) {
-        playbackSpeedButton.setText(getString(R.string.player_playback_speed, speed));
+        if (playbackSpeedButton != null) {
+            playbackSpeedButton.setText(getString(R.string.player_playback_speed, speed));
+        }
         if (com.eddyizm.tempus.lan.LanRemoteSession.isActive()) {
             com.eddyizm.tempus.lan.LanRemoteSession.playbackParameters(speed, getPlaybackParameters(speed).pitch);
             return;
         }
 
-        if (mediaBrowserListenableFuture == null) {
-            return;
-        }
+        if (mediaBrowserListenableFuture == null) return;
 
         mediaBrowserListenableFuture.addListener(() -> {
             try {
@@ -1238,7 +1753,7 @@ public class PlayerControllerFragment extends Fragment {
     private final ServiceConnection serviceConnection = new ServiceConnection() {
         @Override
         public void onServiceConnected(ComponentName name, IBinder service) {
-            mediaServiceBinder = (MediaService.LocalBinder) service;
+            mediaServiceBinder = (BaseMediaService.LocalBinder) service;
             isServiceBound = true;
         }
 
@@ -1260,11 +1775,14 @@ public class PlayerControllerFragment extends Fragment {
     public void onResume() {
         super.onResume();
         bindMediaService();
+        updatePlaybackDestinationLabel();
+        refreshSignalBadges();
+        updateCapsuleState();
     }
 
     private void updateRemoteToggleVisibility() {
         if (bind == null) return;
-        bind.playerRemoteToggle.setVisibility(playerOutputLabel == null && com.eddyizm.tempus.lan.LanDevicePicker.isOffered() ? View.VISIBLE : View.GONE);
+        bind.playerRemoteToggle.setVisibility(View.GONE);
         updatePlaybackDestinationLabel();
     }
 

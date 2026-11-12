@@ -8,10 +8,11 @@ import kotlin.math.min
 import kotlin.math.roundToInt
 
 /**
- * Colours derived from one cover for the immersive player.
+ * Colours derived from one cover for the Editorial Warm Dark ("唱片店夜色") immersive player.
  *
- * [blobs] are four deep tones for the fluid backdrop, kept dark enough for light text on top.
- * [miniLight] / [miniDark] tint the mini player in the light and dark app themes.
+ * [blobs] are four deep, low-chroma tones (`L* 14–26`, chroma <= 22) for the static cover aura,
+ * clamped so saturated/neon covers never produce garish backgrounds.
+ * [miniLight] / [miniDark] tint the mini player while preserving legibility.
  */
 data class CoverScheme(
     val blobs: List<Int>,
@@ -20,7 +21,16 @@ data class CoverScheme(
 ) {
     companion object {
         @JvmField
-        val FALLBACK = fromSeed(0xFF2C343F.toInt())
+        val FALLBACK = CoverScheme(
+            blobs = listOf(
+                0xFF1A1612.toInt(),
+                0xFF241D15.toInt(),
+                0xFF0E0D0C.toInt(),
+                0xFF161412.toInt(),
+            ),
+            miniLight = 0xFFF5F1EA.toInt(),
+            miniDark = 0xFF161412.toInt(),
+        )
 
         private const val MIN_HUE_DISTANCE = 18f
 
@@ -29,12 +39,12 @@ data class CoverScheme(
             val palette = Palette.from(bitmap).maximumColorCount(16).generate()
             val swatches = listOfNotNull(
                 palette.dominantSwatch,
-                palette.vibrantSwatch,
-                palette.darkVibrantSwatch,
-                palette.mutedSwatch,
                 palette.darkMutedSwatch,
-                palette.lightVibrantSwatch,
+                palette.mutedSwatch,
+                palette.darkVibrantSwatch,
+                palette.vibrantSwatch,
                 palette.lightMutedSwatch,
+                palette.lightVibrantSwatch,
             ).sortedByDescending { it.population }
             if (swatches.isEmpty()) return FALLBACK
             return fromColors(swatches.map { it.rgb })
@@ -46,6 +56,7 @@ data class CoverScheme(
         /** Builds a scheme from colours ordered by importance; the first one is the seed. */
         @JvmStatic
         fun fromColors(colors: List<Int>): CoverScheme {
+            if (colors.isEmpty()) return FALLBACK
             val seedHsl = hsl(colors.first())
             val picked = ArrayList<FloatArray>(4)
             for (color in colors) {
@@ -55,20 +66,21 @@ data class CoverScheme(
                 }
                 if (picked.size == 4) break
             }
-            // Monochrome or single-colour covers still get movement by turning the seed hue slightly.
+            // Monochrome or single-colour covers still get subtle depth by turning the seed hue slightly.
             val turns = floatArrayOf(28f, -24f, 52f)
             var turn = 0
             while (picked.size < 4) {
                 val base = picked[0]
                 picked.add(floatArrayOf((base[0] + turns[turn++] + 360f) % 360f, base[1], base[2] * 0.85f))
             }
-            val depth = floatArrayOf(0.34f, 0.26f, 0.19f, 0.30f)
+            // Keep lightness strictly within dark Editorial Warm Dark bounds (L* ~14..26).
+            val depth = floatArrayOf(0.24f, 0.20f, 0.15f, 0.18f)
             val blobs = picked.mapIndexed { index, value -> deepen(value, depth[index]) }
             val seedSaturation = seedHsl[1]
             return CoverScheme(
                 blobs = blobs,
-                miniLight = tone(seedHsl[0], min(seedSaturation, 0.45f), 0.90f),
-                miniDark = tone(seedHsl[0], min(seedSaturation, 0.40f), 0.20f),
+                miniLight = tone(seedHsl[0], min(seedSaturation, 0.22f), 0.92f),
+                miniDark = tone(seedHsl[0], min(seedSaturation, 0.24f), 0.12f),
             )
         }
 
@@ -99,10 +111,13 @@ data class CoverScheme(
             return if (d > 180f) 360f - d else d
         }
 
-        /** Keeps the hue, limits saturation and sets a dark lightness that keeps white text legible. */
+        /**
+         * Preserves hue while clamping saturation (`<= 0.30`, CIE chroma <= 22) and lightness
+         * (`0.14..0.25`, L* 14–26) so warm ivory `#F2ECE3` text always sits on calm dark charcoal.
+         */
         private fun deepen(value: FloatArray, lightness: Float): Int {
-            val saturation = if (value[1] < 0.08f) value[1] else value[1].coerceIn(0.22f, 0.78f)
-            val shifted = (lightness + (value[2] - 0.5f) * 0.12f).coerceIn(0.13f, 0.40f)
+            val saturation = if (value[1] < 0.06f) value[1] else value[1].coerceIn(0.14f, 0.30f)
+            val shifted = (lightness + (value[2] - 0.5f) * 0.05f).coerceIn(0.14f, 0.25f)
             return tone(value[0], saturation, shifted)
         }
 

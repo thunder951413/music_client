@@ -6,75 +6,74 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.RuntimeShader
 import android.util.AttributeSet
-import android.view.Choreographer
 import android.view.View
 import android.view.animation.PathInterpolator
 import androidx.core.graphics.ColorUtils
 
 /**
- * A slowly flowing mesh of the current cover's colours, drawn with an AGSL shader.
+ * Low-power Static Aura backdrop for the Editorial Warm Dark ("唱片店夜色") full-screen player.
  *
- * Four soft colour fields drift on independent orbits through a domain-warped space, similar to
- * the animated artwork background of Apple Music. Time only advances while the view is shown, and
- * it slows down while playback is paused. With system animations off the field stays still.
+ * Draws a soft, static radial cover mesh over a `#0E0D0C` warm charcoal base with a subtle ~3%
+ * static film-grain texture in AGSL. There is NO advancing time uniform and NO Choreographer loop:
+ * [invalidate] runs only during the 600ms crossfade when [PlayerMotion.scheme] changes, then sits
+ * completely idle at 0fps.
  */
 class FluidBackdropView @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,
-) : View(context, attrs), PlayerMotion.Listener, Choreographer.FrameCallback {
+) : View(context, attrs), PlayerMotion.Listener {
 
     private val shader = RuntimeShader(SHADER)
     private val paint = Paint().apply { shader = this@FluidBackdropView.shader }
 
     private var from = PlayerMotion.scheme.blobs.toIntArray()
-    private var to = from
+    private var to = from.copyOf()
     private val current = from.copyOf()
     private var colorAnimator: ValueAnimator? = null
-
-    private var time = 0f
-    private var speed = 0f
-    private var lastFrameNanos = 0L
-    private var frameScheduled = false
 
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
         PlayerMotion.addListener(this)
-        onPlayerMotionChanged()
+        val target = PlayerMotion.scheme.blobs.toIntArray()
+        if (!target.contentEquals(current)) {
+            target.copyInto(from)
+            target.copyInto(to)
+            target.copyInto(current)
+        }
+        invalidate()
     }
 
     override fun onDetachedFromWindow() {
         PlayerMotion.removeListener(this)
         colorAnimator?.cancel()
-        stopFrames()
+        colorAnimator = null
         super.onDetachedFromWindow()
-    }
-
-    override fun onVisibilityAggregated(isVisible: Boolean) {
-        super.onVisibilityAggregated(isVisible)
-        if (isVisible) scheduleFrame() else stopFrames()
     }
 
     override fun onPlayerMotionChanged() {
         val target = PlayerMotion.scheme.blobs.toIntArray()
-        if (!target.contentEquals(to)) animateColorsTo(target)
-        scheduleFrame()
+        if (!target.contentEquals(to)) {
+            animateColorsTo(target)
+        }
     }
 
     private fun animateColorsTo(target: IntArray) {
         colorAnimator?.cancel()
         from = current.copyOf()
-        to = target
-        if (!PlayerMotion.motionEnabled || !isAttachedToWindow) {
+        to = target.copyOf()
+        if (!PlayerMotion.motionEnabled || !isAttachedToWindow || !isShown) {
             target.copyInto(current)
             invalidate()
             return
         }
         colorAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
             duration = COLOR_FADE_MS
-            interpolator = PathInterpolator(0.2f, 0f, 0f, 1f)
+            interpolator = FADE_INTERPOLATOR
             addUpdateListener { animator ->
                 val fraction = animator.animatedValue as Float
-                for (i in current.indices) current[i] = ColorUtils.blendARGB(from[i], to[i], fraction)
+                for (i in current.indices) {
+                    current[i] = ColorUtils.blendARGB(from[i], to[i], fraction)
+                }
                 invalidate()
             }
             start()
@@ -82,8 +81,9 @@ class FluidBackdropView @JvmOverloads constructor(
     }
 
     override fun onDraw(canvas: Canvas) {
-        shader.setFloatUniform("size", width.toFloat(), height.toFloat())
-        shader.setFloatUniform("time", time)
+        val w = width.toFloat().coerceAtLeast(1f)
+        val h = height.toFloat().coerceAtLeast(1f)
+        shader.setFloatUniform("size", w, h)
         shader.setColorUniform("c0", current[0])
         shader.setColorUniform("c1", current[1])
         shader.setColorUniform("c2", current[2])
@@ -91,82 +91,46 @@ class FluidBackdropView @JvmOverloads constructor(
         canvas.drawPaint(paint)
     }
 
-    override fun doFrame(frameTimeNanos: Long) {
-        frameScheduled = false
-        if (!isAttachedToWindow || !isShown) return
-        val target = if (PlayerMotion.isPlaying) PLAYING_SPEED else PAUSED_SPEED
-        val dt = if (lastFrameNanos == 0L) 0f else ((frameTimeNanos - lastFrameNanos) / 1e9f).coerceAtMost(0.1f)
-        lastFrameNanos = frameTimeNanos
-        // Ease the speed so pausing settles the motion instead of freezing it.
-        speed += (target - speed) * (dt * 1.5f).coerceAtMost(1f)
-        time += dt * speed
-        invalidate()
-        scheduleFrame()
-    }
-
-    private fun scheduleFrame() {
-        if (frameScheduled || !isAttachedToWindow || !isShown) return
-        if (!PlayerMotion.motionEnabled) {
-            invalidate()
-            return
-        }
-        frameScheduled = true
-        Choreographer.getInstance().postFrameCallback(this)
-    }
-
-    private fun stopFrames() {
-        if (frameScheduled) Choreographer.getInstance().removeFrameCallback(this)
-        frameScheduled = false
-        lastFrameNanos = 0L
-    }
-
     private companion object {
-        const val COLOR_FADE_MS = 900L
-        const val PLAYING_SPEED = 1f
-        const val PAUSED_SPEED = 0.25f
+        const val COLOR_FADE_MS = 600L
+        val FADE_INTERPOLATOR = PathInterpolator(0.2f, 0f, 0f, 1f)
 
         val SHADER = """
             uniform float2 size;
-            uniform float time;
             layout(color) uniform half4 c0;
             layout(color) uniform half4 c1;
             layout(color) uniform half4 c2;
             layout(color) uniform half4 c3;
 
-            float field(float2 p, float2 center, float radius) {
-                float2 d = p - center;
-                return exp(-dot(d, d) / (radius * radius));
+            float radialGlow(float2 p, float2 center, float2 radii) {
+                float2 d = (p - center) / radii;
+                return exp(-dot(d, d));
             }
 
             half4 main(float2 coord) {
                 float2 uv = coord / size;
-                float aspect = size.x / size.y;
-                float2 p = float2(uv.x * aspect, uv.y);
-                float t = time * 0.11;
+                half3 base = half3(0.0549, 0.0510, 0.0471); // #0E0D0C warm charcoal
 
-                // Two passes of domain warping turn round blobs into slow, folding currents.
-                p += 0.10 * float2(sin(p.y * 3.1 + t * 1.7), cos(p.x * 2.6 - t * 1.3));
-                p += 0.06 * float2(sin(p.y * 5.3 - t * 2.3), cos(p.x * 4.7 + t * 1.9));
+                // Static, organic radial cover aura concentrated behind the vinyl sleeve,
+                // settling calmly into #0E0D0C around the transport and bottom capsule.
+                float g0 = radialGlow(uv, float2(0.32, 0.24), float2(0.56, 0.42));
+                float g1 = radialGlow(uv, float2(0.72, 0.30), float2(0.52, 0.38));
+                float g2 = radialGlow(uv, float2(0.46, 0.50), float2(0.62, 0.44));
+                float g3 = radialGlow(uv, float2(0.24, 0.66), float2(0.50, 0.36));
 
-                float2 a = float2(aspect * (0.25 + 0.20 * sin(t * 0.9)), 0.22 + 0.16 * cos(t * 1.1));
-                float2 b = float2(aspect * (0.78 + 0.18 * cos(t * 0.7)), 0.30 + 0.22 * sin(t * 0.8 + 1.7));
-                float2 c = float2(aspect * (0.30 + 0.22 * cos(t * 0.6 + 2.1)), 0.74 + 0.16 * sin(t * 1.0));
-                float2 d = float2(aspect * (0.72 + 0.20 * sin(t * 0.5 + 4.0)), 0.82 + 0.14 * cos(t * 0.9 + 0.6));
+                float weightSum = g0 + g1 + g2 + g3 + 0.0001;
+                half3 mesh = (c0.rgb * half(g0) + c1.rgb * half(g1) + c2.rgb * half(g2) + c3.rgb * half(g3)) / half(weightSum);
 
-                float wa = field(p, a, 0.55);
-                float wb = field(p, b, 0.50);
-                float wc = field(p, c, 0.60);
-                float wd = field(p, d, 0.48);
-                float total = wa + wb + wc + wd + 0.0001;
-                half3 color = (c0.rgb * wa + c1.rgb * wb + c2.rgb * wc + c3.rgb * wd) / total;
+                float auraMask = clamp(max(max(g0, g1), g2 * 0.85) * 0.92, 0.0, 0.88);
+                auraMask *= 1.0 - smoothstep(0.52, 0.98, uv.y) * 0.72;
 
-                // Darken towards the controls at the bottom so labels keep their contrast.
-                color *= half(mix(1.0, 0.70, smoothstep(0.45, 1.0, uv.y)));
+                half3 color = mix(base, mesh, half(auraMask));
 
-                // Fine grain hides banding in the very smooth gradients.
+                // Subtle ~3% static film-grain texture (no time uniform) to eliminate gradient banding.
                 float grain = fract(sin(dot(coord, float2(12.9898, 78.233))) * 43758.5453);
-                color += half((grain - 0.5) / 160.0);
-                return half4(color, 1.0);
+                color += half((grain - 0.5) * 0.03);
+
+                return half4(clamp(color, half3(0.0), half3(1.0)), 1.0);
             }
         """.trimIndent()
     }
