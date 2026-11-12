@@ -8,12 +8,11 @@ import android.view.ViewGroup
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
-import com.google.android.material.dialog.MaterialAlertDialogBuilder
-import com.google.android.material.progressindicator.LinearProgressIndicator
 import androidx.annotation.OptIn
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
@@ -35,20 +34,33 @@ import com.eddyizm.tempus.subsonic.models.ArtistID3
 import com.eddyizm.tempus.subsonic.models.Genre
 import com.eddyizm.tempus.ui.activity.MainActivity
 import com.eddyizm.tempus.ui.fragment.MusicDiscoveryFragment
+import com.eddyizm.tempus.ui.fragment.SearchFragment
 import com.eddyizm.tempus.util.Constants
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.progressindicator.LinearProgressIndicator
 import com.google.common.util.concurrent.ListenableFuture
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
-/** The Discover tab: charts, categories (language, decade, genre) and an A–Z artist index. */
+/**
+ * Editorial Warm Dark Discover & Sync Center (`发现 · 入库中心`):
+ * Single vertical scroll with Sync Center, External Playlist Full Import, 8 External Charts,
+ * Library Gallery (`语种唱片架 / 年代 / 流派` + inline 32dp `整理歌单` pill), and overlaid Artist A–Z Index.
+ */
 @OptIn(UnstableApi::class)
 class DiscoverFragment : Fragment(), DiscoverActions {
     private val model: DiscoverViewModel by viewModels()
     private var browser: ListenableFuture<MediaBrowser>? = null
     private var organized by mutableIntStateOf(LibraryOrganizer.playlistCount())
+    private var organizeProgress by mutableStateOf(OrganizeProgressState())
+    private var organizeJob: Job? = null
 
-    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View =
-        ComposeView(requireContext()).apply {
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
+        val initialShelf = arguments?.getString(ARG_INITIAL_SHELF)?.let { raw ->
+            runCatching { LanguageShelf.valueOf(raw) }.getOrNull()
+        }
+        return ComposeView(requireContext()).apply {
             setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
             setContent {
                 BrowseTheme {
@@ -59,14 +71,18 @@ class DiscoverFragment : Fragment(), DiscoverActions {
                         backDispatcher = requireActivity().onBackPressedDispatcher,
                         onRetry = { model.load(force = true) },
                         organizedCount = organized,
+                        organizeProgress = organizeProgress,
+                        initialShelf = initialShelf,
                     )
                 }
             }
         }
+    }
 
     override fun onResume() {
         super.onResume()
         organized = LibraryOrganizer.playlistCount()
+        model.refreshSyncCenter()
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
@@ -91,17 +107,15 @@ class DiscoverFragment : Fragment(), DiscoverActions {
         super.onStop()
     }
 
-    override fun openLibraryChart(chart: LibraryChart) {
-        val mode = chart.mode
-        if (mode != null) {
-            findNavController().navigate(
-                R.id.musicDiscoveryFragment,
-                bundleOf(MusicDiscoveryFragment.ARG_MODE to mode.name, MusicDiscoveryFragment.ARG_TITLE to getString(chart.title)),
-            )
-            return
-        }
-        val key = if (chart == LibraryChart.FREQUENT) Constants.ALBUM_MOST_PLAYED else Constants.ALBUM_RECENTLY_ADDED
-        findNavController().navigate(R.id.albumListPageFragment, bundleOf(key to key))
+    override fun openSearch() {
+        findNavController().navigate(
+            R.id.searchFragment,
+            bundleOf(SearchFragment.ARG_FOCUS to true),
+        )
+    }
+
+    override fun openSettings() {
+        findNavController().navigate(R.id.settingsFragment)
     }
 
     override fun openExternalChart(source: ChartSource) {
@@ -115,8 +129,13 @@ class DiscoverFragment : Fragment(), DiscoverActions {
         )
     }
 
-    override fun importExternalPlaylist() {
-        findNavController().navigate(R.id.externalPlaylistFragment)
+    override fun importExternalPlaylist(initialUrl: String?) {
+        val args = if (!initialUrl.isNullOrBlank()) {
+            bundleOf(ExternalPlaylistFragment.ARG_INITIAL_URL to initialUrl)
+        } else {
+            null
+        }
+        findNavController().navigate(R.id.externalPlaylistFragment, args)
     }
 
     override fun openDecade(decade: Int) {
@@ -165,7 +184,7 @@ class DiscoverFragment : Fragment(), DiscoverActions {
             .show()
         val job = viewLifecycleOwner.lifecycleScope.launch {
             val result = runCatching {
-                matcher.run(ChartSource.values().toList()) { progress ->
+                matcher.run(ChartSource.entries) { progress ->
                     label.post {
                         label.text = if (progress.phase == 0) {
                             getString(R.string.discover_export_fetching, progress.done + 1, progress.total)
@@ -183,7 +202,6 @@ class DiscoverFragment : Fragment(), DiscoverActions {
                     }
                 }
             }
-            // Cancelled from the dialog: nothing to report.
             if (!isActive) return@launch
             dialog.dismiss()
             model.chartsMatched()
@@ -211,8 +229,61 @@ class DiscoverFragment : Fragment(), DiscoverActions {
         }
     }
 
-    override fun organizeLibrary() = LibraryOrganizer.confirmAndRun(this) {
-        organized = LibraryOrganizer.playlistCount()
+    override fun organizePlaylists() {
+        val activeJob = organizeJob
+        if (activeJob?.isActive == true) {
+            activeJob.cancel()
+            organizeProgress = OrganizeProgressState(running = false)
+            return
+        }
+        val context = requireContext()
+        MaterialAlertDialogBuilder(context)
+            .setTitle(R.string.library_mix_title)
+            .setMessage(R.string.library_mix_confirm)
+            .setNegativeButton(android.R.string.cancel, null)
+            .setPositiveButton(R.string.library_mix_start) { _, _ ->
+                startInlineOrganize()
+            }
+            .show()
+    }
+
+    private fun startInlineOrganize() {
+        val context = requireContext().applicationContext
+        organizeProgress = OrganizeProgressState(running = true, phase = 0, done = 0, total = 0)
+        organizeJob = viewLifecycleOwner.lifecycleScope.launch {
+            val result = runCatching {
+                LibraryOrganizer.run(context) { phase, done, total ->
+                    view?.post {
+                        if (organizeJob?.isActive == true) {
+                            organizeProgress = OrganizeProgressState(
+                                running = true,
+                                phase = phase,
+                                done = if (phase == 1) done + 1 else done,
+                                total = total,
+                            )
+                        }
+                    }
+                }
+            }
+            if (!isActive) {
+                organizeProgress = OrganizeProgressState(running = false)
+                return@launch
+            }
+            organizeProgress = OrganizeProgressState(running = false)
+            val done = result.getOrNull()
+            when {
+                done == null -> Toast.makeText(requireContext(), R.string.library_mix_failed, Toast.LENGTH_LONG).show()
+                done.playlists == 0 -> Toast.makeText(requireContext(), R.string.library_mix_none, Toast.LENGTH_LONG).show()
+                else -> {
+                    organized = LibraryOrganizer.playlistCount()
+                    Toast.makeText(
+                        requireContext(),
+                        getString(R.string.library_mix_done, done.playlists, done.songs),
+                        Toast.LENGTH_LONG,
+                    ).show()
+                }
+            }
+        }
     }
 
     override fun shuffleArtists(artists: List<ArtistID3>) {
@@ -226,5 +297,9 @@ class DiscoverFragment : Fragment(), DiscoverActions {
             MediaManager.startQueue(future, songs.shuffled(), 0)
             (activity as? MainActivity)?.setBottomSheetInPeek(true)
         }
+    }
+
+    companion object {
+        const val ARG_INITIAL_SHELF = "initial_shelf"
     }
 }

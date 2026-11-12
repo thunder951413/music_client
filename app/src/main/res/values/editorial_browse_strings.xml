@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Global Search Pills -->
+    <string name="editorial_search_home_placeholder">Search songs, artists, albums, podcasts…</string>
+    <string name="editorial_search_discover_placeholder">Search library, artists, or genres…</string>
+    <string name="editorial_search_library_placeholder">Search in your library…</string>
+    <string name="editorial_search_artists_placeholder">Filter artists by name or initial…</string>
+
+    <!-- Server / Account Chip -->
+    <string name="editorial_server_default">Server</string>
+    <string name="editorial_library_all_folders">All folders</string>
+    <string name="editorial_settings_desc">Settings</string>
+
+    <!-- Home Hero & Wish Capsule -->
+    <string name="editorial_daily_status_ready">Ready for today</string>
+    <string name="editorial_daily_status_ready_wishes">Ready · %1$d wishes queued</string>
+    <string name="editorial_daily_status_preparing">Generating…</string>
+    <string name="editorial_daily_status_local">Local mix</string>
+    <string name="editorial_daily_status_empty">Add tracks to start</string>
+    <string name="editorial_roam_eyebrow">RADIO</string>
+    <string name="editorial_roam_subtitle_short">From liked tracks · ~35 songs</string>
+
+    <string name="editorial_wish_syncing">◐ Syncing today’s mix…</string>
+    <string name="editorial_wish_offline">○ Hub offline · Using local mix</string>
+    <string name="editorial_wish_pending">◐ %1$d pending · %2$d daily ready · View wish list</string>
+    <string name="editorial_wish_synced">● Hub synced · %1$d daily tracks ready</string>
+
+    <string name="editorial_wish_sheet_title">New Song Wish List</string>
+    <string name="editorial_wish_sheet_subtitle">%1$d uncollected tracks from artists you listen to</string>
+    <string name="editorial_wish_sheet_copy">Copy list</string>
+    <string name="editorial_wish_sheet_export">Export / Share TXT</string>
+    <string name="editorial_wish_platform_netease">NetEase</string>
+    <string name="editorial_wish_platform_qq">QQ Music</string>
+
+    <!-- Home Library Roam (Single Home) -->
+    <string name="editorial_home_roam_section">Library Roam</string>
+    <string name="editorial_home_roam_badge">Unique entry</string>
+    <string name="editorial_roam_unheard_sub">Zero-play tracks</string>
+    <string name="editorial_roam_frequent_sub">Top played albums</string>
+    <string name="editorial_roam_frequent_count">%1$d+ top albums</string>
+    <string name="editorial_roam_newest_sub">Newly synced albums</string>
+    <string name="editorial_roam_newest_count">%1$d+ recent albums</string>
+    <string name="editorial_roam_random_sub">Full library sample</string>
+
+    <!-- Discover & Sync Center -->
+    <string name="editorial_discover_subtitle">SYNC CENTER &amp; CURATION</string>
+    <string name="editorial_sync_center_title">Sync Center</string>
+    <string name="editorial_sync_center_import_action">Import link ›</string>
+    <string name="editorial_sync_col_wishes">Daily Wishes</string>
+    <string name="editorial_sync_col_playlists">Linked Lists</string>
+    <string name="editorial_sync_col_charts">Chart Match</string>
+    <string name="editorial_sync_sub_ready">%1$d daily ready</string>
+    <string name="editorial_sync_sub_pending_lists">%1$d lists · pending</string>
+    <string name="editorial_sync_sub_synced_lists">All lists synced</string>
+    <string name="editorial_sync_sub_no_lists">Paste link below</string>
+    <string name="editorial_sync_sub_charts_matched">%1$d/8 charts checked</string>
+    <string name="editorial_sync_sub_charts_idle">8 public charts</string>
+
+    <!-- External Playlist Import Card & Screen -->
+    <string name="editorial_import_card_title">Full External Playlist Import</string>
+    <string name="editorial_import_card_subtitle">Pull up to 5,000 tracks from NetEase or QQ Music, resolve versions, and backfill missing songs</string>
+    <string name="editorial_import_paste_cta">Paste NetEase / QQ Music Playlist Link</string>
+    <string name="editorial_import_item_progress">%1$d / %2$d matched</string>
+    <string name="editorial_import_badge_incomplete">Confirm</string>
+    <string name="editorial_import_badge_pending">Pending %1$d</string>
+    <string name="editorial_import_badge_ready">View</string>
+
+    <string name="editorial_ext_title">External Playlist Import</string>
+    <string name="editorial_ext_subtitle">NetEase Cloud Music · QQ Music\nSupports charts, curated playlists, and public user playlists up to 5,000 tracks.</string>
+    <string name="editorial_ext_input_label">Paste playlist share link</string>
+    <string name="editorial_ext_paste">Paste</string>
+    <string name="editorial_ext_clear">Clear</string>
+    <string name="editorial_ext_load_btn">Fetch Playlist &amp; Match Library</string>
+    <string name="editorial_ext_cancel">Cancel</string>
+    <string name="editorial_ext_stat_total">Total %1$d</string>
+    <string name="editorial_ext_stat_matched">Matched %1$d</string>
+    <string name="editorial_ext_stat_ambiguous">Confirm %1$d</string>
+    <string name="editorial_ext_stat_missing">Missing %1$d</string>
+    <string name="editorial_ext_save_hint">Missing tracks are queued for desktop download &amp; server backfill without deleting existing files.</string>
+    <string name="editorial_ext_save_btn">Save / Update Server Playlist</string>
+    <string name="editorial_ext_save_blocked">Resolve %1$d multi-version tracks first</string>
+    <string name="editorial_ext_row_matched">Matched</string>
+    <string name="editorial_ext_row_switch">Switch</string>
+    <string name="editorial_ext_row_confirm">Confirm version</string>
+    <string name="editorial_ext_row_candidates">Check candidates</string>
+    <string name="editorial_ext_row_missing">Pending backfill</string>
+    <string name="editorial_ext_saved_header">Imported Server Playlists</string>
+    <string name="editorial_ext_saved_empty">No imported playlists on this server yet.</string>
+    <string name="editorial_ext_saved_incomplete">Last save incomplete · tap to resume</string>
+    <string name="editorial_ext_saved_all_ready">All %1$d tracks ready</string>
+    <string name="editorial_ext_saved_pending">%1$d / %2$d ready · %3$d pending backfill</string>
+    <string name="editorial_ext_saved_rematch">Re-match / Update</string>
+    <string name="editorial_ext_dialog_title">Confirm Track Version</string>
+    <string name="editorial_ext_dialog_clear">Mark as missing</string>
+    <string name="editorial_ext_dialog_close">Close</string>
+
+    <!-- External Charts -->
+    <string name="editorial_charts_playable_only">Playable only</string>
+    <string name="editorial_charts_export_all">Export all missing</string>
+    <string name="editorial_chart_playable_count">%1$d playable</string>
+    <string name="editorial_chart_total_count">%1$d / %2$d in library</string>
+    <string name="editorial_chart_unmatched_hint">Tap to match Top 100</string>
+    <string name="editorial_badge_netease">NetEase</string>
+    <string name="editorial_badge_qq">QQ Music</string>
+
+    <!-- Library Gallery -->
+    <string name="editorial_gallery_title">Library Gallery</string>
+    <string name="editorial_organize_pill_idle">Organize playlists</string>
+    <string name="editorial_organize_pill_synced">Organize · Synced %1$d</string>
+    <string name="editorial_organize_pill_scanning">Scanning %1$d…</string>
+    <string name="editorial_organize_pill_writing">Syncing %1$d/%2$d · %3$d%%</string>
+
+    <string name="editorial_shelf_language_title">Language Shelves</string>
+    <string name="editorial_lang_mandarin">Mandarin</string>
+    <string name="editorial_lang_cantonese">Cantonese</string>
+    <string name="editorial_lang_japanese">Japanese</string>
+    <string name="editorial_lang_korean">Korean</string>
+    <string name="editorial_lang_western">Western</string>
+    <string name="editorial_lang_code_mandarin">MANDOPOP</string>
+    <string name="editorial_lang_code_cantonese">CANTOPOP</string>
+    <string name="editorial_lang_code_japanese">J-POP</string>
+    <string name="editorial_lang_code_korean">K-POP</string>
+    <string name="editorial_lang_code_western">WESTERN</string>
+
+    <string name="editorial_decade_title">Decades</string>
+    <string name="editorial_genre_title">Genres</string>
+    <string name="editorial_genre_song_count">%1$d songs</string>
+
+    <!-- Artist A-Z Entry & Index -->
+    <string name="editorial_artist_az_title">Artist A–Z Index</string>
+    <string name="editorial_artist_az_subtitle">%1$d artists · Quick A–Z lookup</string>
+    <string name="editorial_artist_az_preview">A · B · C … Z ›</string>
+    <string name="editorial_artist_az_empty_filter">No matching artists</string>
+
+    <!-- Library Tab Header & Chips -->
+    <string name="editorial_library_title">Library</string>
+    <string name="editorial_chip_playlists">Playlists</string>
+    <string name="editorial_chip_albums">Albums</string>
+    <string name="editorial_chip_artists">Artists</string>
+    <string name="editorial_chip_starred">Starred</string>
+    <string name="editorial_chip_downloads">Downloaded</string>
+    <string name="editorial_chip_folders">Folders</string>
+    <string name="editorial_chip_filter">Filter</string>
+</resources>

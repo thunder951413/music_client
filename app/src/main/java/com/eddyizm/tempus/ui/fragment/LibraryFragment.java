@@ -2,48 +2,37 @@ package com.eddyizm.tempus.ui.fragment;
 
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.Looper;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
-import androidx.fragment.app.FragmentManager;
 import androidx.lifecycle.LifecycleOwner;
-import androidx.lifecycle.LiveData;
-import androidx.lifecycle.Observer;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.media3.common.util.UnstableApi;
 import androidx.navigation.Navigation;
-
-import android.widget.Toast;
-
 import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.LinearLayoutManager;
-import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
 import com.eddyizm.tempus.R;
 import com.eddyizm.tempus.databinding.FragmentLibraryBinding;
 import com.eddyizm.tempus.helper.recyclerview.CustomLinearSnapHelper;
 import com.eddyizm.tempus.interfaces.ClickCallback;
-import com.eddyizm.tempus.navigation.NavigationController;
-import com.eddyizm.tempus.repository.PlaylistRepository;
-import com.eddyizm.tempus.subsonic.models.Child;
 import com.eddyizm.tempus.ui.activity.MainActivity;
 import com.eddyizm.tempus.ui.adapter.AlbumAdapter;
 import com.eddyizm.tempus.ui.adapter.ArtistAdapter;
 import com.eddyizm.tempus.ui.adapter.GenreAdapter;
 import com.eddyizm.tempus.ui.adapter.MusicFolderAdapter;
 import com.eddyizm.tempus.ui.adapter.PlaylistHorizontalAdapter;
+import com.eddyizm.tempus.ui.browse.LibraryHeaderBinder;
 import com.eddyizm.tempus.util.Constants;
 import com.eddyizm.tempus.util.Preferences;
 import com.eddyizm.tempus.viewmodel.LibraryViewModel;
 import com.eddyizm.tempus.viewmodel.MainViewModel;
-import com.google.android.material.appbar.MaterialToolbar;
-
-import java.util.List;
-import java.util.Objects;
 
 @UnstableApi
 public class LibraryFragment extends Fragment implements ClickCallback {
@@ -51,7 +40,6 @@ public class LibraryFragment extends Fragment implements ClickCallback {
 
     private FragmentLibraryBinding bind;
     private MainActivity activity;
-    private NavigationController navigationController;
     private LibraryViewModel libraryViewModel;
     private MainViewModel mainViewModel;
 
@@ -61,13 +49,10 @@ public class LibraryFragment extends Fragment implements ClickCallback {
     private GenreAdapter genreAdapter;
     private PlaylistHorizontalAdapter playlistHorizontalAdapter;
 
-    private MaterialToolbar materialToolbar;
-
     @Nullable
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
         activity = (MainActivity) getActivity();
-        navigationController = activity.getNavigationController();
 
         bind = FragmentLibraryBinding.inflate(inflater, container, false);
         View view = bind.getRoot();
@@ -85,12 +70,12 @@ public class LibraryFragment extends Fragment implements ClickCallback {
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
 
-        initAppBar();
-        initMusicFolderView();
+        LibraryHeaderBinder.bind(bind.libraryHeaderCompose, this, libraryViewModel, mainViewModel);
+        initPlaylistView();
         initAlbumView();
         initArtistView();
         initGenreView();
-        initPlaylistView();
+        initMusicFolderView();
         initSwipeToRefresh();
         initMusicFolderChangeListener();
     }
@@ -103,7 +88,10 @@ public class LibraryFragment extends Fragment implements ClickCallback {
     @Override
     public void onStart() {
         super.onStart();
-        activity.toggleBottomNavigationBarVisibilityOnOrientationChange();
+        if (activity != null) {
+            activity.toggleBottomNavigationBarVisibilityOnOrientationChange();
+            activity.setBottomSheetVisibility(true);
+        }
     }
 
     @Override
@@ -119,11 +107,6 @@ public class LibraryFragment extends Fragment implements ClickCallback {
     }
 
     private void init() {
-        bind.getRoot().findViewById(R.id.open_downloads).setOnClickListener(v -> activity.navController.navigate(R.id.downloadFragment));
-        bind.getRoot().findViewById(R.id.open_music_collections).setOnClickListener(v -> {
-            Bundle args=new Bundle();args.putString(Constants.PLAYLIST_ALL,Constants.PLAYLIST_ALL);
-            activity.navController.navigate(R.id.playlistCatalogueFragment,args);
-        });
         bind.albumCatalogueTextViewClickable.setOnClickListener(v -> activity.navController.navigate(R.id.action_libraryFragment_to_albumCatalogueFragment));
         bind.artistCatalogueTextViewClickable.setOnClickListener(v -> activity.navController.navigate(R.id.action_libraryFragment_to_artistCatalogueFragment));
         bind.genreCatalogueTextViewClickable.setOnClickListener(v -> activity.navController.navigate(R.id.action_libraryFragment_to_genreCatalogueFragment));
@@ -133,25 +116,22 @@ public class LibraryFragment extends Fragment implements ClickCallback {
             activity.navController.navigate(R.id.action_libraryFragment_to_playlistCatalogueFragment, bundle);
         });
 
-        // Album
         bind.albumCatalogueSampleTextViewRefreshable.setOnLongClickListener(view -> {
             libraryViewModel.refreshAlbumSample(getViewLifecycleOwner());
             return true;
         });
-        bind.albumCatalogueSampleTextViewRefreshable.setOnClickListener( v ->
+        bind.albumCatalogueSampleTextViewRefreshable.setOnClickListener(v ->
             Toast.makeText(requireContext(), R.string.library_toast_long_press_to_refresh, Toast.LENGTH_SHORT).show()
         );
 
-        // Artist
         bind.artistCatalogueSampleTextViewRefreshable.setOnLongClickListener(view -> {
             libraryViewModel.refreshArtistSample(getViewLifecycleOwner());
             return true;
         });
-        bind.artistCatalogueSampleTextViewRefreshable.setOnClickListener( v ->
+        bind.artistCatalogueSampleTextViewRefreshable.setOnClickListener(v ->
             Toast.makeText(requireContext(), R.string.library_toast_long_press_to_refresh, Toast.LENGTH_SHORT).show()
         );
 
-        // Genre
         bind.genreCatalogueSampleTextViewRefreshable.setOnLongClickListener(view -> {
             libraryViewModel.refreshGenreSample(getViewLifecycleOwner());
             return true;
@@ -160,23 +140,13 @@ public class LibraryFragment extends Fragment implements ClickCallback {
             Toast.makeText(requireContext(), R.string.library_toast_long_press_to_refresh, Toast.LENGTH_SHORT).show()
         );
 
-        // Playlist
         bind.playlistCatalogueSampleTextViewRefreshable.setOnLongClickListener(view -> {
             libraryViewModel.refreshPlaylistSample(getViewLifecycleOwner());
             return true;
         });
-        bind.playlistCatalogueSampleTextViewRefreshable.setOnClickListener( v ->
+        bind.playlistCatalogueSampleTextViewRefreshable.setOnClickListener(v ->
             Toast.makeText(requireContext(), R.string.library_toast_long_press_to_refresh, Toast.LENGTH_SHORT).show()
         );
-    }
-
-    private void initAppBar() {
-        materialToolbar = bind.getRoot().findViewById(R.id.toolbar);
-
-        activity.setSupportActionBar(materialToolbar);
-        navigationController.setHamburgerMenuForLandscape(activity, materialToolbar);
-
-        Objects.requireNonNull(materialToolbar.getOverflowIcon()).setTint(requireContext().getResources().getColor(R.color.titleTextColor, null));
     }
 
     private void initMusicFolderView() {
@@ -279,13 +249,13 @@ public class LibraryFragment extends Fragment implements ClickCallback {
                 if (bind != null)
                     bind.libraryPlaylistSector.setVisibility(!playlists.isEmpty() ? View.VISIBLE : View.GONE);
 
-                playlistHorizontalAdapter.setItems(playlists);
+                playlistHorizontalAdapter.setItems(playlists.subList(0, Math.min(5, playlists.size())));
             }
         });
     }
 
     private void refreshPlaylistView() {
-        final Handler handler = new Handler();
+        final Handler handler = new Handler(Looper.getMainLooper());
 
         final Runnable runnable = () -> {
             if (getView() != null && bind != null && libraryViewModel != null)
@@ -348,6 +318,5 @@ public class LibraryFragment extends Fragment implements ClickCallback {
         libraryViewModel.refreshGenreSample(lifecycleOwner);
         libraryViewModel.refreshArtistSample(lifecycleOwner);
         libraryViewModel.refreshPlaylistSample(lifecycleOwner);
-
     }
 }

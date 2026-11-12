@@ -195,7 +195,7 @@ public class HomeTabMusicFragment extends Fragment implements ClickCallback {
     }
 
     private void init() {
-        com.eddyizm.tempus.ui.browse.HomeHeader.bind(bind.getRoot().findViewById(R.id.home_header_compose), this, () -> mediaBrowserListenableFuture);
+        com.eddyizm.tempus.ui.browse.HomeHeader.bind(bind.homeHeaderCompose, this, homeViewModel, () -> mediaBrowserListenableFuture);
         bind.discoveryTextViewRefreshable.setOnLongClickListener(v -> {
             homeViewModel.refreshDiscoverySongSample(getViewLifecycleOwner());
             return true;
@@ -701,26 +701,10 @@ public class HomeTabMusicFragment extends Fragment implements ClickCallback {
     }
 
     private void initDiscoverSongSlideView() {
-        if (homeViewModel.checkHomeSectorVisibility(Constants.HOME_SECTOR_DISCOVERY)) return;
-
-        bind.discoverSongRecyclerView.setLayoutManager(new LinearLayoutManager(requireContext(), LinearLayoutManager.HORIZONTAL, false));
-        bind.discoverSongRecyclerView.setHasFixedSize(true);
-
-        discoverSongAdapter = new DiscoverSongAdapter(this);
-        bind.discoverSongRecyclerView.setAdapter(discoverSongAdapter);
-
-        homeViewModel.getDiscoverSongSample(getViewLifecycleOwner()).observe(getViewLifecycleOwner(), songs -> {
-            MusicUtil.ratingFilter(songs);
-
-            if (songs == null) {
-                if (bind != null) bind.homeDiscoverSector.setVisibility(View.GONE);
-            } else {
-                if (bind != null)
-                    bind.homeDiscoverSector.setVisibility(!songs.isEmpty() ? View.VISIBLE : View.GONE);
-
-                discoverSongAdapter.setItems(songs);
-            }
-        });
+        // Discovery roam cards live exclusively inside HomeHeader (`曲库漫游`) to avoid duplicate shelves.
+        if (bind != null) {
+            bind.homeDiscoverSector.setVisibility(View.GONE);
+        }
     }
 
     private void initContinueListening() {
@@ -816,7 +800,7 @@ public class HomeTabMusicFragment extends Fragment implements ClickCallback {
                 if (bind != null)
                     bind.homeRadioArtistSector.setVisibility(!artists.isEmpty() ? View.VISIBLE : View.GONE);
                 if (bind != null)
-                    bind.afterRadioArtistDivider.setVisibility(!artists.isEmpty() ? View.VISIBLE : View.GONE);
+                    bind.afterRadioArtistDivider.setVisibility(View.GONE);
 
                 radioArtistAdapter.setItems(artists);
             }
@@ -841,7 +825,7 @@ public class HomeTabMusicFragment extends Fragment implements ClickCallback {
                 if (bind != null) bind.afterGridDivider.setVisibility(View.GONE);
             } else {
                 if (bind != null) bind.homeGridTracksSector.setVisibility(View.VISIBLE);
-                if (bind != null) bind.afterGridDivider.setVisibility(View.VISIBLE);
+                if (bind != null) bind.afterGridDivider.setVisibility(View.GONE);
                 if (bind != null)
                     bind.topSongsRecyclerView.setLayoutManager(new GridLayoutManager(requireContext(), UIUtil.getSpanCount(chronologies.size(), 5), GridLayoutManager.HORIZONTAL, false));
 
@@ -950,7 +934,7 @@ public class HomeTabMusicFragment extends Fragment implements ClickCallback {
                 if (bind != null)
                     bind.starredArtistsSector.setVisibility(!artists.isEmpty() ? View.VISIBLE : View.GONE);
                 if (bind != null)
-                    bind.afterFavoritesDivider.setVisibility(!artists.isEmpty() ? View.VISIBLE : View.GONE);
+                    bind.afterFavoritesDivider.setVisibility(View.GONE);
                 if (bind != null)
                     bind.starredArtistsRecyclerView.setLayoutManager(new GridLayoutManager(requireContext(), UIUtil.getSpanCount(artists.size(), 5), GridLayoutManager.HORIZONTAL, false));
 
@@ -1273,15 +1257,17 @@ public class HomeTabMusicFragment extends Fragment implements ClickCallback {
             desired.add(bind.homeSyncStarredArtistsCard);
         }
 
+        if (!homeViewModel.checkHomeSectorVisibility(Constants.HOME_SECTOR_CONTINUE_LISTENING)) {
+            desired.add(bind.homeContinueListeningSector);
+        }
+
         for (HomeSector sector : homeViewModel.getHomeSectorList()) {
             if (!sector.isVisible()) continue;
 
             switch (sector.getId()) {
                 case Constants.HOME_SECTOR_DISCOVERY:
-                    desired.add(bind.homeDiscoverSector);
-                    break;
                 case Constants.HOME_SECTOR_CONTINUE_LISTENING:
-                    desired.add(bind.homeContinueListeningSector);
+                    // Discovery roam lives in HomeHeader; Continue Listening is pinned above when enabled.
                     break;
                 case Constants.HOME_SECTOR_MADE_FOR_YOU:
                     desired.add(bind.homeSimilarTracksSector);

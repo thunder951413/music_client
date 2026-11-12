@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Global Search Pills -->
+    <string name="editorial_search_home_placeholder">搜索歌曲、歌手、专辑、播客…</string>
+    <string name="editorial_search_discover_placeholder">搜索曲库、歌手或流派…</string>
+    <string name="editorial_search_library_placeholder">在音乐库中检索…</string>
+    <string name="editorial_search_artists_placeholder">筛选歌手姓名或首字母…</string>
+
+    <!-- Server / Account Chip -->
+    <string name="editorial_server_default">音乐服务器</string>
+    <string name="editorial_library_all_folders">全部目录</string>
+    <string name="editorial_settings_desc">设置</string>
+
+    <!-- Home Hero & Wish Capsule -->
+    <string name="editorial_daily_status_ready">今日已就绪</string>
+    <string name="editorial_daily_status_ready_wishes">今日已就绪 · 含 %1$d 首心愿</string>
+    <string name="editorial_daily_status_preparing">生成中…</string>
+    <string name="editorial_daily_status_local">本地推荐</string>
+    <string name="editorial_daily_status_empty">入库音乐后生成推荐</string>
+    <string name="editorial_roam_eyebrow">RADIO</string>
+    <string name="editorial_roam_subtitle_short">从红心出发 · ~35 首</string>
+
+    <string name="editorial_wish_syncing">◐ 正在同步今日推荐…</string>
+    <string name="editorial_wish_offline">○ Hub 未连接 · 已用本地推荐</string>
+    <string name="editorial_wish_pending">◐ 待入库 %1$d 首 · 今日推荐 %2$d 首 · 点击查看心愿单</string>
+    <string name="editorial_wish_synced">● Hub 已同步 · 今日推荐 %1$d 首就绪</string>
+
+    <string name="editorial_wish_sheet_title">待入库新歌心愿单</string>
+    <string name="editorial_wish_sheet_subtitle">共 %1$d 首常听歌手新歌尚未入库，可一键复制或导出回填</string>
+    <string name="editorial_wish_sheet_copy">复制清单</string>
+    <string name="editorial_wish_sheet_export">导出 / 分享 TXT</string>
+    <string name="editorial_wish_platform_netease">网易云</string>
+    <string name="editorial_wish_platform_qq">QQ</string>
+
+    <!-- Home Library Roam (Single Home) -->
+    <string name="editorial_home_roam_section">曲库漫游</string>
+    <string name="editorial_home_roam_badge">唯一归口</string>
+    <string name="editorial_roam_unheard_sub">零播放曲目探索</string>
+    <string name="editorial_roam_frequent_sub">高频播放专辑</string>
+    <string name="editorial_roam_frequent_count">%1$d+ 张高频专辑</string>
+    <string name="editorial_roam_newest_sub">最新同步专辑</string>
+    <string name="editorial_roam_newest_count">%1$d+ 张新入库专辑</string>
+    <string name="editorial_roam_random_sub">全库随机抽样</string>
+
+    <!-- Discover & Sync Center -->
+    <string name="editorial_discover_subtitle">SYNC CENTER &amp; GALLERY</string>
+    <string name="editorial_sync_center_title">入库中心</string>
+    <string name="editorial_sync_center_import_action">导入歌单 ›</string>
+    <string name="editorial_sync_col_wishes">日推心愿</string>
+    <string name="editorial_sync_col_playlists">外链歌单</string>
+    <string name="editorial_sync_col_charts">热榜覆盖</string>
+    <string name="editorial_sync_sub_ready">今日推荐 %1$d 首</string>
+    <string name="editorial_sync_sub_pending_lists">%1$d 份歌单待回填</string>
+    <string name="editorial_sync_sub_synced_lists">导入歌单已齐</string>
+    <string name="editorial_sync_sub_no_lists">支持链接导入</string>
+    <string name="editorial_sync_sub_charts_matched">已比对 %1$d/8 榜</string>
+    <string name="editorial_sync_sub_charts_idle">8 大公开热榜</string>
+
+    <!-- External Playlist Import Card & Screen -->
+    <string name="editorial_import_card_title">外部歌单完整导入</string>
+    <string name="editorial_import_card_subtitle">支持拉取最高 5,000 首曲目，自动匹配曲库、多版本确认与缺歌回填</string>
+    <string name="editorial_import_paste_cta">粘贴网易云 / QQ 音乐歌单链接</string>
+    <string name="editorial_import_item_progress">已匹配 %1$d / %2$d 首</string>
+    <string name="editorial_import_badge_incomplete">待确认</string>
+    <string name="editorial_import_badge_pending">待回填 %1$d</string>
+    <string name="editorial_import_badge_ready">查看</string>
+
+    <string name="editorial_ext_title">外部歌单完整导入</string>
+    <string name="editorial_ext_subtitle">网易云音乐 · QQ 音乐\n支持榜单、精选歌单和可分享的个人歌单（最高 5,000 首），保存在服务器并支持后续同步更新。</string>
+    <string name="editorial_ext_input_label">粘贴歌单分享链接</string>
+    <string name="editorial_ext_paste">粘贴</string>
+    <string name="editorial_ext_clear">清空</string>
+    <string name="editorial_ext_load_btn">读取歌单并匹配曲库</string>
+    <string name="editorial_ext_cancel">取消</string>
+    <string name="editorial_ext_stat_total">共 %1$d 首</string>
+    <string name="editorial_ext_stat_matched">已匹配 %1$d</string>
+    <string name="editorial_ext_stat_ambiguous">待确认 %1$d</string>
+    <string name="editorial_ext_stat_missing">缺歌 %1$d</string>
+    <string name="editorial_ext_save_hint">缺失曲目将登记待客户端下载、校验并回填至歌单原顺序，不会删除已有音频文件。</string>
+    <string name="editorial_ext_save_btn">保存 / 更新服务器歌单</string>
+    <string name="editorial_ext_save_blocked">请先确认 %1$d 首多版本曲目</string>
+    <string name="editorial_ext_row_matched">已匹配</string>
+    <string name="editorial_ext_row_switch">切换版本</string>
+    <string name="editorial_ext_row_confirm">待确认版本</string>
+    <string name="editorial_ext_row_candidates">核对候选</string>
+    <string name="editorial_ext_row_missing">待回填</string>
+    <string name="editorial_ext_saved_header">已导入的服务器歌单</string>
+    <string name="editorial_ext_saved_empty">尚无导入歌单</string>
+    <string name="editorial_ext_saved_incomplete">上次保存未完成 · 点击继续更新</string>
+    <string name="editorial_ext_saved_all_ready">全部 %1$d 首曲目已就绪</string>
+    <string name="editorial_ext_saved_pending">已就绪 %1$d / %2$d 首 · 待回填 %3$d 首</string>
+    <string name="editorial_ext_saved_rematch">重新匹配 / 更新</string>
+    <string name="editorial_ext_dialog_title">确认歌曲版本</string>
+    <string name="editorial_ext_dialog_clear">清除选择（记为缺歌）</string>
+    <string name="editorial_ext_dialog_close">关闭</string>
+
+    <!-- External Charts -->
+    <string name="editorial_charts_playable_only">仅看可播</string>
+    <string name="editorial_charts_export_all">导出全部缺歌</string>
+    <string name="editorial_chart_playable_count">可播 %1$d 首</string>
+    <string name="editorial_chart_total_count">已入库 %1$d / %2$d 首</string>
+    <string name="editorial_chart_unmatched_hint">点击比对 Top 100</string>
+    <string name="editorial_badge_netease">网易云</string>
+    <string name="editorial_badge_qq">QQ 音乐</string>
+
+    <!-- Library Gallery -->
+    <string name="editorial_gallery_title">曲库画廊</string>
+    <string name="editorial_organize_pill_idle">整理歌单</string>
+    <string name="editorial_organize_pill_synced">整理歌单 · 已同步 %1$d</string>
+    <string name="editorial_organize_pill_scanning">扫描中 %1$d…</string>
+    <string name="editorial_organize_pill_writing">整理 %1$d/%2$d · %3$d%%</string>
+
+    <string name="editorial_shelf_language_title">语种唱片架</string>
+    <string name="editorial_lang_mandarin">华语</string>
+    <string name="editorial_lang_cantonese">粤语</string>
+    <string name="editorial_lang_japanese">日语</string>
+    <string name="editorial_lang_korean">韩语</string>
+    <string name="editorial_lang_western">欧美</string>
+    <string name="editorial_lang_code_mandarin">MANDOPOP</string>
+    <string name="editorial_lang_code_cantonese">CANTOPOP</string>
+    <string name="editorial_lang_code_japanese">J-POP</string>
+    <string name="editorial_lang_code_korean">K-POP</string>
+    <string name="editorial_lang_code_western">WESTERN</string>
+
+    <string name="editorial_decade_title">年代</string>
+    <string name="editorial_genre_title">流派</string>
+    <string name="editorial_genre_song_count">%1$d 首</string>
+
+    <!-- Artist A-Z Entry & Index -->
+    <string name="editorial_artist_az_title">歌手全索引 A–Z</string>
+    <string name="editorial_artist_az_subtitle">%1$d 位歌手 · A–Z 快速检索</string>
+    <string name="editorial_artist_az_preview">A · B · C … Z ›</string>
+    <string name="editorial_artist_az_empty_filter">未找到匹配的歌手</string>
+
+    <!-- Library Tab Header & Chips -->
+    <string name="editorial_library_title">音乐库</string>
+    <string name="editorial_chip_playlists">歌单</string>
+    <string name="editorial_chip_albums">专辑</string>
+    <string name="editorial_chip_artists">歌手</string>
+    <string name="editorial_chip_starred">收藏</string>
+    <string name="editorial_chip_downloads">已下载</string>
+    <string name="editorial_chip_folders">文件夹</string>
+    <string name="editorial_chip_filter">筛选</string>
+</resources>
