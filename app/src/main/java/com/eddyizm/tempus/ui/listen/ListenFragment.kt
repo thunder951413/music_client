@@ -55,6 +55,11 @@ import com.eddyizm.tempus.ui.dialog.PodcastChannelEditorDialog
 import com.eddyizm.tempus.ui.dialog.RadioEditorDialog
 import com.eddyizm.tempus.ui.fragment.HomeTabPodcastFragment
 import com.eddyizm.tempus.ui.fragment.HomeTabRadioFragment
+import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.graphics.toArgb
+import com.eddyizm.tempus.ui.browse.BrowseTheme
+import com.eddyizm.tempus.ui.browse.EditorialProfileButton
+import com.eddyizm.tempus.ui.browse.ProfileCenterSheet
 import com.eddyizm.tempus.ui.theme.EditorialPageTitle
 import com.eddyizm.tempus.ui.theme.EditorialTheme
 import com.eddyizm.tempus.ui.theme.EditorialTokens
@@ -128,6 +133,9 @@ class ListenFragment : Fragment() {
             setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
             setContent {
                 EditorialTheme {
+                    val surfaceArgb = MaterialTheme.colorScheme.surface.toArgb()
+                    SideEffect { root.setBackgroundColor(surfaceArgb) }
+                    var showProfileSheet by remember { mutableStateOf(false) }
                     val effectiveTab = resolveEffectiveTab(selectedTab, showPodcast, showRadio)
                     ListenHeader(
                         selectedTab = effectiveTab,
@@ -138,7 +146,14 @@ class ListenFragment : Fragment() {
                         },
                         onQuickAdd = { openQuickAddDialog(effectiveTab) },
                         onRefreshPodcasts = { triggerPodcastRefresh() },
+                        onOpenProfile = { showProfileSheet = true },
                     )
+                    if (showProfileSheet) {
+                        ProfileCenterSheet(
+                            fragment = this@ListenFragment,
+                            onDismiss = { showProfileSheet = false },
+                        )
+                    }
                 }
             }
         }
@@ -336,6 +351,7 @@ private fun ListenHeader(
     onSelectTab: (Int) -> Unit,
     onQuickAdd: () -> Unit,
     onRefreshPodcasts: () -> Unit,
+    onOpenProfile: () -> Unit,
 ) {
     val scheme = MaterialTheme.colorScheme
     val palette = LocalEditorialPalette.current
@@ -410,6 +426,10 @@ private fun ListenHeader(
                         color = scheme.primary,
                         maxLines = 1
                     )
+                }
+
+                BrowseTheme {
+                    EditorialProfileButton(onClick = onOpenProfile)
                 }
             }
         }

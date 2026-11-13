@@ -111,8 +111,14 @@ import com.eddyizm.tempus.ui.fragment.SearchFragment
 import com.eddyizm.tempus.util.Constants
 import com.eddyizm.tempus.util.MusicFolderUtil
 import com.eddyizm.tempus.util.Preferences
+import androidx.appcompat.app.AppCompatActivity
+import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.graphics.Brush
+import androidx.core.graphics.drawable.toDrawable
 import com.eddyizm.tempus.viewmodel.LibraryViewModel
 import com.eddyizm.tempus.viewmodel.MainViewModel
+import com.eddyizm.tempus.weather.WeatherMood
+import com.eddyizm.tempus.weather.WeatherRepository
 import com.google.android.material.navigationrail.NavigationRailView
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -300,22 +306,73 @@ fun rememberEditorialColors(): EditorialColors {
     }
     val isAmoled = isDark && Preferences.isDarkThemeBlack()
     val isDynamic = Preferences.isDynamicColorAccent()
-    return remember(context, isDark, isAmoled, isDynamic) {
+    val weatherPref by WeatherRepository.preferenceState
+    val weatherLive by WeatherRepository.liveSnapshotState
+    val activeWeatherSpec = remember(weatherPref, weatherLive) {
+        WeatherRepository.activePaletteOrNull()
+    }
+    return remember(context, isDark, isAmoled, isDynamic, activeWeatherSpec) {
         val base = when {
             !isDark -> LightEditorialColors
             isAmoled -> AmoledEditorialColors
             else -> DarkEditorialColors
         }
-        if (!isDynamic) {
-            base
-        } else {
-            val dyn = if (isDark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-            base.copy(
-                primary = dyn.primary,
-                onPrimary = dyn.onPrimary,
-                secondaryAccent = dyn.secondary,
-                brass = dyn.primary,
-            )
+        when {
+            isDynamic -> {
+                val dyn = if (isDark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+                base.copy(
+                    primary = dyn.primary,
+                    onPrimary = dyn.onPrimary,
+                    secondaryAccent = dyn.secondary,
+                    brass = dyn.primary,
+                )
+            }
+            activeWeatherSpec != null -> {
+                if (!isDark) {
+                    base.copy(
+                        bg = activeWeatherSpec.lightBg,
+                        surface1 = activeWeatherSpec.lightSurface1,
+                        surface2 = activeWeatherSpec.lightSurface2,
+                        surface3 = activeWeatherSpec.lightSurface3,
+                        hairline = activeWeatherSpec.lightHairline,
+                        primary = activeWeatherSpec.lightPrimary,
+                        onPrimary = activeWeatherSpec.lightOnPrimary,
+                        brass = activeWeatherSpec.lightPrimary,
+                        textPrimary = activeWeatherSpec.lightTextPrimary,
+                        textSecondary = activeWeatherSpec.lightTextSecondary,
+                        heroWashFallback = activeWeatherSpec.lightHeroWash,
+                    )
+                } else if (isAmoled) {
+                    base.copy(
+                        bg = Color(0xFF000000),
+                        surface1 = activeWeatherSpec.amoledSurface1,
+                        surface2 = activeWeatherSpec.amoledSurface2,
+                        surface3 = activeWeatherSpec.amoledSurface3,
+                        hairline = activeWeatherSpec.darkHairline,
+                        primary = activeWeatherSpec.darkPrimary,
+                        onPrimary = activeWeatherSpec.darkOnPrimary,
+                        brass = activeWeatherSpec.darkPrimary,
+                        textPrimary = activeWeatherSpec.darkTextPrimary,
+                        textSecondary = activeWeatherSpec.darkTextSecondary,
+                        heroWashFallback = activeWeatherSpec.darkHeroWash,
+                    )
+                } else {
+                    base.copy(
+                        bg = activeWeatherSpec.darkBg,
+                        surface1 = activeWeatherSpec.darkSurface1,
+                        surface2 = activeWeatherSpec.darkSurface2,
+                        surface3 = activeWeatherSpec.darkSurface3,
+                        hairline = activeWeatherSpec.darkHairline,
+                        primary = activeWeatherSpec.darkPrimary,
+                        onPrimary = activeWeatherSpec.darkOnPrimary,
+                        brass = activeWeatherSpec.darkPrimary,
+                        textPrimary = activeWeatherSpec.darkTextPrimary,
+                        textSecondary = activeWeatherSpec.darkTextSecondary,
+                        heroWashFallback = activeWeatherSpec.darkHeroWash,
+                    )
+                }
+            }
+            else -> base
         }
     }
 }
@@ -404,6 +461,7 @@ fun BrowseTheme(content: @Composable () -> Unit) {
     val context = LocalContext.current
     val editorial = rememberEditorialColors()
     val isDynamic = Preferences.isDynamicColorAccent()
+    val isAmoled = editorial.isDark && Preferences.isDarkThemeBlack()
     val scheme = remember(context, editorial, isDynamic) {
         val dyn = if (isDynamic) {
             if (editorial.isDark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
@@ -412,12 +470,117 @@ fun BrowseTheme(content: @Composable () -> Unit) {
         }
         editorial.toMaterialColorScheme(dyn)
     }
+    @Suppress("DEPRECATION")
+    SideEffect {
+        val activity = context as? AppCompatActivity ?: return@SideEffect
+        if (isAmoled) {
+            activity.window.setBackgroundDrawable(android.graphics.Color.BLACK.toDrawable())
+            activity.window.statusBarColor = android.graphics.Color.BLACK
+            activity.window.navigationBarColor = android.graphics.Color.BLACK
+        } else if (!isDynamic) {
+            val bgInt = editorial.bg.toArgb()
+            val navInt = editorial.surface1.toArgb()
+            activity.window.setBackgroundDrawable(bgInt.toDrawable())
+            activity.window.statusBarColor = bgInt
+            activity.window.navigationBarColor = navInt
+        }
+    }
     CompositionLocalProvider(LocalEditorialColors provides editorial) {
         MaterialTheme(
             colorScheme = scheme,
             typography = EditorialTypography,
             content = content,
         )
+    }
+}
+
+/**
+ * Top atmospheric canopy coupled to the active weather palette (plus subtle 108° rain-glass streaks in RAIN).
+ */
+@Composable
+fun WeatherSkyCanopy(modifier: Modifier = Modifier) {
+    val colors = EditorialTheme.colors
+    val weatherPref by WeatherRepository.preferenceState
+    val weatherLive by WeatherRepository.liveSnapshotState
+    val spec = remember(weatherPref, weatherLive) { WeatherRepository.activePaletteOrNull() }
+        ?: return
+
+    val primaryGlow = if (colors.isDark) spec.darkCanopyStart else spec.lightCanopyStart
+    val secondaryGlow = if (colors.isDark) spec.darkCanopySecondary else spec.lightCanopySecondary
+    val isRain = spec.mood == WeatherMood.RAIN
+
+    Canvas(modifier = modifier.fillMaxWidth().height(210.dp)) {
+        drawRect(
+            brush = Brush.radialGradient(
+                colors = listOf(primaryGlow, Color.Transparent),
+                center = Offset(size.width * 0.22f, 0f),
+                radius = size.width * 0.92f,
+            ),
+        )
+        drawRect(
+            brush = Brush.radialGradient(
+                colors = listOf(secondaryGlow, Color.Transparent),
+                center = Offset(size.width * 0.86f, size.height * 0.08f),
+                radius = size.width * 0.72f,
+            ),
+        )
+        if (isRain) {
+            val streakColor = colors.primary.copy(alpha = if (colors.isDark) 0.055f else 0.075f)
+            val step = 28.dp.toPx()
+            var x = -40f
+            while (x < size.width + 60f) {
+                drawLine(
+                    color = streakColor,
+                    start = Offset(x, 0f),
+                    end = Offset(x - size.height * 0.28f, size.height * 0.86f),
+                    strokeWidth = 1.dp.toPx(),
+                )
+                x += step
+            }
+        }
+    }
+}
+
+/**
+ * Clean 38dp circular "我的" (`EditorialProfileButton`) replacing the removed `账号名 · 切号` chip.
+ */
+@Composable
+fun EditorialProfileButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = EditorialTheme.colors
+    val desc = stringResource(R.string.editorial_profile_button_desc)
+    Box(
+        modifier = modifier
+            .size(38.dp)
+            .pressable(onClick = onClick)
+            .clip(EditorialRadii.Pill)
+            .background(colors.surface2)
+            .border(1.dp, colors.hairline, EditorialRadii.Pill)
+            .semantics { contentDescription = desc },
+        contentAlignment = Alignment.Center,
+    ) {
+        val headColor = colors.textPrimary
+        val shoulderColor = colors.primary
+        Canvas(modifier = Modifier.size(18.dp)) {
+            val stroke = 1.7.dp.toPx()
+            drawCircle(
+                color = headColor,
+                radius = size.minDimension * 0.19f,
+                center = Offset(size.width / 2f, size.height * 0.32f),
+                style = Stroke(width = stroke),
+            )
+            drawArc(
+                color = shoulderColor,
+                startAngle = 200f,
+                sweepAngle = 140f,
+                useCenter = false,
+                topLeft = Offset(size.width * 0.16f, size.height * 0.56f),
+                size = Size(size.width * 0.68f, size.height * 0.54f),
+                style = Stroke(width = stroke, cap = StrokeCap.Round),
+            )
+        }
     }
 }
 
@@ -1265,11 +1428,12 @@ object LibraryHeaderBinder {
                 val folders by libraryViewModel.getMusicFolders(fragment.viewLifecycleOwner).observeAsState(emptyList())
                 val activeFolderSignal by mainViewModel.activeMusicFolderId.observeAsState()
                 val activeFolderId = remember(activeFolderSignal, folders) { Preferences.getActiveMusicFolderId() }
+                var showProfileSheet by remember { mutableStateOf(false) }
                 LibraryEditorialHeader(
                     folders = folders.orEmpty(),
                     activeFolderId = activeFolderId,
                     onSelectFolder = { folderId -> mainViewModel.setActiveMusicFolderId(folderId) },
-                    onOpenSettings = { fragment.findNavController().navigate(R.id.settingsFragment) },
+                    onOpenProfile = { showProfileSheet = true },
                     onOpenSearch = {
                         val args = Bundle().apply { putBoolean(SearchFragment.ARG_FOCUS, true) }
                         fragment.findNavController().navigate(R.id.searchFragment, args)
@@ -1297,6 +1461,12 @@ object LibraryHeaderBinder {
                     },
                     onOpenFilter = { fragment.findNavController().navigate(R.id.filterFragment) },
                 )
+                if (showProfileSheet) {
+                    ProfileCenterSheet(
+                        fragment = fragment,
+                        onDismiss = { showProfileSheet = false },
+                    )
+                }
             }
         }
     }
@@ -1307,7 +1477,7 @@ fun LibraryEditorialHeader(
     folders: List<MusicFolder>,
     activeFolderId: String?,
     onSelectFolder: (String?) -> Unit,
-    onOpenSettings: () -> Unit,
+    onOpenProfile: () -> Unit,
     onOpenSearch: () -> Unit,
     onOpenPlaylists: () -> Unit,
     onOpenAlbums: () -> Unit,
@@ -1318,23 +1488,24 @@ fun LibraryEditorialHeader(
     onOpenFilter: () -> Unit,
 ) {
     val colors = EditorialTheme.colors
-    val serverLabel = rememberActiveServerLabel()
     val folderLabel = remember(folders, activeFolderId) {
         MusicFolderUtil.resolveMusicFolderName(folders, activeFolderId)
     }
     var folderMenuExpanded by remember { mutableStateOf(false) }
 
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 12.dp, bottom = 6.dp),
-    ) {
-        Row(
+    Box(modifier = Modifier.fillMaxWidth()) {
+        WeatherSkyCanopy()
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 20.dp, end = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
+                .padding(top = 12.dp, bottom = 6.dp),
         ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 20.dp, end = 20.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
             EditorialDrawerButton(modifier = Modifier.padding(end = 6.dp))
             PageTitle(
                 text = stringResource(R.string.editorial_library_title),
@@ -1403,18 +1574,7 @@ fun LibraryEditorialHeader(
                     }
                 }
             }
-            ServerChip(
-                label = serverLabel,
-                onClick = onOpenSettings,
-            )
-            IconButton(onClick = onOpenSettings) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_settings),
-                    contentDescription = stringResource(R.string.editorial_settings_desc),
-                    tint = colors.textSecondary,
-                    modifier = Modifier.size(21.dp),
-                )
-            }
+            EditorialProfileButton(onClick = onOpenProfile)
         }
 
         GlobalSearchPill(
@@ -1469,6 +1629,7 @@ fun LibraryEditorialHeader(
                     )
                 }
             }
+        }
         }
     }
 }

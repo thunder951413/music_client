@@ -1,7 +1,5 @@
 package com.eddyizm.tempus.ui.browse
 
-import android.content.ClipData
-import android.content.ClipboardManager
 import android.graphics.Bitmap
 import android.os.Bundle
 import android.os.Handler
@@ -20,22 +18,15 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalTextStyle
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -49,10 +40,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.ContentScale
@@ -81,7 +70,6 @@ import com.bumptech.glide.integration.compose.ExperimentalGlideComposeApi
 import com.bumptech.glide.integration.compose.GlideImage
 import com.eddyizm.tempus.R
 import com.eddyizm.tempus.catalog.AudioCatalog
-import com.eddyizm.tempus.discovery.ChartTrack
 import com.eddyizm.tempus.glide.CustomGlideRequest
 import com.eddyizm.tempus.podcast.LocalPodcastStore
 import com.eddyizm.tempus.repository.AlbumRepository
@@ -95,6 +83,9 @@ import com.eddyizm.tempus.util.Constants
 import com.eddyizm.tempus.util.Preferences
 import com.eddyizm.tempus.viewmodel.HomeViewModel
 import com.eddyizm.tempus.viewmodel.MusicDiscoveryViewModel.Mode
+import com.eddyizm.tempus.weather.WeatherMood
+import com.eddyizm.tempus.weather.WeatherRepository
+import com.eddyizm.tempus.weather.WeatherSnapshot
 import com.google.common.util.concurrent.ListenableFuture
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -111,15 +102,13 @@ import kotlin.math.hypot
 
 /**
  * Editorial Warm Dark Home Header (`首页`):
- * 1. Top bar: conditional Drawer button + Serif English date eyebrow + Greeting on left; active Subsonic Server chip on right.
+ * 1. Top bar: conditional Drawer button + Date & Live Weather Eyebrow + Greeting on left; clean circular `我的` button on right (no `账号名 · 切号` chip).
  * 2. 44dp GlobalSearchPill -> SearchFragment.
- * 3. Hero Dual Cards (28dp radius, 60% : 40% split, 188dp height):
- *    - Left (`每日推荐`): Low-chroma cover-derived warm wash, Serif numeral (`—` when empty), fanned 4 mini covers,
- *      52dp Stylus Brass circular Play button.
- *    - Right (`私人漫游`): surface1 + hairline border, grooved vinyl disc visual with brass label.
- * 4. Honest `WishStatusCapsule` (12dp arc progress indicator, Hub vs Local vs Offline truth) + Warm-Dark `ModalBottomSheet`.
- * 5. `继续收听` (`ContinueListeningSection`) with 2dp Stylus Brass bottom progress bar (positioned directly above `曲库漫游`).
- * 6. Single Home for `曲库漫游` (`未听探索 / 我的常听 / 最近入库 / 随机漫游`) in a 2×2 `RecordSleeveCard` grid.
+ * 3. Hero Dual Cards (28dp radius, 60% : 40% split, 188dp height, side-by-side on one row):
+ *    - Left (`每日推荐`): Daily calendar rotation + ~30% weather style weighting + atmospheric wash.
+ *    - Right (`私人漫游`): Daily calendar rotation + ~30% weather style weighting + grooved vinyl disc visual.
+ * 4. `继续收听` (`ContinueListeningSection`) with 2dp accent bottom progress bar.
+ * 5. `曲库漫游` (`未听探索 / 我的常听 / 最近入库 / 随机漫游`) in a 2×2 `RecordSleeveCard` grid.
  */
 @OptIn(UnstableApi::class)
 class HomeHeader private constructor(
@@ -130,14 +119,22 @@ class HomeHeader private constructor(
     private var daily by mutableStateOf<DailyMixRepository.Today?>(DailyMixRepository.peekCachedToday())
     private var resumePoints by mutableStateOf<List<Preferences.ResumePoint>>(Preferences.getContinueListening())
     private var currentDate by mutableStateOf(LocalDate.now())
-    private var showWishSheet by mutableStateOf(false)
+    private var showProfileSheet by mutableStateOf(false)
     private var loadJob: Job? = null
     private val mainHandler = Handler(Looper.getMainLooper())
+
+    private fun refreshWeather() {
+        if (!fragment.isAdded) return
+        fragment.viewLifecycleOwner.lifecycleScope.launch {
+            runCatching { WeatherRepository.refresh(forceNetwork = false) }
+        }
+    }
 
     private fun loadDaily() {
         if (!fragment.isAdded) return
         if (loadJob?.isActive == true) return
         loadJob = fragment.viewLifecycleOwner.lifecycleScope.launch {
+            runCatching { WeatherRepository.refresh(forceNetwork = false) }
             repeat(8) {
                 currentDate = LocalDate.now()
                 daily = try {
@@ -171,6 +168,7 @@ class HomeHeader private constructor(
         val now = LocalDate.now()
         val dateChanged = now != currentDate
         currentDate = now
+        refreshWeather()
         refreshContinueListening()
         val current = daily
         if (dateChanged || current == null || (!current.offline && (current.pending || current.stale)) || current.songs.isEmpty()) {
@@ -257,11 +255,6 @@ class HomeHeader private constructor(
         )
     }
 
-    private fun openSettings() {
-        if (!fragment.isAdded) return
-        fragment.findNavController().navigate(R.id.settingsFragment)
-    }
-
     private fun openRoamMode(mode: Mode, title: String) {
         if (!fragment.isAdded) return
         fragment.findNavController().navigate(
@@ -281,60 +274,35 @@ class HomeHeader private constructor(
         )
     }
 
-    private fun copyWishes(wishes: List<DailyWish>) {
-        if (!fragment.isAdded || wishes.isEmpty()) return
-        val context = fragment.requireContext()
-        val copyText = wishes.joinToString("\n") { "${it.title} - ${it.artists.joinToString(" / ")}" }
-        context.getSystemService(ClipboardManager::class.java)
-            ?.setPrimaryClip(ClipData.newPlainText("daily-wishes", copyText))
-        Toast.makeText(
-            context,
-            context.getString(R.string.discovery_export_copied, wishes.size),
-            Toast.LENGTH_SHORT,
-        ).show()
-    }
-
-    private fun exportWishes(wishes: List<DailyWish>) {
-        if (!fragment.isAdded || wishes.isEmpty()) return
-        val context = fragment.requireContext()
-        val rows = wishes.mapIndexed { index, w ->
-            ChartTrack().apply {
-                id = w.id
-                title = w.title
-                originalTitle = w.original_title
-                artists = ArrayList(w.artists)
-                artist = w.artists.joinToString(" / ")
-                duration = w.duration
-                rank = index + 1
-                url = if (w.provider == "NETEASE") {
-                    "https://music.163.com/song?id=${w.id}"
-                } else {
-                    "https://y.qq.com/n/ryqq_v2/songDetail/${w.id}"
-                }
-            }
-        }
-        MissingExport.show(
-            fragment,
-            context.getString(R.string.home_daily_wishes_title, wishes.size),
-            "daily-wishes-$currentDate",
-            rows,
-        )
-    }
-
-    @kotlin.OptIn(ExperimentalMaterial3Api::class)
     @Composable
     private fun Content() {
         val colors = EditorialTheme.colors
+        val weatherPref by WeatherRepository.preferenceState
+        val weatherLive by WeatherRepository.liveSnapshotState
+        val effectiveWeather = remember(weatherPref, weatherLive) {
+            WeatherRepository.effectiveSnapshot()
+        }
+        val activePaletteSpec = remember(weatherPref, weatherLive) {
+            WeatherRepository.activePaletteOrNull()
+        }
+
         val greeting = when (LocalTime.now().hour) {
             in 5..10 -> R.string.home_greeting_morning
             in 11..17 -> R.string.home_greeting_afternoon
             in 18..22 -> R.string.home_greeting_evening
             else -> R.string.home_greeting_night
         }
-        val dateEyebrow = remember(currentDate) {
+        val baseDateEyebrow = remember(currentDate) {
             currentDate.format(DateTimeFormatter.ofPattern("EEE · MMM d", Locale.ENGLISH)).uppercase(Locale.ENGLISH)
         }
-        val serverLabel = rememberActiveServerLabel()
+        val fullEyebrow = remember(baseDateEyebrow, effectiveWeather, activePaletteSpec) {
+            if (effectiveWeather != null) {
+                val themeTag = activePaletteSpec?.let { " · ${it.paletteName}" }.orEmpty()
+                "$baseDateEyebrow · ${effectiveWeather.city} ${effectiveWeather.conditionLabel} ${effectiveWeather.tempC}°C$themeTag"
+            } else {
+                baseDateEyebrow
+            }
+        }
 
         // Observe sample covers from HomeViewModel for the 2×2 RecordSleeveCard mosaics
         val owner = fragment.viewLifecycleOwner
@@ -346,175 +314,195 @@ class HomeHeader private constructor(
         val recentlyAddedAlbums by (recentlyAddedLive?.observeAsState(emptyList()) ?: remember { mutableStateOf(emptyList()) })
         val discoverSampleSongs by (discoverSampleLive?.observeAsState(emptyList()) ?: remember { mutableStateOf(emptyList()) })
 
-        val songs = daily?.songs
-        val wishes = daily?.wishes.orEmpty()
+        // Reactively re-order today's songs when calendar day or weather mood changes
+        val effectiveToday = remember(daily, currentDate, effectiveWeather?.mood) {
+            val raw = daily ?: return@remember null
+            if (raw.songs.size <= 1) raw
+            else raw.copy(
+                songs = WeatherRepository.applyDailyWeatherOrder(
+                    songs = raw.songs,
+                    date = currentDate,
+                    mood = effectiveWeather?.mood,
+                ),
+            )
+        }
+        val songs = effectiveToday?.songs
+        val roamSubtitle = remember(currentDate, effectiveWeather) {
+            WeatherRepository.dailyRoamSubtitle(currentDate, effectiveWeather)
+        }
+
         val hideContinue = remember(homeViewModel) {
             homeViewModel?.checkHomeSectorVisibility(Constants.HOME_SECTOR_CONTINUE_LISTENING) == true
         }
 
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 12.dp, bottom = 10.dp),
-        ) {
-            // 1. Top Bar: Optional Drawer escape hatch + Date eyebrow + Greeting on left, Server chip on right
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                EditorialDrawerButton(modifier = Modifier.padding(end = 6.dp))
-                Column(Modifier.weight(1f)) {
-                    EditorialEyebrow(text = dateEyebrow, serif = true)
-                    PageTitle(
-                        text = stringResource(greeting),
-                        modifier = Modifier.padding(top = 2.dp),
-                    )
-                }
-                ServerChip(
-                    label = serverLabel,
-                    onClick = ::openSettings,
-                )
-            }
-
-            // 2. 44dp GlobalSearchPill
-            GlobalSearchPill(
-                placeholder = stringResource(R.string.editorial_search_home_placeholder),
-                modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 14.dp),
-                onClick = ::openSearch,
-            )
-
-            // 3. Hero Dual Cards (28dp radius, 60% : 40% split, 188dp height)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 20.dp, end = 20.dp, top = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                DailyMixHeroCard(
-                    today = daily,
-                    modifier = Modifier.weight(0.6f),
-                    onClick = {
-                        if (!songs.isNullOrEmpty()) play(songs) else loadDaily()
-                    },
-                )
-                PersonalRoamHeroCard(
-                    modifier = Modifier.weight(0.4f),
-                    onClick = ::startRadio,
-                )
-            }
-
-            // 4. Honest Wish Status Capsule
-            WishStatusCapsule(
-                today = daily,
-                modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 12.dp),
-                onOpenWishes = {
-                    if (wishes.isNotEmpty()) {
-                        showWishSheet = true
-                    }
-                },
-            )
-
-            // 5. Continue Listening (with 2dp Stylus Brass progress bar) directly above Library Roam
-            if (!hideContinue && resumePoints.isNotEmpty()) {
-                ContinueListeningSection(
-                    items = resumePoints,
-                    onResume = ::resumeItem,
-                )
-            }
-
-            // 6. Single Home for `曲库漫游` (2×2 RecordSleeveCard grid)
-            SectionHeader(
-                title = stringResource(R.string.editorial_home_roam_section),
-                modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 22.dp, bottom = 10.dp),
-            )
-
-            val unheardTitle = stringResource(R.string.browse_chart_unheard)
-            val frequentTitle = stringResource(R.string.browse_chart_frequent)
-            val newestTitle = stringResource(R.string.browse_chart_newest)
-            val randomTitle = stringResource(R.string.browse_chart_random)
-
-            val sampleCovers = remember(discoverSampleSongs) {
-                discoverSampleSongs.orEmpty().mapNotNull { it.coverArtId?.takeIf(String::isNotBlank) }.distinct()
-            }
-            val frequentCovers = remember(mostPlayedAlbums) {
-                mostPlayedAlbums.orEmpty().mapNotNull { it.coverArtId?.takeIf(String::isNotBlank) }.distinct()
-            }
-            val newestCovers = remember(recentlyAddedAlbums) {
-                recentlyAddedAlbums.orEmpty().mapNotNull { it.coverArtId?.takeIf(String::isNotBlank) }.distinct()
-            }
+        Box(modifier = Modifier.fillMaxWidth()) {
+            WeatherSkyCanopy()
 
             Column(
-                modifier = Modifier.padding(horizontal = 20.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 12.dp, bottom = 10.dp),
             ) {
+                // 1. Top Bar: Optional Drawer + Date/Weather Eyebrow + Greeting on left; clean circular Profile button on right
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    RecordSleeveCard(
-                        title = unheardTitle,
-                        subtitle = stringResource(R.string.editorial_roam_unheard_sub),
-                        spineColor = colors.moss,
-                        coverArtIds = sampleCovers.take(4),
-                        monogram = "0",
-                        modifier = Modifier.weight(1f),
-                        onClick = { openRoamMode(Mode.UNHEARD, unheardTitle) },
-                    )
-                    RecordSleeveCard(
-                        title = frequentTitle,
-                        subtitle = if (mostPlayedAlbums.orEmpty().isNotEmpty()) {
-                            stringResource(R.string.editorial_roam_frequent_count, mostPlayedAlbums.orEmpty().size)
-                        } else {
-                            stringResource(R.string.editorial_roam_frequent_sub)
-                        },
-                        spineColor = colors.brass,
-                        coverArtIds = frequentCovers.take(4),
-                        monogram = "★",
-                        modifier = Modifier.weight(1f),
-                        onClick = { openAlbumList(Constants.ALBUM_MOST_PLAYED) },
+                    EditorialDrawerButton(modifier = Modifier.padding(end = 6.dp))
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(end = 10.dp)
+                            .clickable { showProfileSheet = true },
+                    ) {
+                        Text(
+                            text = fullEyebrow,
+                            fontSize = 11.sp,
+                            lineHeight = 14.sp,
+                            fontWeight = FontWeight.Medium,
+                            fontFamily = FontFamily.Serif,
+                            letterSpacing = 0.8.sp,
+                            color = colors.primary.copy(alpha = 0.90f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            style = LocalTextStyle.current.tnum(),
+                        )
+                        PageTitle(
+                            text = stringResource(greeting),
+                            modifier = Modifier.padding(top = 2.dp),
+                        )
+                    }
+                    EditorialProfileButton(
+                        onClick = { showProfileSheet = true },
                     )
                 }
+
+                // 2. 44dp GlobalSearchPill
+                GlobalSearchPill(
+                    placeholder = stringResource(R.string.editorial_search_home_placeholder),
+                    modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 14.dp),
+                    onClick = ::openSearch,
+                )
+
+                // 3. Hero Dual Cards (28dp radius, 60% : 40% split, 188dp height — side-by-side on one row)
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 20.dp, end = 20.dp, top = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    RecordSleeveCard(
-                        title = newestTitle,
-                        subtitle = if (recentlyAddedAlbums.orEmpty().isNotEmpty()) {
-                            stringResource(R.string.editorial_roam_newest_count, recentlyAddedAlbums.orEmpty().size)
-                        } else {
-                            stringResource(R.string.editorial_roam_newest_sub)
+                    DailyMixHeroCard(
+                        today = effectiveToday,
+                        weather = effectiveWeather,
+                        modifier = Modifier.weight(0.6f),
+                        onClick = {
+                            if (!songs.isNullOrEmpty()) play(songs) else loadDaily()
                         },
-                        spineColor = BrowsePalette.colorAt(2),
-                        coverArtIds = newestCovers.take(4),
-                        monogram = "+",
-                        modifier = Modifier.weight(1f),
-                        onClick = { openAlbumList(Constants.ALBUM_RECENTLY_ADDED) },
                     )
-                    RecordSleeveCard(
-                        title = randomTitle,
-                        subtitle = stringResource(R.string.editorial_roam_random_sub),
-                        spineColor = BrowsePalette.colorAt(4),
-                        coverArtIds = sampleCovers.asReversed().take(4),
-                        monogram = "≈",
-                        modifier = Modifier.weight(1f),
-                        onClick = { openRoamMode(Mode.RANDOM, randomTitle) },
+                    PersonalRoamHeroCard(
+                        subtitle = roamSubtitle,
+                        modifier = Modifier.weight(0.4f),
+                        onClick = ::startRadio,
                     )
+                }
+
+                // 4. Continue Listening directly above Library Roam
+                if (!hideContinue && resumePoints.isNotEmpty()) {
+                    ContinueListeningSection(
+                        items = resumePoints,
+                        onResume = ::resumeItem,
+                    )
+                }
+
+                // 5. `曲库漫游` (2×2 RecordSleeveCard grid)
+                SectionHeader(
+                    title = stringResource(R.string.editorial_home_roam_section),
+                    modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 22.dp, bottom = 10.dp),
+                )
+
+                val unheardTitle = stringResource(R.string.browse_chart_unheard)
+                val frequentTitle = stringResource(R.string.browse_chart_frequent)
+                val newestTitle = stringResource(R.string.browse_chart_newest)
+                val randomTitle = stringResource(R.string.browse_chart_random)
+
+                val sampleCovers = remember(discoverSampleSongs) {
+                    discoverSampleSongs.orEmpty().mapNotNull { it.coverArtId?.takeIf(String::isNotBlank) }.distinct()
+                }
+                val frequentCovers = remember(mostPlayedAlbums) {
+                    mostPlayedAlbums.orEmpty().mapNotNull { it.coverArtId?.takeIf(String::isNotBlank) }.distinct()
+                }
+                val newestCovers = remember(recentlyAddedAlbums) {
+                    recentlyAddedAlbums.orEmpty().mapNotNull { it.coverArtId?.takeIf(String::isNotBlank) }.distinct()
+                }
+
+                Column(
+                    modifier = Modifier.padding(horizontal = 20.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        RecordSleeveCard(
+                            title = unheardTitle,
+                            subtitle = stringResource(R.string.editorial_roam_unheard_sub),
+                            spineColor = colors.moss,
+                            coverArtIds = sampleCovers.take(4),
+                            monogram = "0",
+                            modifier = Modifier.weight(1f),
+                            onClick = { openRoamMode(Mode.UNHEARD, unheardTitle) },
+                        )
+                        RecordSleeveCard(
+                            title = frequentTitle,
+                            subtitle = if (mostPlayedAlbums.orEmpty().isNotEmpty()) {
+                                stringResource(R.string.editorial_roam_frequent_count, mostPlayedAlbums.orEmpty().size)
+                            } else {
+                                stringResource(R.string.editorial_roam_frequent_sub)
+                            },
+                            spineColor = colors.brass,
+                            coverArtIds = frequentCovers.take(4),
+                            monogram = "★",
+                            modifier = Modifier.weight(1f),
+                            onClick = { openAlbumList(Constants.ALBUM_MOST_PLAYED) },
+                        )
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        RecordSleeveCard(
+                            title = newestTitle,
+                            subtitle = if (recentlyAddedAlbums.orEmpty().isNotEmpty()) {
+                                stringResource(R.string.editorial_roam_newest_count, recentlyAddedAlbums.orEmpty().size)
+                            } else {
+                                stringResource(R.string.editorial_roam_newest_sub)
+                            },
+                            spineColor = BrowsePalette.colorAt(2),
+                            coverArtIds = newestCovers.take(4),
+                            monogram = "+",
+                            modifier = Modifier.weight(1f),
+                            onClick = { openAlbumList(Constants.ALBUM_RECENTLY_ADDED) },
+                        )
+                        RecordSleeveCard(
+                            title = randomTitle,
+                            subtitle = stringResource(R.string.editorial_roam_random_sub),
+                            spineColor = BrowsePalette.colorAt(4),
+                            coverArtIds = sampleCovers.asReversed().take(4),
+                            monogram = "≈",
+                            modifier = Modifier.weight(1f),
+                            onClick = { openRoamMode(Mode.RANDOM, randomTitle) },
+                        )
+                    }
                 }
             }
         }
 
-        if (showWishSheet && wishes.isNotEmpty()) {
-            DailyWishesBottomSheet(
-                wishes = wishes,
-                onDismiss = { showWishSheet = false },
-                onCopy = { copyWishes(wishes) },
-                onExport = {
-                    showWishSheet = false
-                    exportWishes(wishes)
-                },
+        if (showProfileSheet) {
+            ProfileCenterSheet(
+                fragment = fragment,
+                onDismiss = { showProfileSheet = false },
             )
         }
     }
@@ -547,6 +535,7 @@ class HomeHeader private constructor(
                     header.onResumeRefresh()
                 }
             })
+            header.refreshWeather()
             header.refreshContinueListening()
             header.loadDaily()
         }
@@ -625,7 +614,6 @@ private fun ContinueListeningCard(
                 )
             }
 
-            // 2dp Stylus Brass bottom progress bar across the cover base
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomStart)
@@ -718,31 +706,40 @@ private fun formatResumePosition(ms: Long): String {
 @Composable
 private fun DailyMixHeroCard(
     today: DailyMixRepository.Today?,
+    weather: WeatherSnapshot?,
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
     val colors = EditorialTheme.colors
     val songs = today?.songs
-    val wishesCount = today?.wishes?.size ?: 0
     val countNumeral = songs?.size?.takeIf { it > 0 }?.toString() ?: "—"
 
     val leadCoverIds = remember(songs) {
         songs.orEmpty().mapNotNull { it.coverArtId?.takeIf(String::isNotBlank) }.distinct().take(4)
     }
-    val warmWash = rememberClampedCoverWash(
+    val sampledWash = rememberClampedCoverWash(
         coverArtId = leadCoverIds.firstOrNull(),
         isDark = colors.isDark,
         fallback = colors.heroWashFallback,
     )
+    val warmWash = remember(sampledWash, colors.heroWashFallback) {
+        Color(ColorUtils.blendARGB(sampledWash.toArgb(), colors.heroWashFallback.toArgb(), 0.48f))
+    }
+
+    val weatherHint = when (weather?.mood) {
+        WeatherMood.RAIN -> "每日焕新 · ${weather.conditionLabel}慢板加权"
+        WeatherMood.CLEAR -> "每日焕新 · ${weather.conditionLabel}明快律动"
+        WeatherMood.COLD -> "每日焕新 · ${weather.conditionLabel}纯音器乐"
+        WeatherMood.CLOUDY -> "每日焕新 · ${weather.conditionLabel}耐听甄选"
+        null -> null
+    }
 
     val statusText = when {
         today == null -> stringResource(R.string.editorial_daily_status_preparing)
-        today.offline -> stringResource(R.string.editorial_daily_status_local)
         today.pending -> stringResource(R.string.editorial_daily_status_preparing)
-        !today.fromHub && !songs.isNullOrEmpty() -> stringResource(R.string.editorial_daily_status_local)
-        today.stale && !songs.isNullOrEmpty() -> stringResource(R.string.editorial_daily_status_cached)
         songs.isNullOrEmpty() -> stringResource(R.string.editorial_daily_status_empty)
-        wishesCount > 0 -> stringResource(R.string.editorial_daily_status_ready_wishes, wishesCount)
+        weatherHint != null -> weatherHint
+        today.stale -> stringResource(R.string.editorial_daily_status_cached)
         else -> stringResource(R.string.editorial_daily_status_ready)
     }
 
@@ -752,7 +749,6 @@ private fun DailyMixHeroCard(
             .pressable(onClick = onClick)
             .editorialCard(shape = EditorialRadii.Hero, backgroundColor = colors.surface1),
     ) {
-        // Low-chroma radial warm wash (L* 16..26 in dark mode)
         Box(
             Modifier
                 .fillMaxSize()
@@ -765,7 +761,6 @@ private fun DailyMixHeroCard(
                 ),
         )
 
-        // Fanned 4 mini album covers at top-right
         FannedMiniCovers(
             coverArtIds = leadCoverIds,
             modifier = Modifier
@@ -773,7 +768,6 @@ private fun DailyMixHeroCard(
                 .padding(top = 15.dp, end = 12.dp),
         )
 
-        // Editorial Serif Big Numeral on top-left
         Text(
             text = countNumeral,
             modifier = Modifier.padding(start = 18.dp, top = 12.dp),
@@ -786,7 +780,6 @@ private fun DailyMixHeroCard(
             style = LocalTextStyle.current.tnum(),
         )
 
-        // Title & Status at bottom-left
         Column(
             modifier = Modifier
                 .align(Alignment.BottomStart)
@@ -811,7 +804,6 @@ private fun DailyMixHeroCard(
             )
         }
 
-        // 52dp Solid Stylus Brass circular Play button (#CFA46A fill, #1D160B glyph)
         Box(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
@@ -877,6 +869,7 @@ private fun FannedMiniCovers(
 
 @Composable
 private fun PersonalRoamHeroCard(
+    subtitle: String,
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
@@ -887,7 +880,6 @@ private fun PersonalRoamHeroCard(
             .pressable(onClick = onClick)
             .editorialCard(shape = EditorialRadii.Hero, backgroundColor = colors.surface1),
     ) {
-        // Peeking grooved dark vinyl disc on top-right with Stylus Brass center label
         val discBase = colors.vinylDisc
         val grooveStroke = colors.vinylGroove
         val centerLabel = colors.primary
@@ -909,7 +901,6 @@ private fun PersonalRoamHeroCard(
                     style = Stroke(width = 1.dp.toPx()),
                 )
             }
-            // Stylus Brass center label + spindle hole
             drawCircle(color = centerLabel, radius = discRadius * 0.30f, center = center)
             drawCircle(color = discBase, radius = discRadius * 0.07f, center = center)
         }
@@ -934,10 +925,10 @@ private fun PersonalRoamHeroCard(
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = stringResource(R.string.editorial_roam_subtitle_short),
+                text = subtitle,
                 modifier = Modifier.padding(top = 3.dp),
-                fontSize = 13.sp,
-                lineHeight = 17.sp,
+                fontSize = 12.sp,
+                lineHeight = 16.sp,
                 color = colors.textSecondary,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
@@ -947,283 +938,6 @@ private fun PersonalRoamHeroCard(
     }
 }
 
-@Composable
-private fun formatSyncAgo(syncedAtMs: Long): String {
-    if (syncedAtMs <= 0L) return stringResource(R.string.editorial_sync_just_now)
-    val elapsedMin = ((System.currentTimeMillis() - syncedAtMs).coerceAtLeast(0L)) / 60_000L
-    return when {
-        elapsedMin < 1L -> stringResource(R.string.editorial_sync_just_now)
-        elapsedMin < 60L -> stringResource(R.string.editorial_sync_minutes_ago, elapsedMin.toInt())
-        else -> stringResource(R.string.editorial_sync_hours_ago, (elapsedMin / 60L).toInt())
-    }
-}
-
-@Composable
-private fun WishStatusCapsule(
-    today: DailyMixRepository.Today?,
-    modifier: Modifier = Modifier,
-    onOpenWishes: () -> Unit,
-) {
-    val colors = EditorialTheme.colors
-    val wishes = today?.wishes.orEmpty()
-    val songsCount = today?.songs?.size ?: 0
-    val canOpenWishes = wishes.isNotEmpty()
-    val syncAgo = formatSyncAgo(today?.syncedAtMs ?: 0L)
-
-    val label = when {
-        today == null -> stringResource(R.string.editorial_wish_syncing)
-        today.offline -> if (wishes.isNotEmpty()) {
-            stringResource(R.string.editorial_wish_offline_wishes, wishes.size)
-        } else {
-            stringResource(R.string.editorial_wish_offline)
-        }
-        today.pending -> stringResource(R.string.editorial_wish_syncing)
-        !today.fromHub -> if (wishes.isNotEmpty()) {
-            stringResource(R.string.editorial_wish_local_wishes, wishes.size, songsCount)
-        } else {
-            stringResource(R.string.editorial_wish_local_ready, songsCount)
-        }
-        wishes.isNotEmpty() -> stringResource(
-            R.string.editorial_wish_hub_pending,
-            wishes.size,
-            today.importedToday.coerceAtLeast(0),
-            syncAgo,
-        )
-        else -> stringResource(
-            R.string.editorial_wish_hub_synced,
-            today.importedToday.coerceAtLeast(0),
-            songsCount,
-            syncAgo,
-        )
-    }
-
-    val ringColor = when {
-        today == null -> colors.brass
-        today.offline -> colors.textTertiary
-        today.pending -> colors.brass
-        !today.fromHub -> colors.brass.copy(alpha = 0.72f)
-        wishes.isNotEmpty() -> colors.brass
-        else -> colors.moss
-    }
-
-    val arcFraction = when {
-        today == null || today.pending -> 0.62f
-        today.offline -> 0f
-        !today.fromHub -> if (songsCount > 0) 1f else 0.35f
-        else -> {
-            val total = today.importedToday.coerceAtLeast(0) + wishes.size
-            when {
-                total > 0 -> (today.importedToday.coerceAtLeast(0).toFloat() / total.toFloat()).coerceIn(0f, 1f)
-                songsCount > 0 -> 1f
-                else -> 0f
-            }
-        }
-    }
-
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(EditorialRadii.Pill)
-            .background(colors.surface1)
-            .border(
-                width = 1.dp,
-                color = if (canOpenWishes) colors.brass.copy(alpha = 0.34f) else colors.hairline,
-                shape = EditorialRadii.Pill,
-            )
-            .clickable(enabled = canOpenWishes, onClick = onOpenWishes)
-            .padding(horizontal = 14.dp, vertical = 9.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        val trackColor = if (canOpenWishes) colors.brass.copy(alpha = 0.28f) else colors.textTertiary.copy(alpha = 0.32f)
-        Canvas(modifier = Modifier.size(12.dp)) {
-            val strokePx = 1.6.dp.toPx()
-            val inset = strokePx / 2f
-            val arcSize = Size(size.width - strokePx, size.height - strokePx)
-            drawCircle(
-                color = trackColor,
-                radius = (size.minDimension - strokePx) / 2f,
-                style = Stroke(width = strokePx),
-            )
-            if (arcFraction > 0f) {
-                drawArc(
-                    color = ringColor,
-                    startAngle = -90f,
-                    sweepAngle = 360f * arcFraction,
-                    useCenter = false,
-                    topLeft = Offset(inset, inset),
-                    size = arcSize,
-                    style = Stroke(width = strokePx, cap = StrokeCap.Round),
-                )
-            }
-        }
-        Text(
-            text = label,
-            modifier = Modifier.weight(1f),
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Medium,
-            color = if (canOpenWishes) colors.brass else colors.textSecondary,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            style = LocalTextStyle.current.tnum(),
-        )
-        if (canOpenWishes) {
-            Icon(
-                painter = painterResource(R.drawable.ic_navigate_next),
-                contentDescription = null,
-                tint = colors.brass,
-                modifier = Modifier.size(16.dp),
-            )
-        }
-    }
-}
-
-@kotlin.OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun DailyWishesBottomSheet(
-    wishes: List<DailyWish>,
-    onDismiss: () -> Unit,
-    onCopy: () -> Unit,
-    onExport: () -> Unit,
-) {
-    val colors = EditorialTheme.colors
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        shape = EditorialRadii.SheetTop,
-        containerColor = colors.surface2,
-        contentColor = colors.textPrimary,
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp)
-                .padding(bottom = 24.dp),
-        ) {
-            Text(
-                text = stringResource(R.string.editorial_wish_sheet_title),
-                fontSize = 20.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = colors.textPrimary,
-            )
-            Text(
-                text = stringResource(R.string.editorial_wish_sheet_subtitle, wishes.size),
-                modifier = Modifier.padding(top = 4.dp),
-                fontSize = 13.sp,
-                color = colors.textSecondary,
-                style = LocalTextStyle.current.tnum(),
-            )
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 14.dp, bottom = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                EditorialOutlinePill(
-                    text = stringResource(R.string.editorial_wish_sheet_copy),
-                    height = 36.dp,
-                    accent = colors.brass,
-                    modifier = Modifier.weight(1f),
-                    onClick = onCopy,
-                )
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(36.dp)
-                        .pressable(onClick = onExport)
-                        .clip(EditorialRadii.Pill)
-                        .background(colors.primary),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        text = stringResource(R.string.editorial_wish_sheet_export),
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = colors.onPrimary,
-                    )
-                }
-            }
-
-            HorizontalDivider(color = colors.hairline)
-
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 380.dp),
-                contentPadding = PaddingValues(vertical = 8.dp),
-            ) {
-                itemsIndexed(wishes, key = { idx, item -> "$idx:${item.provider}:${item.id}" }) { index, wish ->
-                    val platformLabel = if (wish.provider == "NETEASE") {
-                        stringResource(R.string.editorial_wish_platform_netease)
-                    } else {
-                        stringResource(R.string.editorial_wish_platform_qq)
-                    }
-                    val durationText = wish.duration?.takeIf { it > 0 }?.let {
-                        "%d:%02d".format(Locale.US, it / 60, it % 60)
-                    }
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            text = "%02d".format(Locale.US, index + 1),
-                            modifier = Modifier.width(28.dp),
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = colors.textTertiary,
-                            style = LocalTextStyle.current.tnum(),
-                        )
-                        Column(Modifier.weight(1f).padding(end = 10.dp)) {
-                            Text(
-                                text = wish.title,
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = colors.textPrimary,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                            Text(
-                                text = wish.artists.joinToString(" / "),
-                                fontSize = 13.sp,
-                                color = colors.textSecondary,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
-                        if (durationText != null) {
-                            Text(
-                                text = durationText,
-                                modifier = Modifier.padding(end = 8.dp),
-                                fontSize = 11.sp,
-                                color = colors.textTertiary,
-                                style = LocalTextStyle.current.tnum(),
-                            )
-                        }
-                        Text(
-                            text = platformLabel,
-                            modifier = Modifier
-                                .clip(EditorialRadii.Badge)
-                                .background(colors.surface3)
-                                .border(1.dp, colors.hairline, EditorialRadii.Badge)
-                                .padding(horizontal = 6.dp, vertical = 2.dp),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = colors.brass,
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-/**
- * Extracts a warm, low-chroma cover-derived tint clamped to L* 16..26 (dark) or L* 88..94 (light).
- */
 @Composable
 private fun rememberClampedCoverWash(
     coverArtId: String?,
@@ -1289,7 +1003,6 @@ private fun sampleAndClampLab(bitmap: Bitmap, isDark: Boolean, fallback: Color):
         lab[1] *= scale
         lab[2] *= scale
     }
-    // Warm bias so icy cyan/magenta covers never turn neon
     lab[2] = lab[2].coerceAtLeast(if (isDark) 3.0 else 4.0)
     lab[0] = if (isDark) lab[0].coerceIn(17.0, 25.0) else lab[0].coerceIn(88.0, 93.0)
     val clampedArgb = ColorUtils.LABToColor(lab[0], lab[1], lab[2])

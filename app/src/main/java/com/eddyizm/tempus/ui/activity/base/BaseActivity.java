@@ -149,11 +149,6 @@ public class BaseActivity extends AppCompatActivity {
     }
 
     private String generateThemeSignature() {
-        String accent = (Preferences.isDynamicColorAccent())
-                ? "DYNAMIC"
-                : Preferences.getColorAccent();
-        String theme = Preferences.getTheme();
-        String black = String.valueOf(Preferences.isDarkThemeBlack());
-        return theme + "|" + black + "|" + accent;
+        return ThemeHelper.themeSignature();
     }
 }

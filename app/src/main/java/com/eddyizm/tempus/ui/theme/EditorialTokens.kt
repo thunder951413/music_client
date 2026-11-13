@@ -30,8 +30,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.getValue
 import com.eddyizm.tempus.R
 import com.eddyizm.tempus.util.Preferences
+import com.eddyizm.tempus.weather.WeatherRepository
 import com.google.android.material.color.MaterialColors
 
 /**
@@ -360,6 +362,11 @@ fun rememberEditorialColorScheme(): ColorScheme {
     }
     val isDynamic = Preferences.isDynamicColorAccent()
     val isAmoled = isDark && Preferences.isDarkThemeBlack()
+    val weatherPref by WeatherRepository.preferenceState
+    val weatherLive by WeatherRepository.liveSnapshotState
+    val weatherSpec = remember(weatherPref, weatherLive, isDynamic) {
+        if (isDynamic) null else WeatherRepository.activePaletteOrNull()
+    }
 
     val defaultScheme = when {
         isDynamic -> if (isDark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
@@ -367,7 +374,44 @@ fun rememberEditorialColorScheme(): ColorScheme {
         else -> EditorialTokens.WarmLightColorScheme
     }
 
-    return remember(context, isDark, isAmoled, isDynamic) {
+    return remember(context, isDark, isAmoled, isDynamic, weatherSpec) {
+        if (weatherSpec != null) {
+            return@remember if (isDark) {
+                defaultScheme.copy(
+                    primary = weatherSpec.darkPrimary,
+                    onPrimary = weatherSpec.darkOnPrimary,
+                    background = if (isAmoled) EditorialTokens.AmoledBg else weatherSpec.darkBg,
+                    onBackground = weatherSpec.darkTextPrimary,
+                    surface = if (isAmoled) EditorialTokens.AmoledBg else weatherSpec.darkBg,
+                    onSurface = weatherSpec.darkTextPrimary,
+                    onSurfaceVariant = weatherSpec.darkTextSecondary,
+                    surfaceVariant = if (isAmoled) weatherSpec.amoledSurface1 else weatherSpec.darkSurface3,
+                    surfaceContainerLowest = if (isAmoled) EditorialTokens.AmoledBg else weatherSpec.darkBg,
+                    surfaceContainerLow = if (isAmoled) EditorialTokens.AmoledSheetLow else weatherSpec.darkSurface1,
+                    surfaceContainer = if (isAmoled) weatherSpec.amoledSurface1 else weatherSpec.darkSurface1,
+                    surfaceContainerHigh = if (isAmoled) weatherSpec.amoledSurface2 else weatherSpec.darkSurface2,
+                    surfaceContainerHighest = if (isAmoled) weatherSpec.amoledSurface3 else weatherSpec.darkSurface3,
+                    secondaryContainer = if (isAmoled) weatherSpec.amoledSurface3 else weatherSpec.darkSurface3,
+                )
+            } else {
+                defaultScheme.copy(
+                    primary = weatherSpec.lightPrimary,
+                    onPrimary = weatherSpec.lightOnPrimary,
+                    background = weatherSpec.lightBg,
+                    onBackground = weatherSpec.lightTextPrimary,
+                    surface = weatherSpec.lightBg,
+                    onSurface = weatherSpec.lightTextPrimary,
+                    onSurfaceVariant = weatherSpec.lightTextSecondary,
+                    surfaceVariant = weatherSpec.lightSurface3,
+                    surfaceContainerLowest = weatherSpec.lightBg,
+                    surfaceContainerLow = weatherSpec.lightSurface1,
+                    surfaceContainer = weatherSpec.lightSurface1,
+                    surfaceContainerHigh = weatherSpec.lightSurface2,
+                    surfaceContainerHighest = weatherSpec.lightSurface3,
+                    secondaryContainer = weatherSpec.lightSurface3,
+                )
+            }
+        }
         fun resolveColor(@AttrRes attr: Int, fallback: Color): Color {
             val resolved = Color(
                 MaterialColors.getColor(context, attr, fallback.toArgb())
@@ -444,10 +488,16 @@ fun rememberEditorialPalette(
     }
     val isAmoled = isDark && Preferences.isDarkThemeBlack()
     val isDynamic = Preferences.isDynamicColorAccent()
+    val weatherPref by WeatherRepository.preferenceState
+    val weatherLive by WeatherRepository.liveSnapshotState
+    val weatherSpec = remember(weatherPref, weatherLive, isDynamic) {
+        if (isDynamic) null else WeatherRepository.activePaletteOrNull()
+    }
 
-    return remember(colorScheme, isDark, isAmoled, isDynamic) {
+    return remember(colorScheme, isDark, isAmoled, isDynamic, weatherSpec) {
         val sheetColor = when {
             isAmoled -> EditorialTokens.AmoledSheetLow
+            weatherSpec != null -> if (isDark) weatherSpec.darkSurface2 else weatherSpec.lightSurface1
             isDynamic -> if (isDark) colorScheme.surfaceContainerHigh else colorScheme.surfaceContainerLow
             isDark -> EditorialTokens.DarkSurface2
             else -> EditorialTokens.LightSurface1
@@ -461,7 +511,11 @@ fun rememberEditorialPalette(
             surface2 = colorScheme.surfaceContainerHigh,
             surface3 = colorScheme.surfaceContainerHighest,
             sheetContainer = sheetColor,
-            hairline = if (isDark) EditorialTokens.DarkHairline else EditorialTokens.LightHairline,
+            hairline = when {
+                weatherSpec != null -> if (isDark) weatherSpec.darkHairline else weatherSpec.lightHairline
+                isDark -> EditorialTokens.DarkHairline
+                else -> EditorialTokens.LightHairline
+            },
             innerHighlight = if (isDark) EditorialTokens.DarkInnerHighlight else EditorialTokens.LightInnerHighlight,
             primary = colorScheme.primary,
             onPrimary = colorScheme.onPrimary,
@@ -470,7 +524,11 @@ fun rememberEditorialPalette(
             textTertiary = if (isDark) EditorialTokens.DarkTextTertiary else EditorialTokens.LightTextTertiary,
             moss = if (isDark) EditorialTokens.VinylMoss else EditorialTokens.PaperMoss,
             terracotta = if (isDark) EditorialTokens.Terracotta else EditorialTokens.PaperTerracotta,
-            brass = if (isDark) EditorialTokens.StylusBrass else EditorialTokens.PaperBrass,
+            brass = when {
+                weatherSpec != null -> if (isDark) weatherSpec.darkPrimary else weatherSpec.lightPrimary
+                isDark -> EditorialTokens.StylusBrass
+                else -> EditorialTokens.PaperBrass
+            },
         )
     }
 }

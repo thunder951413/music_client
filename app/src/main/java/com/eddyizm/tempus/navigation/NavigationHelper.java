@@ -126,7 +126,7 @@ public class NavigationHelper {
     public static boolean isTargetDestination(@NonNull NavDestination destination) {
         int destId = destination.getId();
         return destId == R.id.homeFragment ||
-                destId == R.id.discoverFragment ||
+                destId == R.id.externalPlaylistFragment ||
                 destId == R.id.listenFragment ||
                 destId == R.id.searchFragment ||
                 destId == R.id.libraryFragment ||

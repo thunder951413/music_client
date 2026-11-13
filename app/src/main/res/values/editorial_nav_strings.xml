@@ -12,4 +12,7 @@
     <string name="editorial_listen_add_radio">+ Custom Stream</string>
     <string name="editorial_podcast_resume_remaining">Resume · %1$s left</string>
     <string name="editorial_podcast_resume_at">Resume at %1$s</string>
+    <string name="editorial_profile_button_desc">Account, Weather &amp; Preferences</string>
+    <string name="editorial_profile_playlist_export">Playlist Match &amp; Export</string>
+    <string name="editorial_profile_playlist_export_sub">Import external playlist link &amp; export missing tracks</string>
 </resources>
