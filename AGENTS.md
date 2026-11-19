@@ -1,19 +1,24 @@
 # AGENTS.md - Tempus (Android Subsonic Client)
 
 ## Project Overview
-**Tempus** is an open-source Android music client for Subsonic servers. Two product flavors:
-- **tempus** (`com.eddyizm.tempus`) - GitHub release with Android Auto & Chromecast
-- **degoogled** (`com.eddyizm.degoogled.tempus`) - IzzyOnDroid/F-Droid release, no Google services
+**Tempus** (`music_client` fork) is a Subsonic/Navidrome music ecosystem composed of three parts:
+- **Android Client** (`app/`): Two product flavors:
+  - **tempus** (`com.eddyizm.tempus`) - with Android Auto & Media3 Cast
+  - **degoogled** (`io.github.thunder951413.musicclient`) - primary release flavor, no Google services
+- **Rust Hub Service** (`services/tempus-hub/`): Multi-account/device play event ingestion, daily mix generation, charts cache, and wishlist/playlist backfill (Axum + SQLite + ChaCha20-Poly1305)
+- **Mac Playlist Import Companion** (`tools/playlist_import/`): Local companion tool + web dashboard for validating and uploading downloaded audio/NCM tracks against hub wishes
 
 ## Build & Development
 
 ### Toolchain
-- **Gradle**: 9.4.1 (wrapper)
+- **Gradle**: 9.8.0 (wrapper)
 - **AGP**: 9.2.1
-- **Kotlin**: 2.2.10
+- **Kotlin**: 2.2.20
 - **Java**: 21 (via Foojay toolchain resolver in `settings.gradle`)
-- **compileSdk/targetSdk**: 36
+- **compileSdk/targetSdk**: 37
 - **minSdk**: 34 (Android 14; this fork targets recent high-end devices)
+- **Rust** (`services/tempus-hub`): Edition 2024, stable toolchain
+- **Python** (`tools/playlist_import`): Python 3.9+
 
 ### Key Commands
 ```bash
@@ -62,15 +67,17 @@
 - **Main package**: `com.eddyizm.tempus` (namespace), app IDs differ by flavor
 
 ## Testing
-- **Unit tests**: JUnit 4 + Mockito + MockK (run via `test*UnitTest` tasks)
-- **Instrumented tests**: AndroidX Test + Espresso (run via `connected*AndroidTest`)
-- **No CI test execution** currently - tests run locally only
+- **Android Unit tests**: JUnit 4 + Mockito (`./gradlew testDegoogledDebugUnitTest`, `./gradlew testTempusDebugUnitTest`)
+- **Android Instrumented tests**: AndroidX Test (`connected*AndroidTest`)
+- **Rust Hub tests**: `cd services/tempus-hub && cargo test --locked && python3 -m unittest discover -s tests -v`
+- **Playlist Import Helper tests**: `python3 -m unittest discover -s tools/playlist_import -p 'test_*.py' -v`
 - Test configs in `app/build.gradle`: `testOptions.unitTests.returnDefaultValues = true`
 
 ## CI / Release Process
-- **Prerelease** (`.github/workflows/github_prerelease.yml`): Triggered on `v*-dev*` tags, builds debug APKs, signs with release keystore
-- **Release** (`.github/workflows/github_release.yml`): Triggered on `v*` tags (non-dev), builds both release flavors, signs, creates GitHub release with APKs + ProGuard mapping files (gzipped)
-- **Signing**: Uses `r0adkll/sign-android-release` action with keystore from secrets
+- **Android PR & Push Check** (`.github/workflows/github-pr.yml`): Runs `./gradlew check` on PRs and pushes to `main`/`custom`/`development`
+- **Release** (`.github/workflows/github_release.yml`): Triggered on `v*` tags matching `musicClientVersion` in `gradle.properties`, builds signed `degoogledRelease` APK + gzipped ProGuard `mapping.txt`
+- **Tempus Hub CI** (`.github/workflows/tempus_hub.yml`): Runs `cargo fmt --check`, `cargo clippy --locked --all-targets -- -D warnings`, `cargo test --locked`, and Python HTTP regression tests
+- **Playlist Import CI** (`.github/workflows/playlist_import.yml`): Runs `tools/playlist_import` Python unit tests
 - **Java**: Zulu JDK 21 in CI
 
 ## Key Files
@@ -102,11 +109,10 @@
 | Generate lint baseline | `./gradlew updateLintBaseline` |
 
 ## Gotchas
-- **Two app IDs**: `com.eddyizm.tempus` vs `com.eddyizm.degoogled.tempus` - debug adds `.debug` suffix
+- **Two app IDs**: `com.eddyizm.tempus` vs `io.github.thunder951413.musicclient` - debug adds `.debug` suffix
 - **Media3 Cast** only in `tempus` flavor (`tempusImplementation libs.media3.cast`)
 - **FFmpeg decoder** is a local AAR (`libs/lib-decoder-ffmpeg-release.aar`), built separately via `bin/build.sh`
 - **Room schemas** committed to `app/schemas/` - update on schema changes
-- **No tests in CI** - run locally before PR
 - **Java 21 required** (managed by Foojay in Gradle)
 
 ## Proguard mapping for Release

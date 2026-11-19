@@ -1,6 +1,12 @@
 name: PR Check
 
 on:
+  push:
+    branches: [main, custom, development]
+    paths-ignore:
+      - 'services/tempus-hub/**'
+      - 'tools/playlist_import/**'
+      - '**.md'
   pull_request:
     types: [opened, synchronize, reopened]
 

@@ -2,27 +2,25 @@ graphify-out/
 *.iml
 .gradle
 /local.properties
-/.idea/caches
-/.idea/libraries
-/.idea/modules.xml
-/.idea/workspace.xml
-/.idea/navEditor.xml
-/.idea/assetWizardSettings.xml
+/.idea/
 .DS_Store
 /build
 /captures
 .externalNativeBuild
 .cxx
 .opencode/
-graphify-out/
-/.idea/
+.claude/
+.agents/
 .env
 .vscode/settings.json
+.kotlin
+.android-home/
+.gradle-home/
+/dist/
+services/tempus-hub/target/
 # release / debug files
 tempus-release-key.jks
 app/tempus/
 app/degoogled/
-.agents/
-.kotlin
 # Release signing key and passwords (keep a backup elsewhere)
 .signing/

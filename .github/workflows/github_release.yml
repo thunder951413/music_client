@@ -58,6 +58,10 @@ jobs:
             echo "No signed release APK in $out:"; ls -la "$out"; exit 1
           fi
           cp "$apk" "music_client-${VERSION}.apk"
+          mapping=app/build/outputs/mapping/degoogledRelease/mapping.txt
+          if [ -f "$mapping" ]; then
+            gzip -c "$mapping" > "music_client-${VERSION}-mapping.txt.gz"
+          fi
           rm -f "$RUNNER_TEMP/release.jks"
 
       - name: Publish release
@@ -65,4 +69,6 @@ jobs:
         with:
           name: ${{ github.ref_name }}
           generate_release_notes: true
-          files: music_client-${{ env.VERSION }}.apk
+          files: |
+            music_client-${{ env.VERSION }}.apk
+            music_client-${{ env.VERSION }}-mapping.txt.gz
